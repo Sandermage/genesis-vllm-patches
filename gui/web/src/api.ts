@@ -1535,8 +1535,8 @@ export const api = {
   installTargets: () => request<InstallTargets>("/api/v1/install/targets"),
   installPlan: (host_id: string, preset_id: string, target: string, image_override?: string, with_daemon?: boolean) => postJson<InstallPlan>("/api/v1/install/plan", { host_id, preset_id, target, image_override: image_override || undefined, with_daemon: with_daemon || undefined }),
   installApply: (host_id: string, preset_id: string, target: string, image_override?: string, with_daemon?: boolean) => postJson<InstallApplyResult>("/api/v1/install/apply", { host_id, preset_id, target, confirm: true, image_override: image_override || undefined, with_daemon: with_daemon || undefined }),
-  installNode: (host_id: string, admin_password: string, engine_port?: number) =>
-    postJson<NodeSetupResult>("/api/v1/install/node", { host_id, admin_password, engine_port, confirm: true }),
+  installNode: (host_id: string, admin_password: string, engine_port?: number, port?: number) =>
+    postJson<NodeSetupResult>("/api/v1/install/node", { host_id, admin_password, engine_port, port: port || undefined, confirm: true }),
   fleetDeployPlan: (payload: { preset_id: string; target: string; host_ids: string[]; with_daemon?: boolean; image_override?: string }) =>
     postJson<FleetDeployPlan>("/api/v1/fleet/deploy-plan", payload),
   calcModels: () => request<CalcModels>("/api/v1/calc/models"),

@@ -115,13 +115,14 @@ export function FleetHostCard({
   // One-click "Set up as node": install the SNDR daemon on this host over SSH.
   const [nodeForm, setNodeForm] = useState(false);
   const [nodePw, setNodePw] = useState("");
+  const [nodePort, setNodePort] = useState(8765);
   const [nodeBusy, setNodeBusy] = useState(false);
   const [nodeResult, setNodeResult] = useState<NodeSetupResult | null>(null);
   async function installNode() {
     if (nodePw.length < 4 || nodeBusy) return;
     setNodeBusy(true); setNodeResult(null);
     try {
-      const r = await api.installNode(profile.id, nodePw, profile.engine_port || 8102);
+      const r = await api.installNode(profile.id, nodePw, profile.engine_port || 8102, nodePort);
       setNodeResult(r);
       if (r.ok) onRefresh();  // refresh so the switcher re-probes and sees the new daemon
     } catch (e) {
@@ -329,6 +330,9 @@ export function FleetHostCard({
             </label>
             <label className="param-field"><span>{tr("Engine port")}</span>
               <input type="number" value={profile.engine_port || 8102} readOnly title={tr("The node's vLLM engine port (from the card)")} />
+            </label>
+            <label className="param-field"><span>{tr("Daemon port")}</span>
+              <input type="number" value={nodePort} onChange={(e) => setNodePort(Number(e.target.value) || 8765)} title={tr("Port the SNDR management daemon will listen on (default 8765)")} />
             </label>
           </div>
           {applyEnabled === false && <ApplyDisabledNote what={tr("Installing a node over SSH")} command={restartCommand} />}
