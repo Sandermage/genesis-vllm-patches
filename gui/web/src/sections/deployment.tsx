@@ -55,6 +55,8 @@ export function DeploymentConsole({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paths, setPaths] = useState<Record<string, string>>({});
+  const [imagePin, setImagePin] = useState("");
+  const [withDaemon, setWithDaemon] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,14 +77,16 @@ export function DeploymentConsole({
       api.deployPlan({
         preset_id: selectedPreset,
         target,
-        host_paths: Object.keys(paths).length ? paths : undefined
+        host_paths: Object.keys(paths).length ? paths : undefined,
+        image_override: imagePin.trim() || undefined,
+        with_daemon: withDaemon || undefined
       })
         .then((result) => { if (!cancelled) { setPlan(result); setError(null); } })
         .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : String(err)); })
         .finally(() => { if (!cancelled) setLoading(false); });
     }, 300);
     return () => { cancelled = true; window.clearTimeout(handle); };
-  }, [selectedPreset, target, paths]);
+  }, [selectedPreset, target, paths, imagePin, withDaemon]);
 
   const targets = meta?.targets ?? [];
   const host = meta?.host ?? null;
@@ -136,6 +140,14 @@ export function DeploymentConsole({
               <option key={preset.id} value={preset.id}>{preset.id}</option>
             ))}
           </select>
+        </label>
+        <label className="deploy-field">
+          <span>{tr("Engine pin override")}</span>
+          <input type="text" value={imagePin} onChange={(e) => setImagePin(e.target.value)} placeholder={tr("blank = preset default image")} spellCheck={false} autoComplete="off" />
+        </label>
+        <label className="deploy-toggle">
+          <input type="checkbox" checked={withDaemon} onChange={(e) => setWithDaemon(e.target.checked)} />
+          <span>{tr("Also provision the SNDR management daemon (sidecar)")}</span>
         </label>
         {params ? (
           <>

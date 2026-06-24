@@ -513,6 +513,8 @@ export type DeploymentPlan = {
   preset_label: string;
   target: string;
   target_label: string;
+  image_override?: string | null;
+  with_daemon?: boolean;
   artifact: { kind: "yaml" | "ini" | "bash"; filename: string; content: string };
   parameters: DeployParameters;
   mount_vars: DeployMountVar[];
@@ -1386,7 +1388,7 @@ export const api = {
   configKeys: () => request<ConfigKeysResult>("/api/v1/config-keys"),
   traces: () => request<TraceCatalog>("/api/v1/traces"),
   deployTargets: () => request<DeployTargetsResult>("/api/v1/deploy/targets"),
-  deployPlan: (payload: { preset_id: string; target: string; host_paths?: Record<string, string> }) =>
+  deployPlan: (payload: { preset_id: string; target: string; host_paths?: Record<string, string>; image_override?: string; with_daemon?: boolean }) =>
     postJson<DeploymentPlan>("/api/v1/deploy/plan", payload),
   servicePlan: (params: { preset_id: string; action: string; runtime_target?: string; host?: string }) =>
     request<ServiceActionPlan>(`/api/v1/services/plan${query(params)}`),

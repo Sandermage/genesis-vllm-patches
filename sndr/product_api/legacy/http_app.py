@@ -777,8 +777,13 @@ def create_app(
         target = str(payload.get("target", "")).strip()
         raw_paths = payload.get("host_paths") or {}
         host_paths = {str(k): str(v) for k, v in raw_paths.items()} if isinstance(raw_paths, dict) else None
+        image_override = str(payload.get("image_override") or "").strip() or None
+        with_daemon = bool(payload.get("with_daemon", False))
         try:
-            return deployment.build_deployment(preset_id, target, host_paths=host_paths)
+            return deployment.build_deployment(
+                preset_id, target, host_paths=host_paths,
+                image_override=image_override, with_daemon=with_daemon,
+            )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         except KeyError:
