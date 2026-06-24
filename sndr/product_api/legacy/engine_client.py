@@ -153,6 +153,38 @@ def _read_container_file(ctl: Any, name: str, path: str) -> str:
         return ""
 
 
+def _extract_key_from_proc_table(payload: dict[str, Any]) -> Optional[str]:
+    """Extract --api-key from a docker ``top`` (process list) payload. Robust
+    last-resort source: a launcher that ``exec``s vllm leaves the final,
+    shell-expanded argv on the running process, so the key is visible here even
+    when it lived only in a bind-mounted launcher script (which the archive API
+    cannot export) or came from a ``"$VAR"`` the shell already expanded."""
+    procs = (payload or {}).get("Processes") or []
+    rows = "\n".join(
+        " ".join(str(c) for c in row)
+        for row in procs if isinstance(row, (list, tuple))
+    )
+    return _extract_key_from_text(rows)
+
+
+def _read_engine_proc_key(ctl: Any, name: str) -> Optional[str]:
+    """Read the engine's RUNNING process argv via the docker ``top`` API — a read,
+    not an exec (so it is NOT gated by SNDR_ENABLE_EXEC) — and grep it for the
+    --api-key. Works for any engine: the key is on the live command line whether
+    it came from env, an inline flag, a bind-mounted launcher, or a shell
+    variable. Returns None on any error."""
+    import urllib.parse
+    try:
+        q = urllib.parse.quote(name, safe="")
+        status, raw = ctl._transport("GET", f"/containers/{q}/top?ps_args=aux")
+        if status != 200 or not raw:
+            return None
+        text = raw if isinstance(raw, str) else raw.decode("utf-8", "replace")
+        return _extract_key_from_proc_table(json.loads(text))
+    except Exception:  # noqa: BLE001 - best-effort; never break chat on discovery
+        return None
+
+
 def _discover_local_engine_key(eng: dict[str, str]) -> Optional[str]:
     if os.environ.get("SNDR_ENGINE_KEY_AUTODISCOVER", "1").strip().lower() in ("0", "false", "no", "off"):
         return None
@@ -187,6 +219,12 @@ def _discover_local_engine_key(eng: dict[str, str]) -> Optional[str]:
                                if str(x).endswith(".sh")), None)
                 if script:
                     key = _extract_key_from_text(_read_container_file(ctl, target, script))
+            if not key:
+                # Last resort: the engine's RUNNING process argv. A launcher that
+                # ``exec``s vllm leaves the final (shell-expanded) --api-key on the
+                # process, readable via the docker ``top`` API even when the
+                # launcher is a bind-mounted script the archive API cannot export.
+                key = _read_engine_proc_key(ctl, target)
     except Exception:  # noqa: BLE001 - best-effort; never break chat on discovery
         key = None
     _ENGINE_KEY_CACHE[port] = key

@@ -573,6 +573,56 @@ def test_discover_reads_key_from_entrypoint_launcher_script(monkeypatch):
     assert ec._discover_local_engine_key(eng) == "sk-from-script"
 
 
+def test_extract_key_from_proc_table():
+    """A docker ``top`` payload — the running engine's argv carries the final,
+    shell-expanded --api-key even when it lived only in a bind-mounted launcher
+    script the archive API cannot export."""
+    payload = {
+        "Titles": ["USER", "PID", "COMMAND"],
+        "Processes": [
+            ["root", "1", "/bin/sh /tmp/dg_launcher_dir/run.sh"],
+            ["root", "9", "python -m vllm serve /models/M --api-key genesis-local --port 8102"],
+        ],
+    }
+    assert ec._extract_key_from_proc_table(payload) == "genesis-local"
+    assert ec._extract_key_from_proc_table({"Processes": []}) is None
+    assert ec._extract_key_from_proc_table({}) is None
+
+
+def test_discover_reads_key_from_running_process(monkeypatch):
+    """Bind-mounted launcher (real diffusiongemma shape): the archive API cannot
+    export it (empty read), so discovery falls back to the running process argv
+    via the docker ``top`` API. Covers any engine whose key reaches only the
+    final exec'd command line (literal or shell-expanded ``"$VAR"``)."""
+    from sndr.product_api.legacy import container_ops
+    ec._ENGINE_KEY_CACHE.clear()
+    monkeypatch.delenv("SNDR_ENGINE_KEY_AUTODISCOVER", raising=False)
+
+    class _CtlProc:
+        def __init__(self, **_kw):
+            pass
+
+        def _raw_list(self):
+            return [_FakeC("vllm-diffusiongemma", "8102->8102/tcp")]
+
+        def _raw_inspect(self, name):
+            return {"Config": {"Env": ["FOO=1"], "Cmd": None, "Entrypoint": ["/tmp/dg_launcher_dir/run.sh"]}}
+
+        def _transport(self, method, path, body=None):
+            if "/archive?path=" in path:
+                return 200, b""  # bind-mounted launcher: archive cannot export it
+            if "/top?" in path:
+                import json as _j
+                rows = {"Processes": [["root", "9",
+                        "python -m vllm serve /models/M --api-key genesis-local --port 8102"]]}
+                return 200, _j.dumps(rows).encode()
+            return 404, b""
+
+    monkeypatch.setattr(container_ops, "SocketContainerControl", _CtlProc)
+    eng = {"host": "127.0.0.1", "base_url": "http://127.0.0.1:8102/v1"}
+    assert ec._discover_local_engine_key(eng) == "genesis-local"
+
+
 def test_served_model_falls_back_to_engine_model(monkeypatch):
     """A chat with no model must target the engine's real served model, not the
     literal 'default' that a renamed engine 404s."""
