@@ -3269,12 +3269,19 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 46047,
         "upstream_pr_relationship": "backport",
-        # 0.23.x engine-parser bug only; #46047 merged 2026-06-18 into a
-        # post-dev148 build, so cap at <0.24.0 and self-skip via the
-        # drift marker on any pin that already carries the fix.
-        "applies_to": {"vllm_version_range": (">=0.23.0", "<0.24.0")},
+        # RETIRED 2026-06-24 (pin bump dev148 -> dev301): #46047 is IN
+        # dev301 (deep-diff iron-rule-#11 + dev301 anchor-SOT regen
+        # confirm the anchor drifted on dev301). The runtime drift-marker
+        # already self-skips on dev301; this is the FORMAL retire marking.
+        # Cap the applies_to range upper bound to <dev301 so the version
+        # gate also self-skips on dev301+, AND mirror it at top level for
+        # iron-rule-#11 provenance. Still applies through dev148 (the
+        # previous/rollback pin), where the bug is live.
+        "applies_to": {"vllm_version_range": (">=0.23.0", "<0.23.1rc1.dev301")},
+        "vllm_version_range": "<0.23.1rc1.dev301",
+        "superseded_by": "vllm#46047 (MERGED 2026-06-18, IN dev301 — qwen3 partial-param value group widened to (.*)$; anchor drifted on dev301 per the anchor-SOT regen). Applies through dev148; retired on dev301+.",
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn394_qwen3_partial_param_lt_fix",
-        "lifecycle": "experimental",
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
     "P89": {
@@ -5640,6 +5647,22 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 44053,
         "upstream_pr_relationship": "backport",
+        # KEPT ACTIVE 2026-06-24 (pin bump dev148 -> dev301): #44053 is IN
+        # dev301 (the TQ MetadataBuilder reserve is fixed native on dev301;
+        # anchor drifted per the anchor-SOT regen) so #44053 supersedes this
+        # patch on its own. BUT NOT version-gated out: PN399.requires_patches
+        # includes PN353A (verified) — PN399 anchors PN353A's LIVE-applied
+        # reserve block. Coupled retirement waits for PN399's upstream
+        # (#46067). Range deliberately left open through <0.24.0 so PN353A
+        # stays applicable on dev301 and the PN399 chain does not break.
+        "superseded_by": (
+            "vllm#44053 (MERGED, IN dev301 — TQ MetadataBuilder workspace "
+            "reserve is fixed native on dev301+; anchor drifted per the "
+            "anchor-SOT regen). RETAINED active on dev301: PN399."
+            "requires_patches anchors PN353A's live output, so coupled "
+            "retirement waits for PN399's upstream (#46067). NOT "
+            "version-gated out of dev301 — see applies_to range."
+        ),
         "applies_to": {
             "is_turboquant": True,
             "vllm_version_range": (">=0.21.0", "<0.24.0"),
@@ -7912,15 +7935,29 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "P0 CORRECTNESS regression found by the /loop upstream sweep 2026-06-20. vllm#43409 (merged 06-12, IN dev148) removed the `if not self.quant_config.is_sym else None` guard in AutoGPTQMoEMethod.get_fused_moe_quant_config so the CPU fused_experts_cpu path could receive synthesized zero points for symmetric models. On NVIDIA GPUs this regressed SYMMETRIC (is_sym=True) AutoRound/GPTQ Marlin MoE: the method then passes the meaningless w13_qzeros/w2_qzeros to the Marlin kernel -> INCORRECT expert outputs. Our 27B = Qwen3.6-27B-int4-AutoRound is CONFIRMED on this path (live checkpoint config.json: quant_method=auto-round, sym=True, bits=4, group_size=128, packing auto_round:auto_gptq -> AutoGPTQMoEMethod) on 2x A5000. Fix vllm#45656 ('Restore is_sym guard for zp in GPTQ/CT MoE', merged 06-18 16:20Z) landed ~12h AFTER the dev148 base commit -> NOT in pin. PN400 backports the auto_gptq.py half: gate w1_zp/w2_zp on `not is_sym` before the gptq_marlin_moe_quant_config return. The upstream `or backend==CPU` clause is intentionally dropped (NVIDIA-only rig; avoids the WNA16MoEBackend import + a NameError-if-half-applied surface). The compressed-tensors twin (file 2 of #45656) is a different checkpoint format we do not run; add PN400B if one enters rotation. Anchor SELF-GATES: the unconditional `w1_zp=getattr(layer,'w13_qzeros',None),` text exists ONLY on pins with #43409 and without #45656 (pre-#43409 / post-#45656 it is `... if <cond> else None` -> self-skip). lifecycle=experimental: the text transform is unit-tested (dev148-broken -> fixed) but the semantic 27B greedy A/B (dev148 vs +PN400) is operator-gated (displaces the 35B PROD).",
         "upstream_pr": 45656,
         "upstream_pr_relationship": "backport",
+        # RETIRED 2026-06-24 (pin bump dev148 -> dev301): the NVIDIA-scoped
+        # subset of #45656 (the auto_gptq.py is_sym qzeros guard) is IN
+        # dev301 — deep-diff iron-rule-#11 + the dev301 anchor-SOT regen
+        # confirm the anchor drifted on dev301. The upstream `or
+        # backend==CPU` clause was never used on our NVIDIA-only rig. The
+        # anchor self-gates (the unconditional `w1_zp=...` text is gone
+        # post-#45656), so this is the FORMAL retire marking. Cap the
+        # applies_to range upper bound to <dev301 so the version gate also
+        # self-skips on dev301+, AND mirror it at top level for
+        # iron-rule-#11 provenance. Still applies through dev148 (the
+        # previous/rollback pin), where the #43409 regression is live.
         "applies_to": {
             "quant_format": [
                 "autoround_int4", "autoround_int8",
                 "gptq_int4", "gptq_int8",
                 "int4_w4a16", "int8_w8a16",
             ],
+            "vllm_version_range": (">=0.23.0", "<0.23.1rc1.dev301"),
         },
+        "vllm_version_range": "<0.23.1rc1.dev301",
+        "superseded_by": "vllm#45656 (MERGED 2026-06-18, IN dev301 — restores the is_sym qzeros guard in AutoGPTQMoEMethod; the NVIDIA auto_gptq.py half we backported is native on dev301, anchor drifted per the anchor-SOT regen). CPU clause never used on our rig. Applies through dev148; retired on dev301+.",
         "apply_module": "sndr.engines.vllm.patches.quantization.pn400_marlin_moe_sym_zp_guard",
-        "lifecycle": "experimental",
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
 
@@ -10045,6 +10082,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 45040,
         "upstream_pr_relationship": "backport",
+        # Pin bump dev148 -> dev301 (2026-06-24): NOT retired this bump.
+        # #45040 merged into vllm main AFTER dev301 (it is NOT in dev301 —
+        # the dev301 deep-diff/anchor-SOT regen does not show G4_80's anchor
+        # drifting), so arm 1 (the kv_cache_dtype mask rebind) still applies
+        # on dev301. arm 2 (Attention.__init__ query_quant nulling) is
+        # Genesis-original (no upstream fix exists). CREDIT: arm 1 will
+        # retire when #45040 lands in a future pin; arm 2 stays. Left active.
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["G4_31", "G4_79"],
@@ -10451,7 +10495,22 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "hybrids (roadmap chunk-3 Theme D)."
         ),
         "upstream_pr": 45080,
-        "upstream_pr_relationship": "backport",
+        # RECLASSIFIED 2026-06-24 (pin bump dev148 -> dev301): #45080 is IN
+        # dev301 (its anchor drifted per the dev301 anchor-SOT regen), but
+        # the merge is a DIVERGENT FORK, not a supersession — KEEP ACTIVE.
+        # `related_not_superseding` is the valid-enum equivalent of a
+        # "divergent_fork" (status-based retire is NOT eligible; see
+        # divergence_note). Was "backport".
+        "upstream_pr_relationship": "related_not_superseding",
+        "notes": (
+            "vllm#45080 merged a WEAKER whole-pool/group-0 variant of the "
+            "DecodeBenchConnector hybrid fill; our per-block fill + the real "
+            "kv_cache_groups group_idx->layer_names map are correctness-"
+            "critical for GDN hybrids (Mamba/GDN block-indexed state) and are "
+            "ABSENT from the merge — upstream maps all layers to group 0 and "
+            "fills whole pools, clobbering concurrent recurrent state. Keep "
+            "active; do NOT retire on #45080's merge into dev301."
+        ),
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": [],

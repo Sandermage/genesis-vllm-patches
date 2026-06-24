@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN394 — Qwen3 partial-param regex drops argument values containing `<`.
 
+RETIRED 2026-06-24 (pin bump dev148 -> dev301) — superseded by vllm#46047,
+which is IN dev301 (the anchor drifted per the dev301 anchor-SOT regen).
+Registry lifecycle=retired, capped <0.23.1rc1.dev301. The transform below is
+UNCHANGED and still applies on dev148 (the previous/rollback pin, where the
+bug is live); on dev301+ the version cap + the post-fix `>(.*)$` drift marker
+self-skip it. Do not delete the module while dev148 rollback is possible.
+
 Problem
 -------
 On the live pin (0.23.1rc1.dev148+gb4c80ec0f) the engine-native Qwen3

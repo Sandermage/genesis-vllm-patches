@@ -624,6 +624,18 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     # per CLAUDE.md ≤2-pin policy.
     "0.23.1rc1.dev148+gb4c80ec0f",                       # setuptools_scm-derived
     "nightly-b4c80ec0f",                                 # docker tag form (short)
+    # ── PROD pin PROMOTION dev301 2026-06-24 ──────────────────────────
+    # Image: vllm/vllm-openai:nightly-04c2a8dea (0.23.1rc1.dev301+g04c2a8dea,
+    # commit 04c2a8dea). PROMOTED 2026-06-24: bump from dev148.
+    # Validated: 35B 208 TPS + 31B 94.7 TPS boot+chat+tool-call. The dev301
+    # anchor-SOT regen surfaced exactly 5 anchor_drift entries
+    # (P85/PN394/PN353A/PN400/PN382). Handled: PN394 + PN400 retired on
+    # dev301 (their #46047 / #45656 are IN dev301); PN353A + PN382
+    # re-anchored and kept active (PN353A coupled to the PN399 chain; PN382
+    # a divergent fork of #45080); P85 OFF. dev148 retained above as
+    # previous/rollback per CLAUDE.md ≤2-pin policy.
+    "0.23.1rc1.dev301+g04c2a8dea",                       # setuptools_scm-derived
+    "nightly-04c2a8dea",                                 # docker tag form (short)
 )
 
 

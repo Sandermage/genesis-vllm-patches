@@ -2,6 +2,14 @@
 """Wiring for PN400 — restore the is_sym qzeros guard for symmetric AutoRound/
 GPTQ Marlin MoE (backport of vllm#45656; fixes the regression from vllm#43409).
 
+RETIRED 2026-06-24 (pin bump dev148 -> dev301) — superseded by vllm#45656,
+whose NVIDIA auto_gptq.py half is native in dev301 (the anchor drifted per the
+dev301 anchor-SOT regen). Registry lifecycle=retired, capped <0.23.1rc1.dev301.
+The transform below is UNCHANGED and still applies on dev148 (the previous/
+rollback pin, where the #43409 regression is live); on dev301+ the version cap
++ the post-fix anchor self-skip it. Do not delete the module while dev148
+rollback is possible.
+
 ================================================================
 ROOT CAUSE — a CORRECTNESS regression that landed IN our pin
 ================================================================

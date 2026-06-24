@@ -40,7 +40,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0
-  vllm_pin_required: 0.23.1rc1.dev148+gb4c80ec0f  # PROMOTED 2026-06-19 (K=5 + PN394/PN399 + Gemma kv-auto validated on dev148); dev101 = previous/rollback. Engine + patch set fleet-validated on dev148 (35B/27B/Gemma4-31B/26B-MoE/DiffusionGemma boot apply failed=0); this variant boot-validates on next launch.
+  vllm_pin_required: 0.23.1rc1.dev301+g04c2a8dea # PROMOTED 2026-06-24 (pin bump dev148 -> dev301): 35B 208 TPS + 31B 94.7 TPS boot+chat+tool-call validated; 5 anchor_drift handled (PN394/PN400 retired, PN353A/PN382 re-anchored, P85 OFF); dev148 = previous/rollback. Prior dev148 evidence: PROMOTED 2026-06-19 (K=5 + PN394/PN399 + Gemma kv-auto validated on dev148); dev101 = previous/rollback. Engine + patch set fleet-validated on dev148 (35B/27B/Gemma4-31B/26B-MoE/DiffusionGemma boot apply failed=0); this variant boot-validates on next launch.
   reference_metrics_ref: null
   # Phase 5.2.C (2026-05-22) — explicit pin hold annotation. This
   # ModelDef intentionally remains on dev338 even after the rest of

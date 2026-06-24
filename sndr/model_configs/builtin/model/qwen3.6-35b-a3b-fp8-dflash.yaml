@@ -56,7 +56,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
-  vllm_pin_required: 0.23.1rc1.dev148+gb4c80ec0f # PROMOTED 2026-06-19 (supersedes dev101+g4c6266331): K=5 + PN394/PN399 + Gemma kv-auto validated on dev148; dev101 = previous/rollback. (DFlash M8-Q35, originally P2.DFlash 2026-05-21.) Requires PN275 wired in via this ModelDef's patches matrix (M6 commit 12d901a5) — closes the cross-validator at vllm/config/vllm.py:1703-1715 that broke DFlash drafter VllmConfig rebuilds under P95 + P66. Previous dev101 (nightly-4c626633) retained as rollback per CLAUDE.md pin policy.
+  vllm_pin_required: 0.23.1rc1.dev301+g04c2a8dea # PROMOTED 2026-06-24 (pin bump dev148 -> dev301): 35B 208 TPS + 31B 94.7 TPS boot+chat+tool-call validated; 5 anchor_drift handled (PN394/PN400 retired, PN353A/PN382 re-anchored, P85 OFF); dev148 = previous/rollback. Prior dev148 evidence: PROMOTED 2026-06-19 (supersedes dev101+g4c6266331): K=5 + PN394/PN399 + Gemma kv-auto validated on dev148; dev101 = previous/rollback. (DFlash M8-Q35, originally P2.DFlash 2026-05-21.) Requires PN275 wired in via this ModelDef's patches matrix (M6 commit 12d901a5) — closes the cross-validator at vllm/config/vllm.py:1703-1715 that broke DFlash drafter VllmConfig rebuilds under P95 + P66. Previous dev101 (nightly-4c626633) retained as rollback per CLAUDE.md pin policy.
   # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E)
   # to suppress the would-be ERROR for this row.
   pin_hold: "DFlash drafter profile not yet smoke-validated on the

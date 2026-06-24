@@ -4,7 +4,7 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-23T05:38:25Z
+Generated: 2026-06-24T19:42:53Z
 Total entries: **317**
 
 ## Statistics
@@ -14,10 +14,10 @@ Total entries: **317**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **234**
+- `lifecycle=experimental`: **232**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
-- `lifecycle=retired`: **34**
+- `lifecycle=retired`: **36**
 - `lifecycle=stable`: **14**
 
 ### Default-on at boot: **57** / 317
@@ -353,7 +353,7 @@ Total entries: **317**
 | **P91B** | `community` | `experimental` | · | `GENESIS_ENABLE_P91B` | [#39460](https://github.com/vllm-project/vllm/pull/39460) | AutoRound row-group cdiv defensive coverage for INC + compressed-tensors sche... |
 | **PN77** | `community` | `experimental` | · | `GENESIS_ENABLE_PN77_FP8_LM_HEAD` | — | FP8 lm_head compression (BF16→FP8 e4m3 + per-channel scale) |
 | **PN376** | `community` | `experimental` | · | `GENESIS_ENABLE_PN376_FP8_IGNORE_SUBSTRING` | [#44628](https://github.com/vllm-project/vllm/pull/44628) | FP8 modules_to_not_convert substring match (vendor of vllm#44628) |
-| **PN400** | `community` | `experimental` | · | `GENESIS_ENABLE_PN400` | [#45656](https://github.com/vllm-project/vllm/pull/45656) | Restore is_sym qzeros guard for symmetric AutoRound/GPTQ Marlin MoE (vllm#456... |
+| **PN400** | `community` | `retired` | · | `GENESIS_ENABLE_PN400` | [#45656](https://github.com/vllm-project/vllm/pull/45656) | Restore is_sym qzeros guard for symmetric AutoRound/GPTQ Marlin MoE (vllm#456... |
 
 ### `quantization.marlin` (2)
 
@@ -481,7 +481,7 @@ Total entries: **317**
 | **PN385** | `community` | `experimental` | · | `GENESIS_ENABLE_PN385_FORCED_NAMED_EMPTY_PARAMS` | [#45290](https://github.com/vllm-project/vllm/pull/45290) | Forced-named empty-params tool schema -> JSON object (vendor of vllm#45290) |
 | **PN386** | `community` | `experimental` | · | `GENESIS_ENABLE_PN386_REQUIRED_STREAMING_STRING_AWARE` | — | Required-tool streaming brace JSON-string-awareness (vendor of vllm#45389) |
 | **PN392** | `community` | `retired` | · | `GENESIS_ENABLE_PN392_QWEN3CODER_STREAMING_COALESCE` | — | qwen3_coder streaming tool-call within-call coalescing (dev491 regression fix) |
-| **PN394** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX` | [#46047](https://github.com/vllm-project/vllm/pull/46047) | qwen3 partial-param value `<` truncation fix (vllm#46047) |
+| **PN394** | `community` | `retired` | ✓ | `GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX` | [#46047](https://github.com/vllm-project/vllm/pull/46047) | qwen3 partial-param value `<` truncation fix (vllm#46047) |
 | **G4_T1** | `community` | `experimental` | · | `GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED` | [#42006](https://github.com/vllm-project/vllm/pull/42006) | "Gemma4 tool-parser PR |
 | **P29_HEAL** | `community` | `experimental` | · | `GENESIS_ENABLE_P29_QWEN3CODER_INDEX_HEAL` | — | qwen3coder tool parser index heal (P29 companion, fix-wire 2026-06-04) |
 

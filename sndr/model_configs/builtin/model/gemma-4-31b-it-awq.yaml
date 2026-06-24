@@ -77,18 +77,18 @@ requires:
 
 versions:
   genesis_pin_min: v12.0.0                               # G4_NN family lands in v12
-  vllm_pin_required: 0.23.1rc1.dev148+gb4c80ec0f         # PROMOTED 2026-06-19 (supersedes dev101+g4c6266331): K=5 + PN394/PN399 + Gemma kv-auto validated on dev148; dev101 = previous/rollback. Gemma 4 native model_executor + TURBOQUANT validated on dev148 (journal §20-COMPLETE: 31B health=200; §21 TQ A/B). Previous dev101 (nightly-4c626633) retained as rollback.
+  vllm_pin_required: 0.23.1rc1.dev301+g04c2a8dea # PROMOTED 2026-06-24 (pin bump dev148 -> dev301): 35B 208 TPS + 31B 94.7 TPS boot+chat+tool-call validated; 5 anchor_drift handled (PN394/PN400 retired, PN353A/PN382 re-anchored, P85 OFF); dev148 = previous/rollback. Prior dev148 evidence: PROMOTED 2026-06-19 (supersedes dev101+g4c6266331): K=5 + PN394/PN399 + Gemma kv-auto validated on dev148; dev101 = previous/rollback. Gemma 4 native model_executor + TURBOQUANT validated on dev148 (journal §20-COMPLETE: 31B health=200; §21 TQ A/B). Previous dev101 (nightly-4c626633) retained as rollback.
   # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E)
   # to suppress the would-be ERROR for this row while the ModelDef LEADS
-  # the hardware image during the dev148 promotion window.
-  pin_hold: "Gemma-4 31B AWQ TQ promoted to dev148 — the upstream TURBOQUANT
-    mm-model validity gate that BLOCKED it on the 0.22.1 era is cleared on
-    dev148 (journal §21 TQ A/B compiles + boots clean on A5000). The
-    ModelDef LEADS the shared a5000-2x hardware image, which still pins the
-    dev101 image (nightly-4c626633) until its dev148 @sha256: digest is
-    captured into the hardware YAML (R-PIN-2). The live launcher already
-    runs nightly-b4c80ec0f. Remove this hold + match the hardware image once
-    the dev148 digest lands; dev101 stays rollback."
+  # the hardware image during the dev301 promotion window.
+  pin_hold: "Gemma-4 31B AWQ TQ promoted to dev301 (pin bump dev148 ->
+    dev301, 2026-06-24; 31B 94.7 TPS boot+chat+tool-call validated) — the
+    upstream TURBOQUANT mm-model validity gate that BLOCKED it on the 0.22.1
+    era was already cleared on dev148 (journal §21 TQ A/B). The ModelDef
+    LEADS the shared a5000-2x hardware image, which still pins the dev148
+    image (nightly-b4c80ec0f) until its dev301 @sha256: digest is captured
+    into the hardware YAML (R-PIN-2). Remove this hold + match the hardware
+    image once the dev301 digest lands; dev148 stays rollback."
   # Variant A migration (2026-05-20): old baseline at
   # tests/integration/baselines/gemma4_31b_awq_baseline.json was
   # captured with MTP K=4 ON; that file is now the (future) reference

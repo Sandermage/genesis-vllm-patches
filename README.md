@@ -5,7 +5,7 @@
 # Genesis vLLM Patches
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev148+gb4c80ec0f-orange.svg)](https://github.com/vllm-project/vllm)
+[![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev301+g04c2a8dea-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/registry-317%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
@@ -47,6 +47,14 @@ comparisons, and per-rig reproduction recipes:
 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 ![Sustained TPS — Genesis vs stock](assets/charts/tps_genesis_vs_stock.png)
+
+> **Pin bump 2026-06-24:** the vLLM pin is now `0.23.1rc1.dev301+g04c2a8dea`
+> (image `nightly-04c2a8dea`); `dev148` is the previous / rollback pin. Smoke
+> validation on the 2× A5000 rig: 35B 208 TPS + 31B 94.7 TPS boot + chat +
+> tool-call. The dev301 anchor regen surfaced 5 `anchor_drift` entries:
+> PN394 (#46047) + PN400 (#45656) retired on dev301; PN353A + PN382
+> kept + re-anchored. The full per-model bench table below is the prior
+> dev148 K=5 re-tune cycle (still the canonical sustained-bench evidence).
 
 ### Latest rig validation — 2026-06-19 (pin `0.23.1rc1.dev148+gb4c80ec0f`)
 

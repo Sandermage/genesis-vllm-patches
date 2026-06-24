@@ -28,10 +28,10 @@ the next pin bump:
 
   R-PIN-4 — ModelDef pin migration status. Every ModelDef pin must be
             in ``ALLOWED_MODELDEF_PINS`` (a value outside it fails,
-            catching stale pins or typos). Reconciled 2026-06-19: the
-            P2.4d / dev338-vs-dev371 sprint is CLOSED — the whole fleet
-            is unified on the canonical pin
-            (``CANONICAL_PIN_SUBSTRING``, currently dev148). The audit
+            catching stale pins or typos). Reconciled 2026-06-24
+            (pin bump dev148 -> dev301): the whole fleet is unified on
+            the canonical pin
+            (``CANONICAL_PIN_SUBSTRING``, currently dev301). The audit
             classifies each ModelDef into a ``canonical`` /  ``dev338``
             (legacy baseline) / ``dev371`` (legacy sprint era) /
             ``other`` bucket and reports the migration table as info.
@@ -125,6 +125,18 @@ ALLOWED_MODELDEF_PINS = frozenset({
     # until then the two PROD ModelDefs carry a pin_hold waiver (see
     # audit_v2_modeldef_vs_hardware_pin R-MD-HW-2).
     "0.23.1rc1.dev148+gb4c80ec0f",
+    # ── Canonical PROD pin 0.23.1 dev301 (PROMOTED 2026-06-24) ───────────
+    # Image vllm/vllm-openai:nightly-04c2a8dea (0.23.1rc1.dev301+g04c2a8dea).
+    # Pin bump dev148 -> dev301. Smoke: 35B 208 TPS + 31B 94.7 TPS boot+chat+
+    # tool-call. The dev301 anchor-SOT regen surfaced 5 anchor_drift
+    # (P85/PN394/PN353A/PN400/PN382): PN394+PN400 retired on dev301,
+    # PN353A+PN382 kept+re-anchored. See guards.py KNOWN_GOOD + test_pin_gate
+    # EXPECTED_PINS. dev148 retained as previous/rollback per CLAUDE.md
+    # ≤2-pin policy. The ModelDefs LEAD the hardware image during this
+    # window — the hardware YAML image_digest bumps to the dev301 sha256
+    # once it is captured; until then the ModelDefs carry a pin_hold waiver
+    # (see audit_v2_modeldef_vs_hardware_pin R-MD-HW-2).
+    "0.23.1rc1.dev301+g04c2a8dea",
 })
 
 # Gemma family ModelDefs are expected to be on dev371 (validated path).
@@ -136,9 +148,9 @@ QWEN_PREFIX = "qwen"
 
 # ─── Canonical pin (fleet-unified) ─────────────────────────────────────
 #
-# Reconciled 2026-06-19: the P2.4d / P2.DFlash / dev371-vs-dev338 sprint
-# is CLOSED. The entire fleet is now unified on a single canonical pin
-# (0.23.1rc1.dev148+gb4c80ec0f) — all 12 ModelDef/profile
+# Reconciled 2026-06-24 (pin bump dev148 -> dev301): the P2.4d / P2.DFlash
+# / dev371-vs-dev338 sprint is CLOSED. The entire fleet is now unified on a
+# single canonical pin (0.23.1rc1.dev301+g04c2a8dea) — all 11 ModelDef
 # vllm_pin_required values carry it (verify with `grep -rn
 # vllm_pin_required sndr/model_configs/builtin`). dev338 was the original
 # migration baseline; dev371 / 626fa9bba5 were the prior-canonical sprint
@@ -154,7 +166,7 @@ QWEN_PREFIX = "qwen"
 # remain documented, and the rollback-protection still works against the
 # canonical pin). On the next pin bump, update CANONICAL_PIN_SUBSTRING
 # (and ALLOWED_MODELDEF_PINS) to the new fleet pin.
-CANONICAL_PIN_SUBSTRING = "dev148"
+CANONICAL_PIN_SUBSTRING = "dev301"
 
 # ─── DFlash dev371 hold (P2.DFlash 2026-05-21) ─────────────────────────
 #

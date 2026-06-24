@@ -91,6 +91,14 @@ EXPECTED_PINS = (
     # previous/rollback per CLAUDE.md ≤2-pin policy.
     "0.23.1rc1.dev148+gb4c80ec0f",                       # setuptools_scm-derived
     "nightly-b4c80ec0f",                                 # docker tag form (short)
+    # PROD pin PROMOTED 2026-06-24 — image nightly-04c2a8dea (0.23.1rc1.dev301
+    # +g04c2a8dea). Bump from dev148. 35B 208 TPS + 31B 94.7 TPS boot+chat+
+    # tool-call validated. dev301 anchor-SOT regen surfaced 5 anchor_drift
+    # (P85/PN394/PN353A/PN400/PN382): PN394/PN400 retired on dev301,
+    # PN353A/PN382 kept+re-anchored, P85 OFF. dev148 retained as
+    # previous/rollback per CLAUDE.md ≤2-pin policy.
+    "0.23.1rc1.dev301+g04c2a8dea",                       # setuptools_scm-derived
+    "nightly-04c2a8dea",                                 # docker tag form (short)
 )
 
 

@@ -109,17 +109,16 @@ requires:
 
 versions:
   genesis_pin_min: v12.0.0
-  vllm_pin_required: 0.23.1rc1.dev148+gb4c80ec0f   # PROMOTED 2026-06-19 (supersedes dev101+g4c6266331): K=5 + PN394/PN399 + Gemma kv-auto validated on dev148; dev101 = previous/rollback. Drift-audited clean on dev148 2026-06-19 (journal §20-COMPLETE: health=200, applied=42/failed=0, DRIFT skipped=NONE). Earlier dev101 validation 2026-06-17 — block-diffusion serve apply failed=0 + coherent gen ("The capital of France is Paris." / Red-Blue-Yellow) + get_weather {"city":"Berlin"} tool-call (gemma4 parser). G4_26 applies_to.vllm_version_range >=0.22.1rc1.dev491 still satisfied (dev148 > dev491). Previous dev101 (nightly-4c626633) retained as rollback.
+  vllm_pin_required: 0.23.1rc1.dev301+g04c2a8dea # PROMOTED 2026-06-24 (pin bump dev148 -> dev301): 35B 208 TPS + 31B 94.7 TPS boot+chat+tool-call validated; 5 anchor_drift handled (PN394/PN400 retired, PN353A/PN382 re-anchored, P85 OFF); dev148 = previous/rollback. Prior dev148 evidence: PROMOTED 2026-06-19 (supersedes dev101+g4c6266331): K=5 + PN394/PN399 + Gemma kv-auto validated on dev148; dev101 = previous/rollback. Drift-audited clean on dev148 2026-06-19 (journal §20-COMPLETE: health=200, applied=42/failed=0, DRIFT skipped=NONE). Earlier dev101 validation 2026-06-17 — block-diffusion serve apply failed=0 + coherent gen ("The capital of France is Paris." / Red-Blue-Yellow) + get_weather {"city":"Berlin"} tool-call (gemma4 parser). G4_26 applies_to.vllm_version_range >=0.22.1rc1.dev491 still satisfied (dev148 > dev491). Previous dev101 (nightly-4c626633) retained as rollback.
   # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E) to
   # suppress the ERROR while this ModelDef LEADS the hardware image during
-  # the dev148 promotion window (hardware still pins dev101 image until the
-  # dev148 image_digest sha256 is captured).
-  pin_hold: "ModelDef promoted to dev148 (drift-audited clean 2026-06-19)
-    ahead of the shared a5000-2x hardware image, which still pins the dev101
-    image (nightly-4c626633) until its dev148 @sha256: digest is recorded
-    (R-PIN-2). The live launcher already runs nightly-b4c80ec0f. Remove this
-    hold + match the hardware image once the dev148 digest lands; dev101
-    stays rollback."
+  # the dev301 promotion window (hardware still pins dev148 image until the
+  # dev301 image_digest sha256 is captured).
+  pin_hold: "ModelDef promoted to dev301 (pin bump dev148 -> dev301,
+    2026-06-24) ahead of the shared a5000-2x hardware image, which still pins
+    the dev148 image (nightly-b4c80ec0f) until its dev301 @sha256: digest is
+    recorded (R-PIN-2). Remove this hold + match the hardware image once the
+    dev301 digest lands; dev148 stays rollback."
   reference_metrics_ref: null  # no canonical baseline JSON yet — see reference_metrics block below (coherent-serve receipt only; speed pending).
 
 # ─── Canonical patches matrix ──────────────────────────────────────────

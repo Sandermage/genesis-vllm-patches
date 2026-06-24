@@ -58,6 +58,17 @@ DISALLOWED_LIFECYCLES: frozenset[str] = frozenset({"retired"})
 # Operator-known retired patches that are still enabled by design at
 # E30 freeze. Each entry records why. Add a comment when expanding.
 ALLOWED_RETIRED_PATCHES: dict[str, str] = {
+    "PN394": (
+        "Pin bump dev148 -> dev301 retire 2026-06-24 — vllm#46047 (qwen3 "
+        "partial-param `<`-truncation fix) is IN dev301 (anchor drifted per "
+        "the dev301 anchor-SOT regen). Retired + capped <0.23.1rc1.dev301. "
+        "Env flag GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX=1 is still "
+        "set in the 27B/35B PROD YAMLs INTENTIONALLY: on dev301 the wiring "
+        "self-skips (version cap + the post-fix `>(.*)$` drift marker) so it "
+        "is harmless, AND it stays correct on a dev148 rollback (the bug is "
+        "live on dev148, the previous/rollback pin). Leave enabled until "
+        "dev148 rollback is no longer possible, then clean from YAMLs."
+    ),
     "PN22": (
         "0.23.1 reverify 2026-06-17 — vllm#39419 (LocalArgmaxMixin) merged at "
         "bd2d83ff, ancestor of 0.23.1rc1.dev101; mixin native on the deployed "

@@ -36,9 +36,9 @@ added as a registry patch.
 | Tier=community (Apache 2.0, sndr) | **313** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
 | Default-on at boot | 57 |
-| Lifecycle=experimental | 234 |
+| Lifecycle=experimental | 232 |
 | Lifecycle=legacy (pre-dispatcher) | 28 |
-| Lifecycle=retired | 34 |
+| Lifecycle=retired | 36 |
 | Lifecycle=research | 3 |
 | Lifecycle=stable | 14 (G4_01, G4_02, G4_03, G4_04, G4_05 [retired], G4_09, G4_11, G4_12, G4_13, G4_14, G4_16, G4_23, G4_25, PN33, PN35 — ratchet active with `stable_kind` declared; see [CONTRIBUTING.md § Promoting a patch to lifecycle=stable](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)) |
 | Lifecycle=coordinator | 4 (env-flag-only, no real binding) |

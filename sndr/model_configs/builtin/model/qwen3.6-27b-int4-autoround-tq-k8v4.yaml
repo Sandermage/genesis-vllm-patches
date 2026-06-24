@@ -74,17 +74,17 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
-  vllm_pin_required: 0.23.1rc1.dev148+gb4c80ec0f # PROMOTED 2026-06-19 (supersedes dev101+g4c6266331): live rig pin. K=5 + PN394/PN399 + Gemma kv-auto validated on dev148; dev101 = previous/rollback. MTP K=3->K=5 re-tune: 127.4 TPS single-stream / TPOT 7.54 ms (+8.2% vs K=3 117.7); PN119 tensor-core FP8-key decode live (tl.dot live), P18b revived; PN353A (vllm#44053 TQ builder workspace reserve) enabled. config-render boot: with GENESIS_ENFORCE_VERSION_RANGE=1 (composed from a5000-2x hardware) PN30 (capped <0.23.0, upstream fused-postprocess kernel supersedes) version-gates OFF -> apply failed=0; gen coherent + MTP K=5 finish=stop; tool-calls fire get_weather {"city":"Tokyo"} via qwen3_xml (#45171 remap to engine-native Qwen3CoderToolParser, no XML-to-content leak); PN119+P18B chain applied. NOTE: the rig render-launcher MUST carry GENESIS_ENFORCE_VERSION_RANGE=1 + --tool-call-parser qwen3_xml (re-render from this config). Previous dev101 (nightly-4c626633) retained as rollback.
+  vllm_pin_required: 0.23.1rc1.dev301+g04c2a8dea # PROMOTED 2026-06-24 (pin bump dev148 -> dev301): 35B 208 TPS + 31B 94.7 TPS boot+chat+tool-call validated; 5 anchor_drift handled (PN394/PN400 retired, PN353A/PN382 re-anchored, P85 OFF); dev148 = previous/rollback. Prior dev148 evidence: PROMOTED 2026-06-19 (supersedes dev101+g4c6266331): live rig pin. K=5 + PN394/PN399 + Gemma kv-auto validated on dev148; dev101 = previous/rollback. MTP K=3->K=5 re-tune: 127.4 TPS single-stream / TPOT 7.54 ms (+8.2% vs K=3 117.7); PN119 tensor-core FP8-key decode live (tl.dot live), P18b revived; PN353A (vllm#44053 TQ builder workspace reserve) enabled. config-render boot: with GENESIS_ENFORCE_VERSION_RANGE=1 (composed from a5000-2x hardware) PN30 (capped <0.23.0, upstream fused-postprocess kernel supersedes) version-gates OFF -> apply failed=0; gen coherent + MTP K=5 finish=stop; tool-calls fire get_weather {"city":"Tokyo"} via qwen3_xml (#45171 remap to engine-native Qwen3CoderToolParser, no XML-to-content leak); PN119+P18B chain applied. NOTE: the rig render-launcher MUST carry GENESIS_ENFORCE_VERSION_RANGE=1 + --tool-call-parser qwen3_xml (re-render from this config). Previous dev101 (nightly-4c626633) retained as rollback.
   # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E) to
   # suppress the would-be ERROR for this row while the ModelDef LEADS the
-  # hardware image during the dev148 promotion window.
-  pin_hold: "ModelDef promoted to dev148 (live rig pin, MTP K=5 validated
-    2026-06-19: 127.4 TPS) AHEAD of the shared a5000-2x hardware image,
-    which still pins the dev101 image (nightly-4c626633) because the dev148
-    image_digest sha256 has not yet been captured into the hardware YAML
-    (R-PIN-2 requires a real @sha256: digest). The live launcher already
-    runs nightly-b4c80ec0f. Remove this hold + match the hardware image once
-    the dev148 digest is recorded; dev101 stays rollback."
+  # hardware image during the dev301 promotion window.
+  pin_hold: "ModelDef promoted to dev301 (pin bump dev148 -> dev301,
+    2026-06-24; 27B 94.7 TPS validated) AHEAD of the shared a5000-2x hardware
+    image, which still pins the dev148 image (nightly-b4c80ec0f) because the
+    dev301 image_digest sha256 has not yet been captured into the hardware
+    YAML (R-PIN-2 requires a real @sha256: digest). Remove this hold + match
+    the hardware image once the dev301 digest is recorded; dev148 stays
+    rollback."
   reference_metrics_ref: null   # Phase 5.2.D (2026-05-22): formalize receipt-only state. The prior dev338 Wave-9 baseline (tests/integration/baselines/27b_v11_wave9.json) is no longer authoritative for this dev371-promoted ModelDef; keeping that reference produced a sticky audit mismatch in audit_v2_vllm_pin_consistency. Current dev371 runtime evidence: sndr_private/planning/bench_results/2026-05-21/P2_Q27_TQ_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md (smoke + quick bench: decode_TPOT 10.03 ms / TTFT 111 ms / wall_TPS 81.6 mean). A formal canonical baseline JSON requires the full sustained-methodology cycle and is deferred to Phase 7.
 
 # Y1 (Phase 10 — 2026-06-01): in-container python package pins. Migrated

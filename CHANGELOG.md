@@ -115,6 +115,63 @@ it on publish — pyproject.toml holds the release version.)
 
 ---
 
+## [Unreleased] — vLLM pin bump dev148 → dev301 (2026-06-24)
+
+### Highlights
+
+- **vLLM pin promoted `0.23.1rc1.dev148+gb4c80ec0f` → `0.23.1rc1.dev301+g04c2a8dea`**
+  (image `vllm/vllm-openai:nightly-04c2a8dea`, commit `04c2a8dea`). dev148
+  retained as the previous/rollback pin per CLAUDE.md ≤2-pin policy. Smoke
+  validation: **35B 208 TPS + 31B 94.7 TPS** boot + chat + tool-call.
+
+### Patches changed
+
+- **9-PR iron-rule-#11 deep-diff outcome (dev301 anchor-SOT regen).** The
+  dev301 anchor regeneration surfaced exactly 5 `anchor_drift` entries
+  (P85 / PN394 / PN353A / PN400 / PN382 — confirmed against
+  `pins/0.23.1_04c2a8dea/drift.rej.json`). Resolution:
+  - **PN394 RETIRED on dev301** (`superseded_by: vllm#46047`, capped
+    `< 0.23.1rc1.dev301`). #46047 (qwen3 partial-param `<`-truncation fix) is
+    IN dev301. Still applies through dev148; runtime drift-marker self-skips.
+  - **PN400 RETIRED on dev301** (`superseded_by: vllm#45656`, capped
+    `< 0.23.1rc1.dev301`). The NVIDIA `auto_gptq.py` `is_sym` qzeros guard is
+    native on dev301. CPU clause never used on our rig.
+  - **PN353A KEPT active** (`superseded_by: vllm#44053` note added, NOT
+    version-gated out). #44053 is native on dev301, but `PN399.requires_patches`
+    anchors PN353A's live output — coupled retirement waits for PN399's
+    upstream (#46067). Range left open through `< 0.24.0`.
+  - **PN382 KEPT active**, reclassified `backport → related_not_superseding`
+    (the valid-enum equivalent of a divergent fork; rationale in its `notes`).
+    vllm#45080 merged a WEAKER whole-pool/group-0 variant; our per-block fill
+    + real `kv_cache_groups` map are correctness-critical for GDN hybrids and
+    absent from the merge.
+  - **Deferred (PRs in vllm main, NOT in dev301 — still apply, left active):**
+    PN398/PN370 (#45100), PN386 (#45389), PN-FP8MOE-KPAD (#45703), G4_80
+    (#45040). They retire on a future bump when their PR lands. G4_80 carries a
+    credit note that its arm-1 retires when #45040 lands (arm-2 query_quant is
+    Genesis-original).
+
+### Migration notes
+
+- `KNOWN_GOOD_VLLM_PINS` (and the `EXPECTED_PINS` drift-trap mirror) gain
+  `0.23.1rc1.dev301+g04c2a8dea` + `nightly-04c2a8dea`; dev148 stays in the
+  tuple as the rollback.
+- All 11 builtin ModelDefs bumped `vllm_pin_required` to dev301 with a
+  `pin_hold` waiver for the promotion window (the shared a5000-2x hardware
+  YAML still pins the dev148 image until the dev301 `@sha256:` digest is
+  captured — hardware YAMLs intentionally unchanged in this step).
+- The anchor-SOT generated `sndr/engines/vllm/pins/0.23.1_04c2a8dea/`.
+
+### Verified
+
+- `pytest -k "registry or iron_rule_11 or audit_upstream or pin_gate or default_on"` green;
+  `test_pin_gate.py` green; registry self-test + `audit_registry_contract.py`
+  clean; `audit_v2_modeldef_vs_hardware_pin.py` rc0 (all 11 ModelDefs HOLD on
+  the dev301-vs-dev148 mismatch); `check_doc_sync.py` rc0; all 11 ModelDefs
+  load + validate.
+
+---
+
 ## [Unreleased] — dev148 pin · MTP K=5 re-tune · PN394/PN399/PN353A · Gemma-31B kv-auto · enterprise hardening (2026-06-19 … 2026-06-23)
 
 ### Highlights
