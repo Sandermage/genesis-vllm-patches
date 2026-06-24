@@ -1,0 +1,819 @@
+{
+ "counts": {
+  "anchor_drift": 5,
+  "ok": 138,
+  "optional_absent": 12,
+  "retired": 27,
+  "upstream_merged": 1,
+  "version_gated": 13
+ },
+ "coverage": {
+  "discovered": 196,
+  "ok": 138,
+  "rejected": 58
+ },
+ "genesis_pin": "12.0.0.dev0",
+ "genuine_anchor_drift": [
+  {
+   "anchor_head": "    def cache_blocks(\n        self,\n        request: Request",
+   "key": "P85::p85_mamba_cache_blocks_shadow",
+   "required": true,
+   "status": "anchor_drift",
+   "target_rel": "v1/core/single_type_kv_cache_manager.py"
+  },
+  {
+   "anchor_head": "_PARTIAL_PARAM_RE = re.compile(r\"<\\s*parameter\\s*=\\s*([^>]+)",
+   "key": "PN394::pn394_partial_param_value_group",
+   "required": true,
+   "status": "anchor_drift",
+   "target_rel": "parser/qwen3.py"
+  },
+  {
+   "anchor_head": "    def __init__(self, kv_cache_spec, layer_names, vllm_conf",
+   "key": "PN353A::pn353a_metadata_builder_reserve",
+   "required": true,
+   "status": "anchor_drift",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  {
+   "anchor_head": "        return gptq_marlin_moe_quant_config(\n            w1_",
+   "key": "PN400::pn400_marlin_moe_sym_zp_guard",
+   "required": true,
+   "status": "anchor_drift",
+   "target_rel": "model_executor/layers/quantization/auto_gptq.py"
+  },
+  {
+   "anchor_head": "            # Convert block_ids to tensor on device\n        ",
+   "key": "PN382::pn382_hybrid_per_block_fill",
+   "required": true,
+   "status": "anchor_drift",
+   "target_rel": "distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py"
+  }
+ ],
+ "merge_status": {
+  "G4_04": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/models/gemma4.py"
+  },
+  "G4_06": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/models/gemma4.py"
+  },
+  "G4_26": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/models/diffusion_gemma.py"
+  },
+  "P100": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P101": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P107": {
+   "merge_status": "not_merged",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  "P108": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/spec_decode/llm_base_proposer.py"
+  },
+  "P15": {
+   "merge_status": "not_merged",
+   "target_rel": "tool_parsers/utils.py"
+  },
+  "P15B": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P18B_TEXT": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/ops/triton_turboquant_decode.py"
+  },
+  "P18b": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/ops/triton_turboquant_decode.py"
+  },
+  "P24": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/fused_moe/fused_moe.py"
+  },
+  "P26": {
+   "merge_status": "partially_merged",
+   "merged_subs": [
+    "p26_cu_2_alloc"
+   ],
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P28": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  "P3": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/ops/triton_turboquant_store.py"
+  },
+  "P34": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/core/sched/scheduler.py"
+  },
+  "P37": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/fused_moe/experts/marlin_moe.py"
+  },
+  "P38B": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P44": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P46": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  "P5": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/core/kv_cache_utils.py"
+  },
+  "P65": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P66": {
+   "merge_status": "not_merged",
+   "target_rel": "config/vllm.py"
+  },
+  "P67": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P67b": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P68": {
+   "merge_status": "not_merged",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  "P69": {
+   "merge_status": "not_merged",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  "P70": {
+   "merge_status": "not_merged",
+   "target_rel": "config/speculative.py"
+  },
+  "P71": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "P72": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "P74": {
+   "merge_status": "not_merged",
+   "target_rel": "config/scheduler.py"
+  },
+  "P75": {
+   "merge_status": "not_merged",
+   "target_rel": "config/speculative.py"
+  },
+  "P79b": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "P79c": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/core/sched/scheduler.py"
+  },
+  "P81": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/quantization/utils/fp8_utils.py"
+  },
+  "P82": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "P85": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/core/single_type_kv_cache_manager.py"
+  },
+  "P86": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/spec_decode/ngram_proposer.py"
+  },
+  "P87": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/kernels/linear/mixed_precision/marlin.py"
+  },
+  "P95": {
+   "merge_status": "not_merged",
+   "target_rel": "config/vllm.py"
+  },
+  "P98": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P99": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/worker/workspace.py"
+  },
+  "PN106": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/fla/ops/chunk_delta_h.py"
+  },
+  "PN11": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  "PN116": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "PN12": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/activation.py"
+  },
+  "PN122": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "PN14": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/ops/triton_turboquant_decode.py"
+  },
+  "PN16": {
+   "merge_status": "not_merged",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  "PN25": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/activation.py"
+  },
+  "PN28": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/ops/triton_merge_attn_states.py"
+  },
+  "PN290": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "PN293": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/mamba_attn.py"
+  },
+  "PN294": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "PN298": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/fla/ops/chunk_o.py"
+  },
+  "PN31": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "PN32": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  "PN33": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "PN346B": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/core/kv_cache_coordinator.py"
+  },
+  "PN351": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/ops/triton_unified_attention.py"
+  },
+  "PN352": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/fused_moe/fused_moe.py"
+  },
+  "PN353A": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "PN353B": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "PN358": {
+   "merge_status": "not_merged",
+   "target_rel": "compilation/cuda_graph.py"
+  },
+  "PN368": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/fused_moe/experts/marlin_moe.py"
+  },
+  "PN372": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/spec_decode/utils.py"
+  },
+  "PN377": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/fused_moe/fused_moe.py"
+  },
+  "PN38": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/models/qwen3_dflash.py"
+  },
+  "PN381": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/worker/gpu_input_batch.py"
+  },
+  "PN382": {
+   "merge_status": "not_merged",
+   "target_rel": "distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py"
+  },
+  "PN385": {
+   "merge_status": "not_merged",
+   "target_rel": "tool_parsers/utils.py"
+  },
+  "PN386": {
+   "merge_status": "not_merged",
+   "target_rel": "tool_parsers/streaming.py"
+  },
+  "PN387": {
+   "merge_status": "not_merged",
+   "target_rel": "sampling_params.py"
+  },
+  "PN388": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/core/sched/scheduler.py"
+  },
+  "PN390": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN394": {
+   "merge_status": "not_merged",
+   "target_rel": "parser/qwen3.py"
+  },
+  "PN40": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/models/qwen3_dflash.py"
+  },
+  "PN40-classifier": {
+   "merge_status": "not_merged",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  "PN400": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/quantization/auto_gptq.py"
+  },
+  "PN517": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/worker/gpu_worker.py"
+  },
+  "PN55": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "PN57": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/quantization/turboquant/centroids.py"
+  },
+  "PN59": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/layers/fla/ops/chunk.py"
+  },
+  "PN77": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/model_loader/utils.py"
+  },
+  "PN8": {
+   "merge_status": "not_merged",
+   "target_rel": "model_executor/models/utils.py"
+  }
+ },
+ "pin": "0.23.1rc1.dev301+g04c2a8dea",
+ "rejected": [
+  {
+   "anchor_head": "            self.num_accepted_tokens[:num_spec_decodes].copy",
+   "key": "P63::p63_fresh_flag",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/attention/backends/gdn_attn.py"
+  },
+  {
+   "anchor_head": "    def build_for_cudagraph_capture(\n        self, common_at",
+   "key": "P63::p63_build_for_drafting_override",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/attention/backends/gdn_attn.py"
+  },
+  {
+   "anchor_head": "            tensors = TensorDeserializer(\n                lo",
+   "key": "PN80::lora_tensorizer_device",
+   "required": true,
+   "status": "retired",
+   "target_rel": "lora/lora_model.py"
+  },
+  {
+   "key": "P77::p77_adaptive_propose",
+   "status": "version_gated",
+   "target_rel": "v1/spec_decode/ngram_proposer.py",
+   "vrange": [
+    ">=0.20.0",
+    "<0.22.0"
+   ]
+  },
+  {
+   "anchor_head": "        # Continuation or no flash_attn: per-request attenti",
+   "key": "P78::p78_site_b_capture_guard",
+   "required": false,
+   "status": "retired",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  {
+   "anchor_head": "    is_prefill: bool = False\n    num_decodes: int = 0  # num",
+   "key": "P78::p78_site_c_metadata_field",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  {
+   "anchor_head": "        return TurboQuantMetadata(\n            seq_lens=cam.",
+   "key": "P78::p78_site_d_builder_precompute",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  {
+   "anchor_head": "            # Use CPU-side max to avoid GPU\u2192CPU sync from .i",
+   "key": "P78::p78_site_e_forward_read",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  {
+   "anchor_head": "        if use_eagle and computed_blocks[0]:\n            # N",
+   "key": "P83::p83_full_attention_skip_pop",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/core/single_type_kv_cache_manager.py"
+  },
+  {
+   "anchor_head": "        if use_eagle and computed_blocks[0]:\n            for",
+   "key": "P83::p83_sliding_window_skip_pop",
+   "required": false,
+   "status": "retired",
+   "target_rel": "v1/core/single_type_kv_cache_manager.py"
+  },
+  {
+   "anchor_head": "            hash_block_size=self.block_size,\n",
+   "key": "P84::p84_hash_block_size_env_override",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/core/sched/scheduler.py"
+  },
+  {
+   "anchor_head": "    def cache_blocks(\n        self,\n        request: Request",
+   "key": "P85::p85_mamba_cache_blocks_shadow",
+   "required": true,
+   "status": "anchor_drift",
+   "target_rel": "v1/core/single_type_kv_cache_manager.py"
+  },
+  {
+   "anchor_head": "        computed_blocks: tuple[list[KVCacheBlock], ...] = tu",
+   "key": "P85::p85_mamba_find_longest_cache_hit_fine_post_pn346",
+   "status": "optional_absent",
+   "target_rel": "v1/core/single_type_kv_cache_manager.py"
+  },
+  {
+   "anchor_head": "        return check_marlin_supports_shape(\n            c.pa",
+   "key": "P87::p87_can_implement_padded_dev259",
+   "status": "optional_absent",
+   "target_rel": "model_executor/kernels/linear/mixed_precision/marlin.py"
+  },
+  {
+   "anchor_head": "    def _create_draft_vllm_config(self) -> VllmConfig:\n     ",
+   "key": "PN9::pN9_create_draft_vllm_config",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/spec_decode/llm_base_proposer.py"
+  },
+  {
+   "key": "PN50::pn50_gdn_fused_proj",
+   "status": "version_gated",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py",
+   "vrange": [
+    ">=0.20.0",
+    "<0.23.0"
+   ]
+  },
+  {
+   "anchor_head": "                        if (tools_streamed[i] and not tool_c",
+   "key": "P107::p107_mtp_truncation",
+   "status": "optional_absent",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  {
+   "anchor_head": "            num_computed_tokens_after_sched = num_computed_t",
+   "key": "PN388::pn388_split_post_p34",
+   "status": "optional_absent",
+   "target_rel": "v1/core/sched/scheduler.py"
+  },
+  {
+   "anchor_head": "_PARTIAL_PARAM_RE = re.compile(r\"<\\s*parameter\\s*=\\s*([^>]+)",
+   "key": "PN394::pn394_partial_param_value_group",
+   "required": true,
+   "status": "anchor_drift",
+   "target_rel": "parser/qwen3.py"
+  },
+  {
+   "anchor_head": "        # is_prefilling: True if request is still in prefill",
+   "key": "PN82::pN82_mamba_cudagraph_prefill_zero",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  {
+   "anchor_head": "        if attn_metadata.num_prefills > 0:\n            asser",
+   "key": "PN54::pn54_ssm_state",
+   "required": true,
+   "status": "retired",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  {
+   "anchor_head": "        if hasattr(self, \"in_proj_qkv\"):\n            # LoRA ",
+   "key": "PN54::pn54_lora_ba",
+   "required": false,
+   "status": "retired",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  {
+   "key": "PN252::pN252_drop_fatal_prompt_token_ids_assert",
+   "status": "version_gated",
+   "target_rel": "v1/worker/gpu_model_runner.py",
+   "vrange": [
+    ">=0.20.0",
+    "<0.23.0"
+   ]
+  },
+  {
+   "key": "PN252::pN252_derive_non_none_token_sequence",
+   "status": "version_gated",
+   "target_rel": "v1/worker/gpu_model_runner.py",
+   "vrange": [
+    ">=0.20.0",
+    "<0.23.0"
+   ]
+  },
+  {
+   "anchor_head": "            if self._locked:\n                raise Assertion",
+   "key": "PN34::pN34_workspace_lock_runtime_relax",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/worker/workspace.py"
+  },
+  {
+   "anchor_head": "        # 2.3: Process the remaining part (prefill chunk, or",
+   "key": "PN32::pN32_v3_forward_core_chunked_prefill_post_pn79",
+   "status": "optional_absent",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  {
+   "key": "PN288::pn288_streaming_finish_reason",
+   "status": "version_gated",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py",
+   "vrange": [
+    ">=0.20.0",
+    "<0.23.0"
+   ]
+  },
+  {
+   "key": "PN288::pn288_non_streaming_finish_reason",
+   "status": "version_gated",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py",
+   "vrange": [
+    ">=0.20.0",
+    "<0.23.0"
+   ]
+  },
+  {
+   "anchor_head": "    assert NK == 1, \"NK > 1 is not supported yet\"\n    num_st",
+   "key": "PN396::pn396_gdn_spec_decode_num_warps",
+   "required": true,
+   "status": "retired",
+   "target_rel": "model_executor/layers/fla/ops/fused_sigmoid_gating.py"
+  },
+  {
+   "anchor_head": "        CHUNK_SIZE=chunk_size,\n        USE_TD=use_td,\n      ",
+   "key": "PN351::pn351_kernel_launch_warps_stages",
+   "status": "optional_absent",
+   "target_rel": "v1/attention/ops/triton_unified_attention.py"
+  },
+  {
+   "anchor_head": "        CHUNK_SIZE=chunk_size,\n        USE_TD=use_td,\n      ",
+   "key": "PN351::pn351_kernel_launch_warps_stages_post45151",
+   "status": "optional_absent",
+   "target_rel": "v1/attention/ops/triton_unified_attention.py"
+  },
+  {
+   "anchor_head": "    def __init__(self, kv_cache_spec, layer_names, vllm_conf",
+   "key": "PN353A::pn353a_metadata_builder_reserve",
+   "required": true,
+   "status": "anchor_drift",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  {
+   "key": "PN347::pn347_marlin_fp8_contiguity_guard",
+   "status": "version_gated",
+   "target_rel": "model_executor/kernels/linear/scaled_mm/marlin.py",
+   "vrange": [
+    ">=0.21.0",
+    "<0.22.1rc1.dev491"
+   ]
+  },
+  {
+   "key": "PN373::pn373_parallel_toolcalls_null_is_default",
+   "status": "version_gated",
+   "target_rel": "entrypoints/serve/utils/tool_calls_utils.py",
+   "vrange": [
+    ">=0.22.0",
+    "<0.23.0"
+   ]
+  },
+  {
+   "anchor_head": "        # Precompute get_token_id for when there is no valid",
+   "key": "P94::p94_zero_alloc_backup_token_ids",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/spec_decode/llm_base_proposer.py"
+  },
+  {
+   "key": "PN110::pn110_free_blocks_dedup",
+   "status": "version_gated",
+   "target_rel": "v1/core/block_pool.py",
+   "vrange": [
+    ">=0.20.0",
+    "<0.23.0"
+   ]
+  },
+  {
+   "anchor_head": "        return gptq_marlin_moe_quant_config(\n            w1_",
+   "key": "PN400::pn400_marlin_moe_sym_zp_guard",
+   "required": true,
+   "status": "anchor_drift",
+   "target_rel": "model_executor/layers/quantization/auto_gptq.py"
+  },
+  {
+   "anchor_head": "\n\n@dataclass\nclass EngineArgs:",
+   "key": "P4::p4_helper_fn",
+   "required": true,
+   "status": "retired",
+   "target_rel": "engine/arg_utils.py"
+  },
+  {
+   "anchor_head": "        if resolved_cache_dtype.startswith(\"turboquant_\"):\n ",
+   "key": "P4::p4_tq_block",
+   "required": true,
+   "status": "retired",
+   "target_rel": "engine/arg_utils.py"
+  },
+  {
+   "anchor_head": "def unify_kv_cache_spec_page_size(\n    kv_cache_spec: dict[s",
+   "key": "P5::p5_v1_lcm_pad_max_from_baseline",
+   "status": "optional_absent",
+   "target_rel": "v1/core/kv_cache_utils.py"
+  },
+  {
+   "anchor_head": "        from vllm.v1.kv_cache_interface import (\n           ",
+   "key": "P6::p6_import_tqspec",
+   "required": true,
+   "status": "retired",
+   "target_rel": "platforms/interface.py"
+  },
+  {
+   "anchor_head": "        else:\n            attn_page_size_1_token = FullAtten",
+   "key": "P6::p6_tq_branch",
+   "required": true,
+   "status": "retired",
+   "target_rel": "platforms/interface.py"
+  },
+  {
+   "key": "P7::p7_inproj_dual_stream",
+   "status": "version_gated",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py",
+   "vrange": [
+    ">=0.20.0",
+    "<0.22.1rc1.dev259"
+   ]
+  },
+  {
+   "anchor_head": "from vllm.distributed import get_tensor_model_parallel_world",
+   "key": "P7b::p7b_import_time_register",
+   "required": true,
+   "status": "retired",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  {
+   "anchor_head": "            mixed_qkvz, _ = self.in_proj_qkvz(hidden_states)",
+   "key": "P7b::p7b_inproj_via_custom_op",
+   "required": true,
+   "status": "retired",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  {
+   "anchor_head": "                    stack.enter_context(patch(\"gc.collect\", ",
+   "key": "PN13::pN13_lambda_arity",
+   "required": true,
+   "status": "retired",
+   "target_rel": "compilation/cuda_graph.py"
+  },
+  {
+   "anchor_head": "            FP8_E4B15=fp8_e4b15,\n            num_warps=4,\n  ",
+   "key": "P18b::p18b_text_gqa_launch_tune",
+   "status": "optional_absent",
+   "target_rel": "v1/attention/ops/triton_turboquant_decode.py"
+  },
+  {
+   "anchor_head": "            FP8_E4B15=fp8_e4b15,\n            num_warps=1,\n  ",
+   "key": "P18b::p18b_text_mha_launch_tune",
+   "status": "optional_absent",
+   "target_rel": "v1/attention/ops/triton_turboquant_decode.py"
+  },
+  {
+   "anchor_head": "            FP8_E4B15=fp8_e4b15,\n            num_warps=4,\n  ",
+   "key": "P18B_TEXT::p18b_text_gqa_launch_tune",
+   "status": "optional_absent",
+   "target_rel": "v1/attention/ops/triton_turboquant_decode.py"
+  },
+  {
+   "anchor_head": "            FP8_E4B15=fp8_e4b15,\n            num_warps=1,\n  ",
+   "key": "P18B_TEXT::p18b_text_mha_launch_tune",
+   "status": "optional_absent",
+   "target_rel": "v1/attention/ops/triton_turboquant_decode.py"
+  },
+  {
+   "key": "P26::p26_cu_2_alloc",
+   "status": "upstream_merged",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  {
+   "anchor_head": "        self.register_buffer(\n            \"_tq_mid_o_buf\",\n ",
+   "key": "P36::p36_shared_decode_bufs",
+   "required": true,
+   "status": "retired",
+   "target_rel": "model_executor/layers/attention/attention.py"
+  },
+  {
+   "key": "PN66::pn66_remove_field",
+   "status": "version_gated",
+   "target_rel": "parser/abstract_parser.py",
+   "vrange": [
+    ">=0.20.0",
+    "<0.23.0"
+   ]
+  },
+  {
+   "key": "PN66::pn66_remove_block",
+   "status": "version_gated",
+   "target_rel": "parser/abstract_parser.py",
+   "vrange": [
+    ">=0.20.0",
+    "<0.23.0"
+   ]
+  },
+  {
+   "anchor_head": "            or self.logitsprocs_need_output_token_ids\n      ",
+   "key": "PN67::pn67_remove_not",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/worker/gpu_input_batch.py"
+  },
+  {
+   "anchor_head": "        return replace(\n            base,\n            attent",
+   "key": "G4_05::dflash_backend_autoselect",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/spec_decode/dflash.py"
+  },
+  {
+   "key": "PN378::pn378_vocab_pad_mask",
+   "status": "version_gated",
+   "target_rel": "v1/sample/rejection_sampler.py",
+   "vrange": [
+    ">=0.22.0",
+    "<0.23.0"
+   ]
+  },
+  {
+   "anchor_head": "            # Convert block_ids to tensor on device\n        ",
+   "key": "PN382::pn382_hybrid_per_block_fill",
+   "required": true,
+   "status": "anchor_drift",
+   "target_rel": "distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py"
+  }
+ ]
+}
