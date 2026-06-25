@@ -60,6 +60,14 @@ never ship publicly.
 | [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) | Technical design appendices: PN95 tier-aware KV cache · GDN kernel fusion roadmap · Qwen3 reasoning/content streaming contract · `Genesis → sndr_core` v11 rename. |
 | [`RELEASE_POLICY.md`](RELEASE_POLICY.md) | Which patch-proof mode gates a public release (`require-static` today + two stricter ratchets). |
 
+### Pin management
+
+| Doc | Purpose |
+| --- | --- |
+| [`PIN_BUMP_PLAYBOOK.md`](PIN_BUMP_PLAYBOOK.md) | **Canonical** end-to-end vLLM pin-bump procedure: candidate extraction → preflight verdicts → fix-drifts → iron-rule-#11 deep-diff → throwaway-container smoke → tokenizer-fingerprint gate → canonical bench → promotion → tag rotation. |
+| [`ANCHOR_SOT.md`](ANCHOR_SOT.md) | The per-pin anchor source-of-truth + bump tooling manual: `sndr/engines/vllm/pins/<pin>/` manifests, `make rebuild-pin` / `audit-pin` / `bump-preflight` / `summarize-rej`, and what the bump-gate detects (silent perf-landmine class). |
+| [`guides/PIN_UPGRADE.md`](guides/PIN_UPGRADE.md) | Short pin-**policy** summary (≤2-pin, no-proactive-pull, validate-before-promote) + universal launcher template. Points to the playbook + anchor-SOT manual. |
+
 ### Benchmarks + troubleshooting
 
 | Doc | Purpose |

@@ -5,15 +5,15 @@
 # Genesis vLLM Patches
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev301+g04c2a8dea-orange.svg)](https://github.com/vllm-project/vllm)
+[![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev424+g3f5a1e173-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/registry-321%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class
 inference on consumer NVIDIA Ampere / Ada / Blackwell with TurboQuant k8v4 KV
-cache, MTP K=5 spec-decode, tool-calling, and 256K-class context. 316 patches
-across 27 families. Apache 2.0.**
+cache, MTP K=5 spec-decode, tool-calling, and 256K-class context. 321 patches
+across ~23 families. Apache 2.0.**
 
 ---
 
@@ -29,6 +29,62 @@ upstream mostly targets datacenter SKUs.
 It is **not** a fork of vLLM, a quantizer, a new inference engine, or a
 training framework. Patches retire automatically when upstream merges the
 underlying fix.
+
+## How it works
+
+**The overlay / apply model.** Genesis never edits vLLM on disk. At every
+process start the plugin registers via vLLM's `vllm.general_plugins` entry
+point (loaded in the main process, the engine, and every worker rank) and
+the dispatcher walks `PATCH_REGISTRY`. Each patch declares an `applies_to`
+version range and an apply method — a **text edit at a unique source
+anchor**, a **class-rebind wrapper**, or **FastAPI middleware**. Patches
+whose anchors match and whose range covers the live pin apply; the rest
+print `[SKIP — applies_to mismatch]` and no-op. The result is an in-memory
+overlay: the same wheel, transformed at boot, with a structured apply
+summary (`applied=N skipped=M failed=0`) and an audit trail. Nothing is
+written to the vLLM package tree.
+
+**Patch families.** The 321 entries group into ~23 canonical families. The
+largest: `attention.turboquant` (k8v4 KV-cache quant), `spec_decode` (MTP /
+ngram speculative decoding), `attention.gdn` (hybrid Gated-DeltaNet linear
+attention), `gemma4` (Gemma-4 enablement), `kv_cache`, `compile_safety`,
+`worker`, `serving`, `tool_parsing`, and `moe`. The full table is
+[`docs/PATCHES.md`](docs/PATCHES.md) (curated) +
+[`docs/PATCHES_AUTO.md`](docs/PATCHES_AUTO.md) (generated from the registry).
+
+**Pin lifecycle.** Genesis pins to one canonical vLLM nightly at a time,
+plus an optional previous pin held for rollback during validation — at most
+two ("≤2-pin policy"). A bump happens only on an explicit instruction
+naming the target pin; there are **no proactive pulls**. The candidate is
+validated before promotion (anchor-drift resolved, the `bump-preflight`
+gate clean, boot-smoke + tokenizer-fingerprint + canonical bench), then the
+old 2-back pin is dropped. Current: `dev424` (`3f5a1e173`); rollback:
+`dev301` (`04c2a8dea`). See [`docs/PIN_BUMP_PLAYBOOK.md`](docs/PIN_BUMP_PLAYBOOK.md)
+(canonical) + [`docs/ANCHOR_SOT.md`](docs/ANCHOR_SOT.md).
+
+**Model catalog (current registry).**
+
+| Model | Quant | KV cache | Spec-decode | Status |
+| --- | --- | --- | --- | --- |
+| Qwen3.6-35B-A3B-FP8 | FP8 dense MoE | TurboQuant k8v4 | MTP K=5 | ✅ PROD (default) |
+| Qwen3.6-27B-int4-AutoRound | INT4 AutoRound (hybrid GDN+Mamba) | TurboQuant k8v4 | MTP K=5 | ✅ PROD |
+| Gemma-4-31B | INT4 / kv-auto | TurboQuant or uniform fp16 | MTP K=3 (separate drafter) | ⚙️ boots + patches apply; serving needs MM-budget config |
+| DiffusionGemma-26B-A4B-FP8 | FP8-dynamic block-diffusion MoE | TP=2 | — | ✅ serving at TP=2 |
+
+Per-model deep-dives + the V2 layered config system:
+[`docs/MODELS.md`](docs/MODELS.md). Hardware envelope:
+[`docs/HARDWARE.md`](docs/HARDWARE.md).
+
+**Launching.** Boot any model through a preset — the launcher resolves the
+preset, runs preflight, and renders the `docker run` (or podman / bare-metal
+/ k8s) command for you with the correct pin, mounts, and env:
+
+```bash
+sndr launch prod-qwen3.6-35b-balanced            # boot a preset
+sndr launch prod-qwen3.6-35b-balanced --dry-run  # inspect the rendered command, no boot
+```
+
+Full operator manual: [`docs/USAGE.md`](docs/USAGE.md).
 
 ## Headline numbers (v12.0.0 current registry)
 
@@ -48,21 +104,27 @@ comparisons, and per-rig reproduction recipes:
 
 ![Sustained TPS — Genesis vs stock](assets/charts/tps_genesis_vs_stock.png)
 
-> **Pin bump 2026-06-24:** the vLLM pin is now `0.23.1rc1.dev301+g04c2a8dea`
-> (image `nightly-04c2a8dea`); `dev148` is the previous / rollback pin. Smoke
-> validation on the 2× A5000 rig: 35B 208 TPS + 31B 94.7 TPS boot + chat +
-> tool-call. The dev301 anchor regen surfaced 5 `anchor_drift` entries:
-> PN394 (#46047) + PN400 (#45656) retired on dev301; PN353A + PN382
-> kept + re-anchored. The full per-model bench table below is the prior
-> dev148 K=5 re-tune cycle (still the canonical sustained-bench evidence).
+> **Current pin (2026-06-25):** the vLLM pin is `0.23.1rc1.dev424+g3f5a1e173`
+> (image `vllm/vllm-openai:nightly-3f5a1e173…`, commit `3f5a1e173`, +123 commits
+> over dev301). `dev301` (`0.23.1rc1.dev301+g04c2a8dea`, commit `04c2a8dea`)
+> is retained as the previous / rollback pin per the ≤2-pin policy; `dev148` is
+> **dropped**. The dev301→dev424 bump was the first to dogfood the anchor-SOT
+> bump tooling (`make bump-preflight` + `retire_impact`) — see
+> [`docs/PIN_BUMP_PLAYBOOK.md`](docs/PIN_BUMP_PLAYBOOK.md) (canonical) and
+> [`docs/ANCHOR_SOT.md`](docs/ANCHOR_SOT.md). The per-model bench table below is
+> the validated dev148 K=5 re-tune cycle (still the canonical sustained-bench
+> evidence; decode carried forward across the dev301 and dev424 bumps with no
+> regression).
 
-### Latest rig validation — 2026-06-19 (pin `0.23.1rc1.dev148+gb4c80ec0f`)
+### Validated rig baseline — 2026-06-19 (measured on pin `0.23.1rc1.dev148+gb4c80ec0f`)
 
-Full model-cycle re-test on the reference 2× A5000 rig after the MTP K=3→K=5 re-tune and the
-dev148 pin promotion. Each model boots the Genesis apply pipeline, applies its patch set, and is
-benchmarked / smoke-tested live (`tools/genesis_bench_suite.py`, single-stream warm sweep). The
-35B / 27B single-stream rows are the K=5 re-tune numbers; Gemma stays K=3 (its separate drafter
-is optimal at K=3). `dev101` is retained as the previous / rollback pin.
+Full model-cycle re-test on the reference 2× A5000 rig after the MTP K=3→K=5 re-tune. These are
+the canonical sustained-bench numbers; the pin has since bumped dev148 → dev301 → **dev424**
+(current) with the decode results carried forward (no regression — anchor regen confirmed at each
+bump). Each model boots the Genesis apply pipeline, applies its patch set, and is benchmarked /
+smoke-tested live (`tools/genesis_bench_suite.py`, single-stream warm sweep). The 35B / 27B
+single-stream rows are the K=5 re-tune numbers; Gemma stays K=3 (its separate drafter is optimal
+at K=3).
 
 | Model | Quant / KV | Patches | Decode TPS | Tool-call | Status |
 | --- | --- | ---: | ---: | :---: | --- |

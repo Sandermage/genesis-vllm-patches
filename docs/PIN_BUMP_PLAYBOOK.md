@@ -1,6 +1,17 @@
 # Pin-Bump Playbook — candidate readiness without touching PROD
 
-Last updated: 2026-06-10 (pipeline v1).
+Last updated: 2026-06-26 (pipeline v1 + Phase-4 anchor-SOT). **This is the
+canonical pin-bump doc.** Two companions: [`ANCHOR_SOT.md`](ANCHOR_SOT.md)
+documents the per-pin anchor source-of-truth + `rebuild-pin` /
+`bump-preflight` tooling (the Phase-4 regen + bump-gate that runs alongside
+the §2 preflight and feeds the §7 promotion);
+[`guides/PIN_UPGRADE.md`](guides/PIN_UPGRADE.md) is the short policy +
+launcher-template summary that points here.
+
+> Current pin: `0.23.1rc1.dev424+g3f5a1e173` (`dev301` =
+> `0.23.1rc1.dev301+g04c2a8dea` = rollback; `dev148` dropped). The dev301 →
+> dev424 bump (2026-06-25) was the first to run the full Phase-4 anchor-SOT
+> path (`make rebuild-pin` → `make bump-preflight`) on top of this preflight.
 
 End-to-end procedure for bumping the vLLM pin. The centerpiece is the
 **pin-bump preflight pipeline**: given a CANDIDATE image already present

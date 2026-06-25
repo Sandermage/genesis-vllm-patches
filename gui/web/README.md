@@ -99,6 +99,28 @@ The sidebar groups every surface:
 
 ---
 
+## Live-wired data — nothing hardcoded
+
+Every project-state value the GUI shows is **fetched at runtime from the live
+`sndr` package** via the Product API; there are no baked-in project facts. This
+is by design, so the console never drifts from the engine:
+
+| Surface | Source (runtime) | Never hardcoded |
+|---|---|---|
+| Patch count | `sndr.dispatcher.spec.iter_patch_specs()` → `patches.total` (backend `patches/listing.py`); rendered from `patches?.total` | no `TOTAL_PATCHES` / `321` literal in `src/` |
+| vLLM pin(s) | `updater.supported_pins()` regex-scans `vllm_pin_required:` out of the live model YAMLs; `canonical_pin = pins[0]` | no `devNNN` pin literal in the bundle |
+| Models | V2 catalog via `sndr.model_configs.registry_v2` (`overview.collect_catalog_summary()`) | the `qwen3.6-*` strings in `src/` are fallback **seeds** / i18n examples, replaced by `loadAll()` on mount |
+| SNDR Core version | `overview.capabilities.platform.sndr_core_version` | no `12.0.0` literal in `src/` |
+| Deploy artifact | `deployment.py` composes from `registry_v2` + `runtime_command.build_runtime_command()` (embeds `genesis_pin` from live config) | — |
+
+The served bundle is built by `make gui-build` and committed to
+`sndr/product_api/legacy/web_static/`; the daemon serves it same-origin. Because
+all state is API-sourced, the bundle automatically reflects the current pin
+(dev424), patch count (321), and model catalog without a rebuild — a rebuild is
+only needed for UI/code changes, not data changes.
+
+---
+
 ## Adaptive layout
 
 The GUI targets everything from a laptop to a 3440-wide ultrawide workstation.
