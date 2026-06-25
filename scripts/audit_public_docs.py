@@ -194,15 +194,17 @@ _D7_PERMANENT_EXEMPT: frozenset[tuple[str, int]] = frozenset()
 _D8_PERMANENT_EXEMPT: frozenset[tuple[str, int]] = frozenset({
     # "> Previous v7.59 baseline (2026-04-28): vLLM dev212+g8cd174fa3 era —"
     # Explicit "Previous" prefix — historical baseline marker.
-    ("docs/CONFIGURATION.md", 42),
+    ("docs/CONFIGURATION.md", 44),
 })
 
 # The current canonical pin SHA. The D-8 stale-pin pattern uses `dev1\d+`
-# to catch pre-current dev1xx-era pins presented as current; the live
-# canonical pin (dev148+gb4c80ec0f, ratified 2026-06-19) also matches
-# `dev1\d+`, so its SHA is excluded via negative lookahead — it is the
-# current pin, not a stale one. Update this on each pin bump.
-_D8_CURRENT_PIN_SHA = "gb4c80ec0f"
+# to catch pre-current dev1xx-era pins presented as current; the prior
+# canonical pin (dev148+gb4c80ec0f) also matched `dev1\d+`, so its SHA used
+# to be excluded via negative lookahead. The current canonical pin is now
+# dev424+g3f5a1e173 (ratified 2026-06-25) — it does NOT match `dev1\d+`, so
+# the exclusion is a no-op for the live pin, but the constant is kept
+# pointing at the current SHA per convention. Update this on each pin bump.
+_D8_CURRENT_PIN_SHA = "g3f5a1e173"
 
 
 def _grep_with_allowlist(

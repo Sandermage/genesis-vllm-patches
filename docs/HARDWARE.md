@@ -2,7 +2,7 @@
 
 This document describes which hardware Genesis runs on, how much VRAM you need for each supported model, and how to choose between single-GPU and multi-GPU configurations. All numbers are empirical from the Genesis reference rig (`2× RTX A5000 24 GiB`, PCIe Gen4 x16, no NVLink) unless explicitly noted otherwise. Numbers on other Ampere/Ada cards are within ±5% per VRAM bandwidth scaling, but please verify on your own setup.
 
-If your card is not listed and your workload is unusual, run `python -m vllm.sndr_core.gpu_profile --explain` after install — it prints per-patch recommendations based on your detected SM, HBM bandwidth, and L2 size.
+If your card is not listed and your workload is unusual, run `python3 -m sndr.compat.gpu_profile --explain` after install — it prints per-patch recommendations based on your detected SM, HBM bandwidth, and L2 size.
 
 ## Supported GPU Classes
 

@@ -54,7 +54,7 @@ API on one port** (no separate Node server, same-origin, no CORS hop):
 
 ```bash
 make gui-build     # npm ci && build, copies dist → sndr/product_api/legacy/web_static
-python3 -m vllm.sndr_core.cli gui-api --host 127.0.0.1 --port 8765
+python3 -m sndr.cli gui-api --host 127.0.0.1 --port 8765
 # open http://127.0.0.1:8765
 ```
 
@@ -64,7 +64,7 @@ serves the UI directly. Override the served assets dir with `SNDR_GUI_STATIC`.
 ## CLI flags (`sndr gui-api`)
 
 ```bash
-python3 -m vllm.sndr_core.cli gui-api [--host H] [--port P] [--log-level L] [--enable-apply] [--open]
+python3 -m sndr.cli gui-api [--host H] [--port P] [--log-level L] [--enable-apply] [--open]
 ```
 
 | Flag | Default | Purpose |
@@ -103,7 +103,7 @@ list live in [`docs/GUI_SECURITY.md`](GUI_SECURITY.md).
 During frontend development, run the Vite dev server alongside the daemon:
 
 ```bash
-python3 -m vllm.sndr_core.cli gui-api --host 127.0.0.1 --port 8765
+python3 -m sndr.cli gui-api --host 127.0.0.1 --port 8765
 cd gui/web && npm run dev        # http://127.0.0.1:5173
 ```
 
@@ -133,7 +133,7 @@ For a shared/server install, enable user authentication. The simplest path:
 
 ```bash
 SNDR_AUTH=on SNDR_ADMIN_PASSWORD="change-me" \
-  python3 -m vllm.sndr_core.cli gui-api --host 0.0.0.0 --port 8765
+  python3 -m sndr.cli gui-api --host 0.0.0.0 --port 8765
 ```
 
 On first start an **admin account is bootstrapped** (username = the system user

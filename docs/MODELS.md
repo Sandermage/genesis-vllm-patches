@@ -124,8 +124,9 @@ most Genesis patches skip via dispatcher.
 | Published context | 256K (G4_09 chunked-prefill) |
 
 The 31B dense Gemma runs in two KV configurations that trade throughput
-against context on the same 2× A5000 rig (single-stream, pin
-`0.23.1rc1.dev148+gb4c80ec0f`):
+against context on the same 2× A5000 rig (single-stream; numbers measured
+on the validated dev148 baseline and carried forward across the dev301 and
+dev424 bumps — current pin is `0.23.1rc1.dev424+g3f5a1e173`):
 
 | Profile | KV plan | Context | Decode TPS | Tool-call | Best for |
 | --- | --- | ---: | ---: | :---: | --- |

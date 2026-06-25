@@ -23,7 +23,7 @@ over it — it adds no business logic.
 ## Running the daemon
 
 ```bash
-python3 -m vllm.sndr_core.cli gui-api --host 127.0.0.1 --port 8765 --log-level info
+python3 -m sndr.cli gui-api --host 127.0.0.1 --port 8765 --log-level info
 ```
 
 `GET /openapi.json` exposes the full OpenAPI document. The frontend types are

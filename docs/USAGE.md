@@ -10,10 +10,11 @@ the end of every section). This page is the connective tissue: enough
 to get unstuck without context-switching, but not a replacement for
 the per-topic deep-dives.
 
-> Stack as of 2026-06-01:
+> Stack as of 2026-06-25:
 > Genesis `v12.0.0` (321 PATCH_REGISTRY entries) ·
-> vLLM `0.23.1rc1.dev148+gb4c80ec0f` (previous / rollback: `dev101`) ·
-> Reference rig: 2× RTX A5000 24 GB · driver ≥ 580.126 · CUDA 13.
+> vLLM `0.23.1rc1.dev424+g3f5a1e173` (previous / rollback: `dev301` =
+> `0.23.1rc1.dev301+g04c2a8dea`) · Reference rig: 2× RTX A5000 24 GB ·
+> driver ≥ 580.126 · CUDA 13.
 
 ## 1. What you are running
 
@@ -77,7 +78,7 @@ working Genesis install in **3-5 minutes**.
    `sndr` and `genesis` console scripts (the latter is the legacy
    compat-CLI surface, kept for back-compat).
 9. **PYTHONPATH wire** — adds the clone directory to PYTHONPATH so
-   `import vllm.sndr_core` resolves at runtime.
+   `import sndr` resolves at runtime.
 10. **Launch script generation** — picks a preset for your detected
     `(GPU × workload)` combo and writes a runnable launch script
     under `$SNDR_HOME/launch/`.
@@ -385,7 +386,7 @@ Five steps. Each has a recipe; the full version is in
    python3 -m pytest -q tests/unit/integrations/<family>/
    python3 scripts/check_doc_sync.py --strict
    python3 scripts/generate_patches_md.py        # regenerate auto-doc
-   python3 -m vllm.sndr_core.cli patches doctor  # registry sanity
+   python3 -m sndr.cli patches doctor  # registry sanity
    make evidence                                  # 43+ gates
    ```
 

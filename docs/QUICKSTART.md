@@ -4,10 +4,11 @@ Get a Genesis-patched vLLM server up on a single machine, end-to-end.
 Covers the three entry points (`install.sh`, the `sndr` CLI, direct
 docker compose) and the first-30-minute acceptance walkthrough.
 
-> Stack as of 2026-05-30:
+> Stack as of 2026-06-25:
 > Genesis `v12.0.0` (321 PATCH_REGISTRY entries) ·
-> vLLM `0.23.1rc1.dev148+gb4c80ec0f` (previous / rollback: `dev101`) ·
-> Reference rig: 2× RTX A5000 24 GB · driver ≥ 580.126 · CUDA 13.
+> vLLM `0.23.1rc1.dev424+g3f5a1e173` (previous / rollback: `dev301` =
+> `0.23.1rc1.dev301+g04c2a8dea`) · Reference rig: 2× RTX A5000 24 GB ·
+> driver ≥ 580.126 · CUDA 13.
 
 ## 1. Prerequisites
 
@@ -162,7 +163,7 @@ manifest.
 
 **Common failures:**
 
-- `vllm version mismatch (got X, expected 0.23.1rc1.dev148+gb4c80ec0f)`
+- `vllm version mismatch (got X, expected 0.23.1rc1.dev424+g3f5a1e173)`
   → re-run installer with `--pin <pin>` to align, or
   `pip install vllm==<your-pin>` and accept the drift warning.
 - `NCCL P2P_DISABLE recommended on consumer Ampere` → set

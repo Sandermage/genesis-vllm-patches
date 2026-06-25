@@ -27,10 +27,10 @@ Consumers **must not** mutate the rules.
 ### 1. At consumer startup
 
 ```bash
-python3 -m vllm.sndr_core.cli routing-table --json > /etc/genesis/routing.json
+python3 -m sndr.cli routing-table --json > /etc/genesis/routing.json
 ```
 
-(Or, equivalently, run `python3 -m vllm.sndr_core.cli routing-table --json` as
+(Or, equivalently, run `python3 -m sndr.cli routing-table --json` as
 a subprocess on aggregator startup and cache the result.)
 
 ### 2. Per request
@@ -104,13 +104,13 @@ Everything else is **K=1**, by policy.
 
 ```bash
 # 1. Sanity check the schema
-python3 -m vllm.sndr_core.cli routing-table --validate
+python3 -m sndr.cli routing-table --validate
 
 # 2. Inspect the rules + gaps
-python3 -m vllm.sndr_core.cli routing-table --json | jq '.routing_rules, .coverage_gaps'
+python3 -m sndr.cli routing-table --json | jq '.routing_rules, .coverage_gaps'
 
 # 3. Pin the table at the deploy boundary
-python3 -m vllm.sndr_core.cli routing-table --json --out /etc/genesis/routing.json
+python3 -m sndr.cli routing-table --json --out /etc/genesis/routing.json
 
 # 4. Restart the aggregator to pick up the new table
 systemctl restart genesis-aggregator

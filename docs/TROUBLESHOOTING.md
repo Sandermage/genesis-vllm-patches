@@ -482,7 +482,7 @@ behave like vanilla vLLM. `sndr verify` reports 0 applied.
 **Workaround.**
 
 ```bash
-docker run -v $REPO/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:rw ...
+docker run -v $REPO/sndr:/usr/local/lib/python3.12/dist-packages/sndr:rw ...
 ```
 
 **Prevention.** Use overlay mounts for production:
@@ -589,8 +589,8 @@ pip install vllm-sndr-core pyyaml pytest cryptography
 sndr --help
 sndr launch --dry-run prod-qwen3.6-35b-balanced
 sndr install --dry-run --non-interactive
-python -m vllm.sndr_core.compat.schema_validator --quiet
-python -m vllm.sndr_core.apply.shadow --strict
+python3 -m sndr.compat.schema_validator --quiet
+python3 -m sndr.apply.shadow --strict
 ```
 
 GPU-dependent tests skip automatically
@@ -806,6 +806,11 @@ Phase 10 V1 sunset (`607385f1`, 2026-06-01) deleted every shipped V1 monolithic 
 
 If an emergency rollback to a V1 baseline is required (e.g. an unreproducible V2 regression and the operator wants to bisect against the last-known-good V1 config), restore the file from history:
 
+> The `vllm/sndr_core/…` paths below are **intentional** — they reference the
+> file's location *in history* (at `607385f1~`, before the v11→v12 `vllm/sndr_core/`
+> → top-level `sndr/` rename). `git checkout <historical-SHA> -- <historical-path>`
+> must use the path as it existed at that commit; do not rewrite these to `sndr/`.
+
 ```bash
 # Restore the canonical 35B V1 baseline (was deleted in 607385f1)
 git checkout 607385f1~ -- vllm/sndr_core/model_configs/builtin/a5000-2x-35b-prod.yaml
@@ -860,7 +865,7 @@ var explicitly set in the launcher script. Escape hatch:
 **Detection**:
 
 ```bash
-docker exec <container> python3 -m vllm.sndr_core.compat.cli self-test
+docker exec <container> python3 -m sndr.cli self-test
 docker exec <container> cat /tmp/genesis_boot.log | grep -E '<PATCH>: (skipped|applied)'
 docker inspect <container> --format '{{.Config.Env}}' | grep GENESIS_ENABLE_<patch>
 ```
@@ -1349,7 +1354,7 @@ GENESIS_SPEC_DECODE_ARTIFACTS_DIR=...                  # extra artifacts dir
 Run:
 
 ```bash
-python -m vllm.sndr_core.integrations.spec_decode.gateway
+python3 -m sndr.cli gateway
 ```
 
 **Profile inventory** as of 2026-05-31:
@@ -1399,7 +1404,7 @@ suite cleanly with no overlap and no gap.
    export GENESIS_GATEWAY_DEFAULT_URL=http://localhost:8113   # chat-k3
    export GENESIS_GATEWAY_STRUCTURED_URL=http://localhost:8102 # structured-k4
    export GENESIS_GATEWAY_PROFILE=gemma4-31b-tq-mtp-structured-k4
-   python -m vllm.sndr_core.integrations.spec_decode.gateway   # port 8100
+   python3 -m sndr.cli gateway   # port 8100
    ```
 
 4. Aggregator / client points at the gateway (`localhost:8100`)
@@ -1484,7 +1489,7 @@ and warrants investigation via:
 1. `sndr trace list --container <c>` to see what's being written.
 2. `sndr support-bundle --container <c>` to gather host + container
    facts for off-rig analysis.
-3. `docker exec <c> python3 -m vllm.sndr_core.compat.cli self-test`
+3. `docker exec <c> python3 -m sndr.cli self-test`
    to verify the registry contract.
 
 ### Known operator decisions deferred

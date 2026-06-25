@@ -25,8 +25,9 @@ variables.
 
 ### Q: Which vLLM pin does Genesis target today?
 
-`0.23.1rc1.dev148+gb4c80ec0f` (current public release, v12.0.0,
-2026-06-19; `dev101` is the retained previous / rollback pin). Each patch declares an `applies_to` range, so newer
+`0.23.1rc1.dev424+g3f5a1e173` (current pin, v12.0.0, bumped 2026-06-25;
+`dev301` = `0.23.1rc1.dev301+g04c2a8dea` is the retained previous /
+rollback pin per the ≤2-pin policy). Each patch declares an `applies_to` range, so newer
 vLLM commits cause patches to print `[SKIP — applies_to mismatch]`
 rather than crashing. Bumping the pin is a deliberate release event
 documented in [`RELEASE_POLICY.md`](RELEASE_POLICY.md).

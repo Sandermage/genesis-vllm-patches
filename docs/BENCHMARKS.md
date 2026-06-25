@@ -10,7 +10,13 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 >
 > - Genesis `v12.0.0` — 321 PATCH_REGISTRY entries
 >   (174 full + 17 marker-only + 4 retired + 7 partial + 2 placeholder).
-> - vLLM `0.23.1rc1.dev148+gb4c80ec0f` (`dev101` = previous / rollback pin).
+> - vLLM **current pin** `0.23.1rc1.dev424+g3f5a1e173`
+>   (`dev301` = `0.23.1rc1.dev301+g04c2a8dea` = previous / rollback pin per the
+>   ≤2-pin policy; `dev148` dropped). The canonical bench numbers below are the
+>   **validated dev148 baseline** — decode was carried forward across the dev301
+>   and dev424 bumps (anchor regen + smoke confirmed at each bump; no decode
+>   regression). They are re-benched on a pin bump only when a perf-relevant
+>   change is suspected.
 > - Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6),
 >   driver 580.142, CUDA 13.0.2.
 > - Spec-decode: MTP K=5 on Qwen 35B/27B (re-tuned 2026-06-19; Gemma drafter
@@ -568,9 +574,10 @@ entrypoint. Under the hood it composes:
   — credit to them.
 - `tools/progressive_context_probe.py` — context-window scan with
   PASS / FAIL per level.
-- `tools/_retired/phase1_test_harness.sh` — RETIRED 2026-05-15
-  (kept for archeology; superseded by `genesis_bench_suite.py` +
-  `multi_conc_bench.py`).
+- `phase1_test_harness.sh` — RETIRED 2026-05-15, superseded by
+  `genesis_bench_suite.py` + `multi_conc_bench.py`. Relocated to the
+  maintainer's private archive 2026-06-26 (kept for git-blame archeology;
+  no longer shipped in the public tree).
 
 The four PROD-ready configs launched through the unified CLI:
 

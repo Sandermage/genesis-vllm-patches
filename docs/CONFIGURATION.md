@@ -12,11 +12,13 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 >   (top-k/top-p contiguous), PN133, PN204 v2 (GDN dual-stream consolidated),
 >   PN298/PN299 FLA arch-aware NUM_WARPS prune. Updated 2026-06-10 — counts
 >   auto-derived from ``PATCH_REGISTRY``.
-> - vLLM `0.23.1rc1.dev148+gb4c80ec0f` (bumped dev209→dev338→dev371→dev491→dev101→dev148;
->   `dev101` retained as previous / rollback pin per the ≤2-pin policy;
->   canonical bench numbers below measured on dev93/dev209 — the dev148 MTP
->   K=5 re-tune shows 35B sustained ~239.7 TPS single-stream at max_num_seqs=2
->   and ~689 aggregate at conc=8 — both within CV of, or above, the baseline)
+> - vLLM `0.23.1rc1.dev424+g3f5a1e173` (current pin, bumped
+>   …→dev148→dev301→dev424; `dev301` = `0.23.1rc1.dev301+g04c2a8dea` retained
+>   as previous / rollback pin per the ≤2-pin policy, `dev148` dropped;
+>   canonical bench numbers below measured on the validated dev148 baseline —
+>   the dev148 MTP K=5 re-tune shows 35B sustained ~239.7 TPS single-stream at
+>   max_num_seqs=2 and ~689 aggregate at conc=8 — both within CV of, or above,
+>   the baseline; decode carried forward across the dev301 and dev424 bumps)
 > - PyTorch 2.11.0+cu130, Triton 3.6.0, CUDA 13.0.2
 > - **NVIDIA driver ≥ 580.126.09 REQUIRED** (570 → 3× slowdown)
 > - 2× RTX A5000 24 GiB (Ampere SM 8.6), TP=2

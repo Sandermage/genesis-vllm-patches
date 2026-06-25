@@ -8,7 +8,7 @@ states the boundaries it enforces and how to operate it safely.
 The daemon binds to `127.0.0.1` by default. It is not exposed on the LAN/WAN.
 
 ```bash
-python3 -m vllm.sndr_core.cli gui-api --host 127.0.0.1 --port 8765
+python3 -m sndr.cli gui-api --host 127.0.0.1 --port 8765
 ```
 
 Binding to a non-loopback address is possible (`--host 0.0.0.0`) but should only
@@ -30,7 +30,7 @@ Requests without a valid token receive `401`. With no token set (default), the
 local daemon is open — appropriate for `127.0.0.1` only.
 
 ```bash
-SNDR_GUI_TOKEN=$(openssl rand -hex 16) python3 -m vllm.sndr_core.cli gui-api
+SNDR_GUI_TOKEN=$(openssl rand -hex 16) python3 -m sndr.cli gui-api
 ```
 
 In the GUI, set the token in Advanced → API & Schema. It is stored in
@@ -56,11 +56,11 @@ operator would run but do not execute. Real execution is opt-in:
 
 ```bash
 # default: dry-run only
-python3 -m vllm.sndr_core.cli gui-api
+python3 -m sndr.cli gui-api
 
 # opt in to real service-action execution
-python3 -m vllm.sndr_core.cli gui-api --enable-apply
-# or: SNDR_ENABLE_APPLY=1 python3 -m vllm.sndr_core.cli gui-api
+python3 -m sndr.cli gui-api --enable-apply
+# or: SNDR_ENABLE_APPLY=1 python3 -m sndr.cli gui-api
 ```
 
 When apply is enabled (`GET /api/v1/auth/status` → `apply_enabled: true`):
@@ -178,7 +178,7 @@ docker run -d \
   -v sndr-data:/data/sndr \         # <-- persistent volume
   -p 8765:8765 \
   your-image \
-  python3 -m vllm.sndr_core.cli gui-api --host 0.0.0.0 --port 8765
+  python3 -m sndr.cli gui-api --host 0.0.0.0 --port 8765
 ```
 
 Without the volume, the user store is recreated empty on each restart and a new

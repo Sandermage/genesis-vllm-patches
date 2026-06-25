@@ -25,7 +25,7 @@ by abandoned prealloc_v2 experiment; PN78 tombstoned; P39a flipped to
 community per the strict-AND audit.
 
 **Library modules** (not in PATCH_REGISTRY but available for patches to
-use): `vllm.sndr_core.cache.eviction_policies` — LRU/2Q/ARC eviction
+use): `sndr.cache.eviction_policies` — LRU/2Q/ARC eviction
 policy classes (37 unit tests, scan-pollution verified). Awaiting full
 backport of vllm#40270 with proper BlockPool integration before being
 added as a registry patch.
@@ -187,11 +187,11 @@ them.
 
 ---
 
-- **Source of truth:** `vllm.sndr_core.dispatcher.PATCH_REGISTRY` (rich
+- **Source of truth:** `sndr.dispatcher.PATCH_REGISTRY` (rich
   metadata; lifecycle-tracked; schema-validated) +
-  `vllm.sndr_core.dispatcher.spec.iter_patch_specs()` (canonical apply_module
+  `sndr.dispatcher.spec.iter_patch_specs()` (canonical apply_module
   resolver; the new spec-driven loop).
-- **Legacy parking lot:** `vllm.sndr_core.apply._per_patch_dispatch` —
+- **Legacy parking lot:** `sndr.apply._per_patch_dispatch` —
   the 4542-line `@register_patch` registry kept as fallback during the
   PR38 Day 6-8 migration to registry-driven apply (opt-in via
   `SNDR_APPLY_VIA_SPECS=1`).

@@ -71,15 +71,15 @@ want to adopt this gate should:
 ```bash
 # Release-gate (current public policy) — used by CI + make evidence
 make audit-release-check
-python3 -m vllm.sndr_core.cli patches release-check --mode require-static
+python3 -m sndr.cli patches release-check --mode require-static
 
 # Hardened ratchet 1 — at least one bench attached per patch
 make audit-release-check-bench-attached
-python3 -m vllm.sndr_core.cli patches release-check --mode require-bench
+python3 -m sndr.cli patches release-check --mode require-bench
 
 # Hardened ratchet 2 — bench with baseline comparison per patch
 make audit-release-check-baseline-optional
-python3 -m vllm.sndr_core.cli patches release-check --mode require-baseline
+python3 -m sndr.cli patches release-check --mode require-baseline
 ```
 
 The `make_evidence.py --release` aggregate wires the **release gate**
@@ -125,7 +125,7 @@ practical subset that actually ships in production presets.
 
 ### What is the "production subset"?
 
-`vllm.sndr_core.proof.production_subset.get_production_subset()` is
+`sndr.proof.production_subset.get_production_subset()` is
 the canonical source. It returns the frozenset of patches that are
 either:
 

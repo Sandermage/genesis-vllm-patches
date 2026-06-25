@@ -84,7 +84,7 @@ Safety model:
 
 Attribution: Genesis-original / port of <upstream PR> / cross-engine learning.
 """
-from vllm.sndr_core.core import TextPatcher, TextPatch  # path updated 2026-05-11 (was sndr_core.wiring.text_patch pre-v11)
+from sndr.kernel import TextPatcher, TextPatch  # path updated 2026-06-01 v12 refactor (was vllm.sndr_core.core in v11, sndr_core.wiring.text_patch pre-v11)
 
 GENESIS_PNN_MARKER = "Genesis PNN v7.NN_descriptive_name"
 
@@ -384,7 +384,7 @@ Diagnose with:
 
 ```bash
 docker exec <container> python -c "
-from vllm.sndr_core.compat.version_check import detect_versions, check_version_constraints
+from sndr.compat.version_check import detect_versions, check_version_constraints
 profile = detect_versions()
 print('detected:', profile.vllm)
 # replicate the patch's declared range
@@ -537,7 +537,7 @@ PN33 and PN35 are the reference examples.
 
 - We don't enforce a formatter on contributors, but we do run `ruff` on the maintainer side. PRs may be reformatted before merge.
 - Type hints encouraged on public surfaces (the modules under `sndr/dispatcher/`, `sndr/kernel/text_patch.py` (TextPatcher API), and `sndr/apply/orchestrator.py`).
-- Logging via `logger = logging.getLogger("vllm.sndr_core")`. The pre-v11 `vllm._genesis` namespace was removed in v11.0.0 and no longer resolves — any new code (and any pre-v11 code being touched) must use `vllm.sndr_core`. Print only in the boot-summary path.
+- Logging via `logger = logging.getLogger("genesis.<area>.<patch_id>")` (e.g. `genesis.wiring.pn519_swa_tile_base`; the apply pipeline logs under `genesis.apply_all`). The pre-v11 `vllm._genesis` namespace was removed in v11.0.0 and the `vllm/sndr_core/` overlay was renamed to top-level `sndr/` in the v12 refactor — any new code (and any pre-v11 code being touched) must import from `sndr.*`. Print only in the boot-summary path.
 
 ---
 
@@ -561,7 +561,7 @@ from tests.unit.integrations._family_contract_helpers import (
 )
 
 PATCHES = [
-    ("vllm.sndr_core.integrations.<new_family>.<file>", "<PATCH_ID>"),
+    ("sndr.engines.vllm.patches.<new_family>.<file>", "<PATCH_ID>"),
     # ...
 ]
 
@@ -750,9 +750,9 @@ Operator workflow:
 
 ```bash
 pip install my-genesis-plugin
-python3 -m vllm.sndr_core.compat.plugins list
-python3 -m vllm.sndr_core.compat.plugins show MY_HANDLE_001
-python3 -m vllm.sndr_core.compat.plugins validate
+python3 -m sndr.cli plugins list
+python3 -m sndr.cli plugins show MY_HANDLE_001
+python3 -m sndr.cli plugins validate
 ```
 
 Author etiquette:

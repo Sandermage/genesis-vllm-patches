@@ -75,7 +75,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 | Hardware | Validation status | Notes |
 |---|---|---|
-| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v12.0.0 stack tested (driver ≥ 580.126 / CUDA 13.0 / vLLM `0.23.1rc1.dev148+gb4c80ec0f`) | Default config targets this |
+| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v12.0.0 stack tested (driver ≥ 580.126 / CUDA 13.0 / vLLM `0.23.1rc1.dev424+g3f5a1e173`) | Default config targets this |
 | 1× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-27b-single-3090) | Same SM 8.6 family |
 | 2× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-dual-3090) | TP=2 PCIe Gen4 (no NVLink) |
 
@@ -306,17 +306,17 @@ pip install --upgrade pip wheel setuptools
 
 ### 2. Install vLLM nightly
 
-Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](#quick-start-canonical-v1200) — currently `0.23.1rc1.dev148+gb4c80ec0f` (`dev101` is the retained previous / rollback pin).
+Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](#quick-start-canonical-v1200) — currently `0.23.1rc1.dev424+g3f5a1e173` (`dev301` = `0.23.1rc1.dev301+g04c2a8dea` is the retained previous / rollback pin per the ≤2-pin policy).
 
 ```bash
 # Option A — install from a specific nightly wheel (recommended if you can match)
-pip install --pre vllm==0.23.1rc1.dev148+gb4c80ec0f \
+pip install --pre vllm==0.23.1rc1.dev424+g3f5a1e173 \
   --extra-index-url https://wheels.vllm.ai/nightly
 
 # Option B — install from source at a specific commit
 git clone https://github.com/vllm-project/vllm.git
 cd vllm
-git checkout b4c80ec0f  # match the SHA from Production baseline (dev148)
+git checkout 3f5a1e173  # match the SHA from Production baseline (dev424)
 pip install -e . --no-build-isolation
 cd ..
 
@@ -337,7 +337,7 @@ print(f'cuda available: {torch.cuda.is_available()}')
 print(f'cuda devices: {torch.cuda.device_count()}')
 "
 # Expect:
-# vllm 0.23.1rc1.dev148+gb4c80ec0f
+# vllm 0.23.1rc1.dev424+g3f5a1e173
 # torch 2.11.0+cu130 cuda=13.0
 # triton 3.6.0
 # cuda available: True

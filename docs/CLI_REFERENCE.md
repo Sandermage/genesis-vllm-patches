@@ -233,8 +233,8 @@ sndr self-test --json                                   # machine-readable
 
 | # | Check | What it verifies |
 | --- | --- | --- |
-| 1 | version constant | `vllm.sndr_core.__version__` is a non-empty string. |
-| 2 | compat imports | All `vllm.sndr_core.compat.*` modules import cleanly. |
+| 1 | version constant | `sndr.version.__version__` is a non-empty string. |
+| 2 | compat imports | All `sndr.compat.*` modules import cleanly. |
 | 3 | integrations imports | All `sndr/engines/vllm/patches/**/*.py` modules import; SKIP if `vllm` not installed. |
 | 4 | schema validator | `PATCH_REGISTRY` validates against `schemas/patch_entry.schema.json`. |
 | 5 | lifecycle audit | Every entry has a known lifecycle state. |
