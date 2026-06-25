@@ -74,6 +74,9 @@ export function UpdatesPanel() {
             <strong>{tr("Plan → pin")} {plan.target_pin ?? "—"}</strong>
             {!plan.pin_gate.ok && <span className="updates-gate-fail">{tr("pin gate failed")}</span>}
           </div>
+          {!plan.pin_gate.ok && plan.pin_gate.reason && (
+            <p className="updates-gate-reason muted">{plan.pin_gate.reason}</p>
+          )}
           {plan.blocked_reasons.length > 0 && (
             <ul className="updates-blocked">{plan.blocked_reasons.map((r, i) => <li key={i}><AlertTriangle size={12} /> {r}</li>)}</ul>
           )}

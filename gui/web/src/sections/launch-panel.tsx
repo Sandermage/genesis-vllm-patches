@@ -145,6 +145,9 @@ export function LaunchPanel({
               <LaunchParam label={tr("Enabled patches")} value={String(asNumber(planSummary.enabled_patches_count) || asNumber(composed.enabled_patches_count) || "-")} />
               <LaunchParam label={tr("Patch policy")} value={patchPolicy} />
               <LaunchParam label={tr("Fallback")} value={asText(planSummary.fallback_preset, asText(card.fallback_preset, tr("none")))} />
+              <LaunchParam label={tr("Evidence")} value={asText(planSummary.evidence_visibility, "-")} />
+              <LaunchParam label={tr("Primary metric")} value={planSummary.primary_metric_value != null ? `${asText(planSummary.primary_metric_kind, "")} ${asNumber(planSummary.primary_metric_value)}`.trim() : "-"} />
+              <LaunchParam label={tr("Patch coverage")} value={asNumber(planSummary.patch_coverage_total) ? `${asNumber(planSummary.patch_coverage_mapped)}/${asNumber(planSummary.patch_coverage_total)}` : "-"} />
             </div>
           </section>
         </div>

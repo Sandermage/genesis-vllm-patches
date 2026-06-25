@@ -880,6 +880,8 @@ const RU_BY_EN: Record<string, string> = {
   "enabled": "включено",
   "Enabled": "Включено",
   "Enabled patches": "Включённые патчи",
+  "Primary metric": "Основная метрика",
+  "Patch coverage": "Покрытие патчами",
   "Enabled patches:": "Включённые патчи:",
   "Enablement override": "Переопределение включения",
   "encrypted at rest": "зашифровано при хранении",
