@@ -97,6 +97,32 @@ def _summarize_one(rej_path):
         if len(retired) > 20:
             print("  ... and %d more" % (len(retired) - 20))
 
+    # retire-impact / dependency-breakage — the bug class that slipped through
+    # on dev148->dev301: a retired patch silently breaks a DIFFERENT patch that
+    # depends on it, no-op'ing a perf optimization without surfacing as drift.
+    # A perf-tier dependent that SKIPS due to a retired dependency must NOT be
+    # lumped with benign skips — it is flagged here as a perf/correctness risk.
+    breakage = data.get("dependency_breakage") or {}
+    edges = breakage.get("edges") or []
+    if edges:
+        hi = [e for e in edges if e.get("severity") == "HIGH"]
+        md = [e for e in edges if e.get("severity") != "HIGH"]
+        print("⚠ retire-broken dependents (%d) — perf/correctness risk:"
+              % len(edges))
+        if hi:
+            print("  HIGH (perf — its optimization NO-OPs; run a canonical A/B "
+                  "before promoting):")
+            for e in hi:
+                print("    * %s -> %s  via=%s" % (
+                    e.get("retired"), e.get("dependent"),
+                    ",".join(e.get("via") or [])))
+        if md:
+            print("  MEDIUM (behaviour change):")
+            for e in md:
+                print("    - %s -> %s  via=%s" % (
+                    e.get("retired"), e.get("dependent"),
+                    ",".join(e.get("via") or [])))
+
     # per-patch upstream-merge tri-state roll-up
     if merge:
         by_status = {}

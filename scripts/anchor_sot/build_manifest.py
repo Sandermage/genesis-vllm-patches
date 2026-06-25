@@ -36,6 +36,28 @@ def _mk(d):
     return AnchorTarget(**d)
 
 
+def _dependency_breakage(rej):
+    """Run the retire-impact detector against the live registry, feeding the
+    per-pin version-gated-OUT set derived from this pin's reject entries.
+
+    Returns the report dict (high_count / medium_count / edges), or an empty
+    report when the dispatcher registry is not importable on the host (the
+    section is still present so consumers can rely on the key existing).
+    """
+    try:
+        from sndr.engines.vllm.retire_impact import detect_on_live_registry
+    except Exception:  # noqa: BLE001 — registry unavailable: empty section
+        return {"high_count": 0, "medium_count": 0, "edges": []}
+    # patch ids whose anchors are absent on THIS pin because the version range
+    # gates them out — treated as "retired on this pin" for breakage analysis
+    # (their dependents will skip exactly as if the patch were retired).
+    gated = {
+        e["key"].split("::", 1)[0]
+        for e in rej if e.get("status") == "version_gated"
+    }
+    return detect_on_live_registry(gated_out=gated).to_dict()
+
+
 def main():
     targets_path, pristine_path, repo, pin = sys.argv[1:5]
     gpin = sys.argv[5] if len(sys.argv) > 5 else "genesis"
@@ -84,9 +106,14 @@ def main():
     # never be re-anchored, so it is never a false re-anchor candidate.
     genuine = [e for e in res.rej if e.get("status") == "anchor_drift"]
     retired = [e for e in res.rej if e.get("status") == "retired"]
-    # Emit the FULL rejected set (not only genuine drift) + the per-patch merge
-    # tri-state so the committed drift.rej.json shows every dropped anchor and
-    # which patches were upstream-merged. Both files are always written.
+    # Retire-impact / dependency-breakage section: for every patch RETIRED or
+    # version-gated-OUT on this pin, which OTHER (live) patch silently breaks
+    # because it depends on it (requires_patches / composes_with / anchor name).
+    # This is the class of bug that slipped through on dev148->dev301: PN353A
+    # retired -> PN399 SKIPPED as a benign skip (NOT genuine anchor_drift) ->
+    # its perf optimization no-op'd -> a real TPS regression no gate caught. A
+    # perf-tier dependent that breaks is HIGH severity.
+    breakage = _dependency_breakage(res.rej)
     json.dump({
         "pin": pin,
         "genesis_pin": gpin,
@@ -96,6 +123,7 @@ def main():
         "merge_status": res.merge,
         "rejected": res.rej,
         "genuine_anchor_drift": genuine,
+        "dependency_breakage": breakage,
     }, open(os.path.join(pindir, "drift.rej.json"), "w"), indent=1, sort_keys=True)
 
     print("OK pin=%s -> %s/anchors.json (%d anchors, %d files)" % (
@@ -106,6 +134,18 @@ def main():
         dict(res.counts), len(genuine), [e["key"] for e in genuine[:8]]))
     print("retired=%d (anchors gone, as expected) %s" % (
         len(retired), [e["key"] for e in retired[:8]]))
+    hi = breakage.get("high_count", 0)
+    md = breakage.get("medium_count", 0)
+    if hi or md:
+        print("dependency_breakage: HIGH=%d MEDIUM=%d %s" % (
+            hi, md, ["%s->%s" % (e["retired"], e["dependent"])
+                     for e in breakage["edges"][:8]]))
+        if hi:
+            print("  WARN retire-broken PERF dependents (run a canonical A/B "
+                  "before promoting — iron-rule #9):")
+            for e in breakage["edges"]:
+                if e["severity"] == "HIGH":
+                    print("    * %s" % e["detail"])
 
 
 if __name__ == "__main__":

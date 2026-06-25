@@ -136,10 +136,31 @@ it on publish — pyproject.toml holds the release version.)
   - **PN400 RETIRED on dev301** (`superseded_by: vllm#45656`, capped
     `< 0.23.1rc1.dev301`). The NVIDIA `auto_gptq.py` `is_sym` qzeros guard is
     native on dev301. CPU clause never used on our rig.
-  - **PN353A KEPT active** (`superseded_by: vllm#44053` note added, NOT
-    version-gated out). #44053 is native on dev301, but `PN399.requires_patches`
-    anchors PN353A's live output — coupled retirement waits for PN399's
-    upstream (#46067). Range left open through `< 0.24.0`.
+  - **PN353A RETIRED on dev301** (`superseded_by: vllm#44053`, capped
+    `< 0.23.1rc1.dev301`; `lifecycle: retired`). #44053 is native on dev301 —
+    the pristine `turboquant_attn.py` carries a byte-equivalent
+    `TurboQuantMetadataBuilder._reserve_workspace`, so PN353A's anchor matches
+    0× and the patch cannot apply (a re-anchor would inject a DUPLICATE
+    method). Iron-rule-#11 outcome (a). **This retirement silently broke
+    `PN399`** — PN399's `pn399_pn353a_decode_reserve_remove` sub-patch was
+    `required=True` and anchored on the PN353A-emitted `_genesis_pn353a_torch`
+    decode-reserve text, absent on dev301. PN399 is whole-patch transactional,
+    so the missing required anchor SKIPPED the entire patch — including its
+    `_DECODE_SCRATCH` perf path — yielding a real **−5.5% decode-TPS
+    regression** on the 35B that `genuine_drift=0` (clean) never surfaced.
+    **Fix:** PN399 was re-anchored — the C2 decode-reserve removal is now TWO
+    mutually-exclusive `required=False` siblings (the dev148 PN353A-form and the
+    dev301 native form; exactly one matches per pin) and PN353A was dropped from
+    PN399's `requires_patches`/`composes_with`, so the perf path re-couples on
+    dev301 without needing PN353A enabled. (The earlier "PN353A KEPT active,
+    coupled retirement waits for #46067" note was self-defeating — a patch that
+    cannot apply cannot anchor anything for a dependent.) The new retire-impact
+    detector (`sndr/engines/vllm/retire_impact.py`, wired into the per-pin
+    `drift.rej.json` + `bump_preflight`) catches exactly this class on every
+    bump: it flags `PN353A -> PN399` HIGH (perf) via the load-bearing anchor
+    name — even though the `requires_patches` declaration was scrubbed in the
+    fix — so the next such retirement fails the bump gate instead of silently
+    no-op'ing a perf patch.
   - **PN382 KEPT active**, reclassified `backport → related_not_superseding`
     (the valid-enum equivalent of a divergent fork; rationale in its `notes`).
     vllm#45080 merged a WEAKER whole-pool/group-0 variant; our per-block fill

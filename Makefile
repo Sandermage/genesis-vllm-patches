@@ -13,7 +13,7 @@
 .PHONY: help test gates audit docs precommit paths-env clean \
         test-pin-gate test-iron-rule test-family test-doc-sync \
         audit-upstream audit-yaml preflight lint-drift-markers \
-        tokenizer-fingerprint rebuild-pin audit-pin summarize-rej \
+        tokenizer-fingerprint rebuild-pin audit-pin summarize-rej bump-preflight \
         docs-check docs-write doctor \
         evidence evidence-release evidence-json gui-build gui-lint test-gui-contract audit-i18n
 
@@ -184,8 +184,14 @@ audit-pin: ## Phase 4: verify the committed per-pin manifest still matches a fre
 		exit 2; }
 	@bash scripts/anchor_sot/audit_pin.sh "$${SSH_HOST}"
 
-summarize-rej: ## Phase 4: human summary of pins/<pin>/drift.rej.json (counts by status + merge tri-state); PIN=<dir> for one pin, else all
+summarize-rej: ## Phase 4: human summary of pins/<pin>/drift.rej.json (counts by status + merge tri-state + retire-broken dependents); PIN=<dir> for one pin, else all
 	@$(PYTHON) scripts/anchor_sot/summarize_rej.py $${PIN:+sndr/engines/vllm/pins/$${PIN}}
+
+bump-preflight: ## Phase 4: bump gate — retire-impact + perf-landmine checklist between OLD/NEW pin manifests (OLD=<dir> NEW=<dir>); exits non-zero on a broken HIGH-severity perf dependent
+	@test -n "$${OLD}" -a -n "$${NEW}" || { \
+		echo "Usage: make bump-preflight OLD=sndr/engines/vllm/pins/<old> NEW=sndr/engines/vllm/pins/<new>"; \
+		exit 2; }
+	@$(PYTHON) scripts/anchor_sot/bump_preflight.py "$${OLD}" "$${NEW}"
 
 audit-legacy-imports: ## Forbid vllm.sndr_core.patches / vllm._genesis active imports
 	@bash scripts/check_no_legacy_imports.sh
