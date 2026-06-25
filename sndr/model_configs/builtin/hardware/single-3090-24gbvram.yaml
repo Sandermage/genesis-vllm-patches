@@ -28,8 +28,8 @@ runtime:
   default: docker                                # values: docker|podman|kubernetes|systemd|bare
   supported: [docker]                            # which runtime emitters this hardware supports
   docker:
-    image: vllm/vllm-openai:nightly-b4c80ec0f  # vllm container image tag — 0.23.1rc1.dev148+gb4c80ec0f, unified with 2x rig 2026-06-17 (follows the canonical 2x pin; the audit requires one rig-wide SHA). Community 3090 reference shares the SAME engine binary as the 2x rig; no independent single-card smoke yet. Previous dev101 (nightly-4c626633) retained as rollback.
-    image_digest: vllm/vllm-openai@sha256:960ac5b3fda0547c3ce64d8f69bae9fa242d5ae5382fc74a98cd8ef13950e403  # pinned digest — nightly-4c626633159887b0f2c962058c17c78f1434556d (0.23.1rc1.dev148+gb4c80ec0f). Bumped 2026-06-17 to track the 2x-rig 0.23.1 promotion (canonical-pin audit requires one rig-wide SHA); engine validated on the 2x profile (community 3090 reference); single-card-profile boot validation pending. Previous dev101 (nightly-4c626633) retained as rollback.
+    image: vllm/vllm-openai:nightly-3f5a1e1733200760169ff31ebe60a271072b199e  # vllm container image tag — 0.23.1rc1.dev424+g3f5a1e173, unified with 2x rig 2026-06-25 (follows the canonical 2x pin; R-MD-HW-1 requires one rig-wide SHA). Community 3090 reference shares the SAME engine binary as the 2x rig; no independent single-card smoke yet. dev301 (nightly-04c2a8dea) retained as the vLLM rollback.
+    image_digest: vllm/vllm-openai@sha256:c4fac672fcab4560b6572cc216ddbde94b5ed28f90cc8119b996fc868fe728d4  # pinned digest — nightly-3f5a1e173 (0.23.1rc1.dev424+g3f5a1e173). Bumped 2026-06-25 to track the 2x-rig dev424 promotion (R-MD-HW-1 requires one rig-wide SHA); engine validated on the 2x profile (community 3090 reference); single-card-profile boot validation pending. dev301 (nightly-04c2a8dea) retained as rollback.
     container_name_template: vllm-{model_id}-3090  # template includes -3090 suffix
     host_port: 8000                              # OpenAI-API host port
     container_port: 8000                         # OpenAI-API container port
