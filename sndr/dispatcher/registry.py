@@ -33,6 +33,28 @@ from __future__ import annotations
 from typing import Any
 
 
+# ─── DO-NOT-VENDOR notes (negative-space provenance) ────────────────────────
+# Decisions to DELIBERATELY NOT vendor an upstream PR, kept next to the
+# affected arch handling so a future agent doing a PR sweep does not "re-find"
+# the PR and vendor it. (See also the qwen3_5 arch entries below, e.g. the
+# Qwen3_5MoeForConditionalGeneration model_arch lists on PN128/PN130 etc.)
+#
+# vllm#46297 — DO NOT vendor (investigated 2026-06-25, dev424).
+#   The Qwen3_5MoeForConditionalGeneration -> qwen3_5 arch mapping is already
+#   NATIVE in dev424 and is the BETTER (dedicated qwen3_5 impl) version:
+#   VERIFIED in-container on vllm/vllm-openai:nightly that
+#   ModelRegistry maps both Qwen3_5ForConditionalGeneration AND
+#   Qwen3_5MoeForConditionalGeneration -> ('qwen3_5', ...) and the MTP heads
+#   Qwen3_5MoeMTP/Qwen3_5MTP -> ('qwen3_5_mtp', ...) (the self-MTP + GDN path).
+#   PR 46297 would REMAP Qwen3_5MoeForConditionalGeneration onto the generic
+#   qwen3_moe impl — vendoring it would OVERWRITE the dedicated qwen3_5 impl
+#   and break self-MTP/GDN plus the 6 Genesis patches that key on the qwen3_5 /
+#   qwen3_5_moe / qwen3_5_mtp arch (PN348 backbone-dedup, PN357 draft-greedy,
+#   PN380 prefused-expert loader, PN365 GDN qkvz|ba fuse, PN77 fp8 lm_head,
+#   PN61 qwen3_vl KeyError guard). Genesis RELIES ON and PROTECTS the native
+#   mapping — there is no Genesis patch and must be none that re-routes
+#   Qwen3_5Moe* to qwen3_moe.
+#
 # ─── Patch metadata registry ───────────────────────────────────────────────
 # Each patch declares what it touches + which env flag enables/disables it.
 # This is the SINGLE source of truth for patch-to-feature mapping.

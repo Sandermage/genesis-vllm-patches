@@ -115,6 +115,114 @@ it on publish — pyproject.toml holds the release version.)
 
 ---
 
+## [Unreleased] — dev424 integration backlog: PN519 (46087) + PN403/PN404/46297 build-or-document (2026-06-25)
+
+### Highlights
+
+- **One new patch built (PN519 / vllm#46087) + three investigate-and-document
+  closures (PN403/46270, PN404/46523, 46297).** All anchored / verified on the
+  live dev424 pin (`0.23.1rc1.dev424+g3f5a1e173`) without disturbing the running
+  35B PROD container (`vllm-qwen3.6-35b-balanced-k3`, port 8102, restored
+  health-200 at the end). Registry 320 → 321.
+
+### Patches changed
+
+- **PN519 ADDED — start the SWA/chunked KV-tile loop at `first_allowed_key`
+  (backport+improve OPEN vllm#46087, fixes vllm#44575).** `family=attention`,
+  `category=kernel_perf`, `env=GENESIS_ENABLE_PN519_SWA_TILE_BASE`,
+  `default_on=False`/`experimental`, `applies_to (>=0.23.0,<0.24.0)`. dev424
+  `compute_tile_loop_bounds` (in `triton_attention_helpers.py`) started the SWA
+  loop at the tile FLOOR (`tile_start = first_allowed_key // TILE_SIZE`) and both
+  consumers (`triton_unified_attention.py` + `_diffkv`) indexed
+  `seq_offset = j*TILE_SIZE + offs_t`, so a window of `W` keys spanned
+  `ceil((r+W)/TILE_SIZE)` tiles instead of the minimal `ceil(W/TILE_SIZE)`
+  (`r = first_allowed_key % TILE_SIZE`): one redundant boundary tile per SWA
+  request (perf) + a residue-dependent online-softmax reduction order
+  (non-determinism). Our Gemma4 26B-A4B/31B interleaved-SWA layers run this exact
+  kernel (512-wide global heads → `triton_unified_attention.py` on Ampere; PN351
+  vendors a sibling tune to the same file). Fix: `compute_tile_loop_bounds`
+  returns a 4th `tile_base` (non-zero only on the 2D-pointer SWA/chunked path;
+  USE_TD + 3D keep it 0) and both consumers offset
+  `seq_offset = tile_base + j*TILE_SIZE + offs_t` → iteration starts EXACTLY at
+  `first_allowed_key`; `tile_end` unchanged so the count never grows and the
+  reduction order is residue-invariant (byte-identical). OUR-BETTER (iron-rule
+  #10): ATOMIC three-file apply that FAILS LOUDLY on any consumer-anchor drift
+  (a 4-tuple producer feeding a 3-tuple unpack is a silent crash-on-first-decode
+  ValueError). Iron-rule #11: VERIFIED no Genesis patch carried
+  `tile_base`/`first_allowed_key` on the SWA loop (grep count 0). Composes with
+  PN351 (same files, disjoint anchors). Runtime-inert on Qwen3.6 (35B FP8 / 27B
+  INT4 run FlashInfer/FA2, head_dim=128, never execute this kernel — boot log of
+  the live 35B confirms FlashInfer backend), so `default_on` is scoped to Gemma4
+  SWA configs only.
+
+### Audit findings — investigate-and-document (no patch built)
+
+- **PN403 / vllm#46270 (spec-decode sampler peak-mem profiled with num_spec=1
+  instead of real K) — DEFERRED (sufficient margin, NOT built).** The dummy
+  sampler run during memory profiling uses 1 draft token/req regardless of K,
+  under-profiling the K=5 sampler peak by up to ~K× → in principle a silent KV
+  under-budget / runtime OOM. Investigated against the LIVE 35B PROD config at
+  its max (`max-num-seqs=2`, `max-model-len=280000`, MTP K=5,
+  `gpu-memory-utilization=0.9`; live `kv_cache_size_tokens=388620`,
+  `num_gpu_blocks=161`, `kv_cache_max_concurrency=1.388`). Drove 4 rounds ×
+  conc=2 of 46 840-token-prompt + up-to-1500-token-generation requests
+  (saturating the batch). RESULT: **all 8 requests OK** (finish stop/length, no
+  errors), **zero OOM / CUDA-IMA / preemption / KV-exhaustion** in the container
+  log, **health 200** throughout. Peak GPU memory under load: **GPU0 min-free
+  1799 MiB, GPU1 min-free 2430 MiB** (idle was 2048/2699 — the K=5 sampler peak
+  draws only ~700 MiB of the ~2 GiB free headroom). Because PN403 is a
+  headroom-SPENDING patch (books MORE profile memory → smaller usable KV pool)
+  and our K=5 config has a comfortable measured margin on dev424, it is NOT
+  built. Revisit if `max_num_seqs` / concurrency / context grows or the headroom
+  shrinks.
+- **PN404 / vllm#46523 (prewarm FULL cudagraph forward to keep Inductor/Triton
+  autotune OUTSIDE `torch.cuda.graph`) — NOT NEEDED (no in-capture autotune
+  residual on dev424).** Verified against the live 35B boot/capture logs. The
+  FULL+PIECEWISE capture progress bars completed cleanly and fast (PIECEWISE 2/2
+  @ 4.40 it/s, FULL 1/1 @ 1.25 it/s) with **zero graph-capture corruption / IMA
+  / "operation not permitted when stream is capturing"** across the whole
+  container life. Two structural reasons the autotune-in-capture class cannot
+  fire on our stack: (1) Inductor `max_autotune_gemm` is **HW-DISABLED on Ampere
+  sm_86** (boot log: `Not enough SMs to use max_autotune_gemm mode`, 101 s before
+  capture begins); (2) **vllm#42425 (Triton force-first-config) is MERGED
+  natively in dev424** (Genesis PN362 self-skips against it) → Triton autotune is
+  forced to first-config, no in-capture sweep. The only Triton activity in the
+  capture window is **JIT codegen during inference** (`jit_monitor.py:127`,
+  post-capture warmup + live serving of `eagle_*` / `_tq_grouped_decode_stage1`
+  / GDN kernels) — single-config JIT, NOT the autotune sweep PR 46523 fixes, and
+  it occurs AFTER the capture bars complete. The Genesis warmup family
+  (PN126/128/130/364, all applied on the live boot) plus the native autotune
+  disabling already cover the residual. PN404 NOT built; revisit only if a future
+  pin re-enables Inductor autotune on Ampere or drops the force-first-config.
+- **vllm#46297 — DO NOT vendor (documented).** Added a DO-NOT-VENDOR note in
+  `registry.py` next to the qwen3_5 arch handling. VERIFIED in-container on
+  dev424 that `Qwen3_5ForConditionalGeneration` AND
+  `Qwen3_5MoeForConditionalGeneration` already map natively to the dedicated
+  `('qwen3_5', ...)` impl and the MTP heads to `('qwen3_5_mtp', ...)` (self-MTP +
+  GDN path). PR 46297 would remap `Qwen3_5MoeForConditionalGeneration` onto the
+  generic `qwen3_moe` impl — vendoring it would OVERWRITE the better dedicated
+  impl and break self-MTP/GDN + the 6 Genesis patches that key on the qwen3_5
+  arch (PN348 / PN357 / PN380 / PN365 / PN77 / PN61). Genesis relies on and
+  PROTECTS the native mapping; confirmed no Genesis patch re-routes Qwen3_5Moe*
+  to qwen3_moe.
+
+### Verified
+
+- PN519: TDD RED→GREEN (18 unit tests — a pure tile-iteration model proves the
+  redundant-boundary-tile + residue-determinism RED then GREEN; apply /
+  idempotent / half-apply-fail-loud; registry + env-flag contract). Apply-proven
+  END-TO-END against the pristine dev424 `triton_attention_helpers.py` + both
+  consumers (all three AST-parse after patch; 4-tuple propagates; tile_base
+  formula byte-matches upstream). All anchors byte-verified count==1 on dev424.
+- PN403/PN404 evidence gathered against the live PROD container WITHOUT a restart
+  (load probe + boot/capture log inspection); PROD left healthy (health 200).
+- Doc counts bumped 320 → 321 (full-impl 260 → 261); `docs/PATCHES_AUTO.md`
+  regenerated; `check_doc_sync --strict`, `generate_patches_md --check`,
+  `audit_registry_contract`, `audit_ai_attribution`, `audit_english_only`,
+  `make gates` all green.
+
+---
+
 ## [Unreleased] — vLLM pin bump dev301 → dev424 (2026-06-25)
 
 ### Highlights
