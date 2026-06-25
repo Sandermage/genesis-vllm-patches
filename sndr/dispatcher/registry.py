@@ -8022,6 +8022,75 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "retired",
         "implementation_status": "full",
     },
+    "PN401": {
+        "title": (
+            "TurboQuant prefill continuation guard — gate the flash_attn "
+            "fast path against silently dropping cached prefix K/V on "
+            "co-batched continuations (backport+improve OPEN vllm#46461)"
+        ),
+        "tier": "community",
+        "family": "attention.turboquant",
+        "category": "correctness",
+        "env_flag": "GENESIS_ENABLE_PN401_TQ_PREFILL_CONTINUATION_GUARD",
+        "default_on": False,
+        "credit": (
+            "Genesis backport+improvement of OPEN vllm#46461 ([Bugfix]"
+            "[TurboQuant] guard the flash_attn prefill fast path). "
+            "_prefill_attention takes a flash_attn fast path on "
+            "`max_query_len == max_seq_len` and passes "
+            "`cu_seqlens_k = query_start_loc` (the QUERY offsets), claiming "
+            "'no request has prior cached KV'. That is INSUFFICIENT: a long "
+            "first-chunk prefill (q_len == seq_len) can inflate max_query_len "
+            "to equal max_seq_len while the SAME batch step carries shorter "
+            "CONTINUATION requests (q_len < seq_len — a non-first chunked-"
+            "prefill chunk or a prefix-cache hit). For those continuations "
+            "the fast path attends only to the current chunk's raw K/V and "
+            "silently DROPS the cached prefix K/V -> hallucination on the "
+            "continued request. This reaches PROD via plain chunked-prefill "
+            "(enable_chunked_prefill: true on the TQ k8v4 profiles) — NO "
+            "prefix caching required — so it is a LIVE correctness bug on our "
+            "TQ-always-on 27B/35B. Fix: compute a host-side continuation "
+            "check on the CPU-mirror tensors (query_start_loc_cpu / "
+            "seq_lens_cpu, no GPU sync) and gate the fast path with "
+            "`and not _has_continuation`; when any continuation exists, fall "
+            "through to the per-request branch that reads cached K/V "
+            "correctly. BETTER THAN UPSTREAM (iron rule #10): (1) conservative "
+            "None-mirror fall-safe — the PR implicitly TAKES the unsafe fast "
+            "path when a CPU mirror is None; we SKIP it (a missing mirror must "
+            "never re-enable the buggy path; the fast path is only a perf "
+            "optimization). (2) length-mismatch hardening — a shape-"
+            "inconsistent CPU pair (len(qsl) < len(seq_lens)+1) also falls to "
+            "the safe path (defends builder shape drift). Both only ever ADD "
+            "safety; the common all-first-chunk batch keeps the fast path "
+            "unchanged (no hot-path regression). NOT folded into P101 (opt-in "
+            "perf, default OFF) or PN116 (HW-gated, skips on Hopper): the "
+            "continuation guard is a correctness fix that must be ON on ALL TQ "
+            "hardware regardless of either patch. Self-skips once a pin "
+            "carries #46461 natively (drift marker = the PR's "
+            "`_has_continuation` literal). default_on False / lifecycle "
+            "experimental pending the PROD A/B; enabled '1' on the live "
+            "27B/35B TQ k8v4 YAMLs as a correctness fix."
+        ),
+        "upstream_pr": 46461,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {
+            "is_turboquant": True,  # patch site is TQ _prefill_attention
+            "vllm_version_range": (">=0.23.0", "<0.24.0"),
+        },
+        "implementation_status": "full",
+        "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn401_tq_prefill_continuation_guard",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+        "composes_with": ["P101", "PN116", "PN399", "PN353A", "PN353B"],
+        # P101 anchors the continuation LOOP, PN116 the `forward` dispatch
+        # `prefill_max_seq` fallback, PN399 the decode path + __init__ +
+        # module consts. PN401 anchors ONLY the _prefill_attention fast-path
+        # gate (the 3 comment lines + the `if`) — disjoint from all of them
+        # (byte-verified on dev424: gate at line ~618, P101 loop ~711, PN116
+        # fallback ~528, PN399 decode head elsewhere). Composes, supersedes
+        # nothing.
+        "conflicts_with": [],
+    },
 
     # ─── Legacy patches (P1–P46 series, pre-dispatcher era) ─────────────
     # These patches predate the PATCH_REGISTRY metadata system. They have

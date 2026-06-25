@@ -565,6 +565,7 @@ class Flags:
     PN353B = "PN353B"  # PN353B: TurboQuant prefill CUDA-graph capture safety
     PN399_TQ_DECODE_SCRATCH_IMA = "PN399_TQ_DECODE_SCRATCH_IMA"  # PN399: consolidated single-owner TQ decode-scratch fixed buffer — fix CUDA IMA in FULL cudagraph + remove dead PN118/PN353A decode reservations (backport+improve vllm#46067; requires PN118+PN353A; default OFF/experimental)
     PN400 = "PN400"  # PN400: restore is_sym qzeros guard for symmetric AutoRound/GPTQ Marlin MoE (backport of MERGED vllm#45656; fixes the vllm#43409 regression latent on dev148; default OFF, pin-scoped)
+    PN401_TQ_PREFILL_CONTINUATION_GUARD = "PN401_TQ_PREFILL_CONTINUATION_GUARD"  # PN401: TurboQuant prefill continuation guard — gate the flash_attn fast path with `not _has_continuation` so a co-batched continuation (q_len<seq_len) never drops its cached prefix K/V (backport+improve OPEN vllm#46461; conservative None-mirror fall-safe + length-clamp over the raw PR; correctness, default OFF/experimental, enabled on 27B/35B TQ YAMLs)
     # compile_safety family
     PN364_HYBRID_GDN_WARMUP = "PN364_HYBRID_GDN_WARMUP"  # PN364: Hybrid GDN/Mamba/MRoPE startup warmup
     PN367 = "PN367"  # PN367: CUDA graph memory estimate clamp

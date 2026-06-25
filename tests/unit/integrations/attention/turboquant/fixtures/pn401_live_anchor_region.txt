@@ -1,0 +1,135 @@
+    def _prefill_attention(
+        self,
+        query: torch.Tensor,  # (N, Hq, D)
+        key: torch.Tensor,  # (N, Hk, D)
+        value: torch.Tensor,  # (N, Hk, D)
+        kv_cache: torch.Tensor,  # (num_blocks, block_size, Hk, slot_size)
+        attn_metadata: TurboQuantMetadata,
+        Pi: torch.Tensor,
+        centroids: torch.Tensor,
+        PiT: torch.Tensor | None = None,
+        layer: Any = None,
+    ) -> torch.Tensor:
+        N, Hq, D = query.shape
+
+        # Fast path: use flash_attn for first-chunk prefills (all K/V in batch).
+        # max_query_len == max_seq_len means no request has prior cached KV.
+        # Both are Python ints — no GPU sync.
+        if _HAS_FLASH_ATTN and attn_metadata.max_query_len == attn_metadata.max_seq_len:
+            return self._flash_attn_varlen(
+                q=query,
+                k=key,
+                v=value,
+                cu_seqlens_q=attn_metadata.query_start_loc,
+                cu_seqlens_k=attn_metadata.query_start_loc,
+                max_seqlen_q=attn_metadata.max_query_len,
+                max_seqlen_k=attn_metadata.max_query_len,
+            )
+
+        # Continuation or no flash_attn: per-request attention.
+        # For continuation chunks (seq_len > q_len), we must attend to
+        # previously cached K/V from the TQ cache, not just the current
+        # chunk's raw K/V.
+        Hk = key.shape[1]
+        use_gqa = Hk < Hq
+        query_start_loc = attn_metadata.query_start_loc
+        num_reqs = query_start_loc.shape[0] - 1
+
+        output = torch.zeros(N, Hq, D, device=query.device, dtype=query.dtype)
+
+        # Prefer the CPU-resident copies from the metadata if populated —
+        # otherwise `.tolist()` on GPU tensors forces a synchronizing copy.
+        if attn_metadata.query_start_loc_cpu is not None:
+            qsl = attn_metadata.query_start_loc_cpu.tolist()
+        else:
+            qsl = query_start_loc.tolist()
+        if attn_metadata.seq_lens_cpu is not None:
+            seq_lens_list = attn_metadata.seq_lens_cpu.tolist()
+        else:
+            seq_lens_list = attn_metadata.seq_lens.tolist()
+
+        # Pre-allocate cu_seqlens for single-request flash_attn calls
+        # to avoid per-request host→device tensor creation.
+        if not hasattr(self, "_cu_2"):
+            self._cu_2 = torch.zeros(2, device=query.device, dtype=torch.int32)
+        # Cache arange on self (avoid per-call kernel launch).
+        _max_seq = attn_metadata.max_seq_len
+        _ac: torch.Tensor | None = getattr(self, "_arange_cache", None)
+        if _ac is None or _ac.shape[0] <= _max_seq:
+            _ac = torch.arange(
+                0, _max_seq + 1, device=query.device, dtype=attn_metadata.seq_lens.dtype
+            )
+            self._arange_cache = _ac
+        _arange_cache: torch.Tensor = _ac
+
+        for i in range(num_reqs):
+            q_start = qsl[i]
+            q_end = qsl[i + 1]
+            q_len = q_end - q_start
+            if q_len <= 0:
+                continue
+
+            seq_len = seq_lens_list[i]
+            q_seq = query[q_start:q_end]  # (q_len, Hq, D)
+            k_seq = key[q_start:q_end]  # (q_len, Hk, D)
+            v_seq = value[q_start:q_end]  # (q_len, Hk, D)
+
+            if q_len == seq_len:
+                # First-chunk prefill: all K/V are in the current batch.
+                if _HAS_FLASH_ATTN:
+                    # Assign to slice to avoid gpu/cpu sync.
+                    self._cu_2[1:2] = q_len
+                    cu = self._cu_2
+                    out = self._flash_attn_varlen(
+                        q=q_seq,
+                        k=k_seq,
+                        v=v_seq,
+                        cu_seqlens_q=cu,
+                        cu_seqlens_k=cu,
+                        max_seqlen_q=q_len,
+                        max_seqlen_k=q_len,
+                    )
+                else:
+                    q_t = q_seq.transpose(0, 1).contiguous()
+                    k_t = k_seq.transpose(0, 1).contiguous()
+                    v_t = v_seq.transpose(0, 1).contiguous()
+                    out = F.scaled_dot_product_attention(
+                        q_t,
+                        k_t,
+                        v_t,
+                        is_causal=True,
+                        scale=self.scale,
+                        enable_gqa=use_gqa,
+                    ).transpose(0, 1)
+                output[q_start:q_end] = out.to(query.dtype)
+            else:
+                # Continuation chunk: tokens already stored to TQ cache
+                # by do_kv_cache_update. Use decode kernel directly to
+                # avoid O(cached_len) full-dequant per continuation.
+                # For large continuations, fall back to _continuation_prefill.
+                cached_len = seq_len - q_len
+                if q_len <= _CONTINUATION_DECODE_THRESHOLD:
+                    # Fast path: treat each query as a decode request
+                    # with incremental seq_lens for causal masking.
+                    # Slice from pre-built arange (no kernel launch)
+                    synth_seq_lens = _arange_cache[cached_len + 1 : seq_len + 1]
+                    synth_bt = attn_metadata.block_table[i : i + 1].expand(q_len, -1)
+                    out = triton_turboquant_decode_attention(
+                        query=q_seq,
+                        kv_cache=kv_cache,
+                        block_table=synth_bt,
+                        seq_lens=synth_seq_lens,
+                        Pi=Pi,
+                        centroids=centroids,
+                        scale=self.scale,
+                        mse_bits=self.tq_config.key_mse_bits,
+                        key_packed_size=self.tq_config.key_packed_size,
+                        value_quant_bits=(self.tq_config.effective_value_quant_bits),
+                        key_fp8=self.tq_config.key_fp8,
+                        norm_correction=self.tq_config.norm_correction,
+                        PiT=PiT,
+                    )
+                else:
+                    # Large continuation: dequant cached K/V and use
+                    # flash_attn for better throughput.
+                    out = self._continuation_prefill(

@@ -245,6 +245,15 @@ def test_spec_only_truly_orphan_baseline():
         # Fires only on Marlin-ineligible int4 MoE; fail-open to the
         # original. Same spec-only-by-design class as PN398/PN399/PN400.
         "G4_85",
+        # 2026-06-25 (dev424 TIER-1 backport): PN401 backport+improve of OPEN
+        # vllm#46461 (TurboQuant prefill continuation guard — gate the
+        # flash_attn fast path with `not _has_continuation` so a co-batched
+        # continuation never drops its cached prefix K/V) — spec-driven from
+        # inception (apply_module + own apply(), no legacy hook), default-OFF
+        # experimental correctness fix; applied at legacy boot via
+        # _run_spec_only_supplement. Same spec-only-by-design class as
+        # PN398/PN399/PN400. Composes with P101/PN116/PN399 (disjoint anchors).
+        "PN401",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

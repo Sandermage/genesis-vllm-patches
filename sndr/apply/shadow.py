@@ -275,6 +275,18 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # detector) — apply_module + own apply() returning
                        # (status, reason), no legacy @register_patch hook,
                        # default-OFF experimental, fail-open to the original)
+    # ── 2026-06-25 dev424 TIER-1 backport: spec-driven from inception ───
+    "PN401",           # TurboQuant prefill continuation guard — gate the
+                       # flash_attn fast path with `not _has_continuation`
+                       # so a co-batched continuation (q_len<seq_len) never
+                       # drops its cached prefix K/V (backport+improve OPEN
+                       # vllm#46461; single-anchor text patch on
+                       # turboquant_attn.py _prefill_attention, >=0.23.0,
+                       # <0.24.0 gated, default-OFF experimental correctness
+                       # fix; conservative None-mirror fall-safe + length-
+                       # clamp over the raw PR; composes with P101/PN116/
+                       # PN399 on disjoint anchors, no legacy @register_patch
+                       # hook)
 })
 
 

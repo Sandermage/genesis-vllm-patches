@@ -2340,6 +2340,18 @@
     "apply_module": "sndr.engines.vllm.patches.quantization.pn400_marlin_moe_sym_zp_guard"
   },
   {
+    "patch_id": "PN401",
+    "family": "attention.turboquant",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN401_TQ_PREFILL_CONTINUATION_GUARD",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn401_tq_prefill_continuation_guard"
+  },
+  {
     "patch_id": "P1",
     "family": "quantization",
     "lifecycle": "legacy",
