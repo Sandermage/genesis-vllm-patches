@@ -2352,6 +2352,18 @@
     "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn401_tq_prefill_continuation_guard"
   },
   {
+    "patch_id": "PN402",
+    "family": "spec_decode",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN402_SANITIZE_INVALID_DRAFT_TOKENS",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn402_sanitize_invalid_draft"
+  },
+  {
     "patch_id": "P1",
     "family": "quantization",
     "lifecycle": "legacy",

@@ -8091,6 +8091,76 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # nothing.
         "conflicts_with": [],
     },
+    "PN402": {
+        "title": (
+            "Sanitize invalid (-1 / over-vocab) MTP draft token ids before "
+            "batch prep on the V1 gpu/model_runner path — prevents a single "
+            "bad draft from CUDA-IMA-crashing the engine (backport+improve "
+            "OPEN vllm#46574)"
+        ),
+        "tier": "community",
+        "family": "spec_decode",
+        "category": "stability",
+        "env_flag": "GENESIS_ENABLE_PN402_SANITIZE_INVALID_DRAFT_TOKENS",
+        "default_on": False,
+        "credit": (
+            "Genesis backport+improvement of OPEN vllm#46574 ([Bugfix]"
+            "[SpecDecode] sanitize invalid draft token ids before batch "
+            "prep). A single invalid draft token id reaching "
+            "scheduler_output.scheduled_spec_decode_tokens — `< 0` (the MTP "
+            "proposer's reject-all / padding sentinel) or `>= vocab_size` — "
+            "produces an out-of-range index in batch prep (embedding / gather "
+            "OOB) -> cudaErrorIllegalAddress that hard-crashes the WHOLE "
+            "engine (all TP ranks). We run MTP K=5 + FULL_AND_PIECEWISE on "
+            "both PROD models, so a single bad draft = engine death; this is "
+            "a distinct, currently-unguarded ingress on the NEW V1 "
+            "vllm/v1/worker/gpu/model_runner.py path (adjacent guards PN378 / "
+            "PN361 / PN133 cover other defect classes). Fix: inject "
+            "_sanitize_scheduled_spec_decode_tokens and call it in "
+            "execute_model after apply_staged_writes() and BEFORE the "
+            "total_num_scheduled_tokens==0 guard — it drops the offending "
+            "request's drafts, decrements its num_scheduled_tokens by "
+            "len(token_ids) (floored at 1), recomputes the total, and lets "
+            "the request run as a normal decode this step. BETTER THAN "
+            "UPSTREAM (iron rule #10): (1) gate the whole sanitize on "
+            "speculative_config is not None so the non-spec path pays ZERO "
+            "cost (the PR runs the dict walk unconditionally); (2) flood-"
+            "guarded WARNING (bounded cap) so a sustained bad-draft pathology "
+            "cannot flood PROD logs (the P71 per-step log-flood anti-pattern); "
+            "(3) a lazy/exception-safe Prometheus counter "
+            "sndr_invalid_draft_tokens_dropped_total so the silent case is a "
+            "metric, not just a log line (PN367 'make the silent case "
+            "visible' doctrine; renamed from the design's genesis_* to the "
+            "repo's sndr_ prefix). Orthogonal ingress stage vs the downstream "
+            "accept-side guards — composes with PN378/PN361/PN133 (different "
+            "defect class) and the accepted-counts races (PN290/PN370/PN398). "
+            "Self-skips once a pin carries #46574 natively (drift marker = "
+            "the PR's _sanitize_scheduled_spec_decode_tokens literal). "
+            "default_on False / lifecycle experimental pending rig "
+            "validation; a cheap correctness guard on the live MTP path."
+        ),
+        "upstream_pr": 46574,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {
+            "vllm_version_range": (">=0.23.0", "<0.24.0"),
+        },
+        "implementation_status": "full",
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn402_sanitize_invalid_draft",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+        "composes_with": [
+            "PN378", "PN361", "PN133", "PN290", "PN370", "PN398",
+        ],
+        # Ingress sanitize (drops bad drafts before batch prep) vs the
+        # downstream accept-side guards: PN378 (recovered-token vocab-pad
+        # mask), PN361 (fail-closed missing probs), PN133 (MTP empty-output),
+        # PN290/PN370/PN398 (accepted-counts races). Different files / stages
+        # — no anchor overlap. Supersedes nothing. Disjoint from PN399 (TQ
+        # attn). Both PN402 anchors are byte-verified count==1 on dev424
+        # (method-inject before execute_model; call-site after
+        # apply_staged_writes).
+        "conflicts_with": [],
+    },
 
     # ─── Legacy patches (P1–P46 series, pre-dispatcher era) ─────────────
     # These patches predate the PATCH_REGISTRY metadata system. They have

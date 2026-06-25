@@ -287,6 +287,17 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # clamp over the raw PR; composes with P101/PN116/
                        # PN399 on disjoint anchors, no legacy @register_patch
                        # hook)
+    "PN402",           # sanitize invalid (-1 / over-vocab) MTP draft token
+                       # ids before batch prep on the V1 gpu/model_runner
+                       # path so a single bad draft cannot OOB-index the
+                       # embedding gather and crash the engine with a CUDA
+                       # IMA (backport+improve OPEN vllm#46574; 2-anchor text
+                       # patch on gpu/model_runner.py execute_model + method
+                       # inject, >=0.23.0,<0.24.0 gated, default-OFF
+                       # experimental stability fix; gated on spec_config +
+                       # flood-guarded WARNING + sndr_invalid_draft_tokens_
+                       # dropped_total counter over the raw PR; composes with
+                       # PN378/PN361/PN133, no legacy @register_patch hook)
 })
 
 

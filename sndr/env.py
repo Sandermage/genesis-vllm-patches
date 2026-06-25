@@ -599,6 +599,7 @@ class Flags:
     PN361 = "PN361"  # PN361: Spec-decode fail-closed on missing draft probs
     PN363 = "PN363"  # PN363: force_max_spec_tokens for suffix decoding — FULL CG dispat
     PN369_RELAXED_ACCEPTANCE = "PN369_RELAXED_ACCEPTANCE"  # PN369: relaxed acceptance for MTP spec-decode (top-K + delta window)
+    PN402_SANITIZE_INVALID_DRAFT_TOKENS = "PN402_SANITIZE_INVALID_DRAFT_TOKENS"  # PN402: sanitize invalid (-1 / over-vocab) MTP draft token ids before batch prep on the new V1 gpu/model_runner path — drop the offending request's drafts + fall back to normal decode so a single bad draft cannot OOB-index the embedding gather and crash the engine with a CUDA IMA (backport+improve OPEN vllm#46574; gated on spec_config + flood-guarded WARNING + sndr_invalid_draft_tokens_dropped_total counter over the raw PR; stability, default OFF/experimental)
     # tool_parsing family
     P29_QWEN3CODER_INDEX_HEAL = "P29_QWEN3CODER_INDEX_HEAL"  # P29_HEAL: qwen3coder tool parser index heal
     # worker family

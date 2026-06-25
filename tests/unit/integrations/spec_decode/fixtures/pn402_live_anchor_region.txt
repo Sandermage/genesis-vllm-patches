@@ -1,0 +1,24 @@
+        self.model_state.postprocess_state(idx_mapping, num_sampled)
+
+    @torch.inference_mode()
+    def execute_model(
+        self,
+        scheduler_output: SchedulerOutput,
+        intermediate_tensors: IntermediateTensors | None = None,
+        dummy_run: bool = False,
+        skip_attn_for_dummy_run: bool = False,
+        is_profile: bool = False,
+    ) -> ModelRunnerOutput | IntermediateTensors | None:
+        if not dummy_run:
+            # Update the request states.
+            self.update_pp_decode_requests()
+            self.finish_requests(scheduler_output)
+            self.free_states(scheduler_output)
+            self.add_requests(scheduler_output)
+            self.update_requests(scheduler_output)
+            self.block_tables.apply_staged_writes()
+            if scheduler_output.total_num_scheduled_tokens == 0:
+                # No need to run the model.
+                empty_output = self.kv_connector.no_forward(scheduler_output)
+                return empty_output
+

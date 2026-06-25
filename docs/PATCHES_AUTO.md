@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-25T17:19:36Z
-Total entries: **318**
+Generated: 2026-06-25T17:28:24Z
+Total entries: **319**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **318**
+- `tier=community`: **319**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **231**
+- `lifecycle=experimental`: **232**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
 - `lifecycle=retired`: **38**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **57** / 318
+### Default-on at boot: **57** / 319
 
 ### By family
 - `attention`: 1
@@ -46,7 +46,7 @@ Total entries: **318**
 - `reasoning`: 7
 - `scheduler`: 9
 - `serving`: 14
-- `spec_decode`: 47
+- `spec_decode`: 48
 - `streaming`: 4
 - `tool_parsing`: 12
 - `worker`: 15
@@ -408,7 +408,7 @@ Total entries: **318**
 | **PN387** | `community` | `experimental` | · | `GENESIS_ENABLE_PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS` | [#45346](https://github.com/vllm-project/vllm/pull/45346) | Reject degenerate structured_outputs (DoS guard, vendor of vllm#45346) |
 | **PN389** | `community` | `experimental` | · | `GENESIS_ENABLE_PN389_GRAMMAR_TIMEOUTS` | [#45390](https://github.com/vllm-project/vllm/pull/45390) | XGrammar input-validation + grammar-compilation timeouts (vendor of vllm#45390) |
 
-### `spec_decode` (47)
+### `spec_decode` (48)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -447,6 +447,7 @@ Total entries: **318**
 | **PN381** | `community` | `experimental` | · | `GENESIS_ENABLE_PN381_ALLOWED_TOKEN_IDS_METADATA` | [#44742](https://github.com/vllm-project/vllm/pull/44742) | allowed_token_ids spec-decode metadata hardening (vendor of vllm#44742) |
 | **PN390** | `community` | `experimental` | · | `GENESIS_ENABLE_PN390_STREAMING_LSE_SAMPLER` | [#45369](https://github.com/vllm-project/vllm/pull/45369) | Streaming-LSE rejection sampler — no full-vocab target_probs materialize (ven... |
 | **PN398** | `community` | `experimental` | · | `GENESIS_ENABLE_PN398_ASYNC_ACCEPTED_RACE` | [#45100](https://github.com/vllm-project/vllm/pull/45100) | Async spec-decode accepted-counts race fix (vllm#45100 backport) |
+| **PN402** | `community` | `experimental` | · | `GENESIS_ENABLE_PN402_SANITIZE_INVALID_DRAFT_TOKENS` | [#46574](https://github.com/vllm-project/vllm/pull/46574) | Sanitize invalid (-1 / over-vocab) MTP draft token ids before batch prep on t... |
 | **G4_05** | `community` | `retired` | · | `GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT` | [#39930](https://github.com/vllm-project/vllm/pull/39930) | DFlash drafter backend autoselect (retired — superseded by vllm#39930) |
 | **G4_71** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_71_DRAFTER_NATIVE_BACKEND` | — | Force FlashAttn backend for Gemma 4 MTP drafter Attention layers |
 | **G4_71B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON` | — | Per-layer drafter backend force: route head_size=256 sliding to TRITON_ATTN (... |

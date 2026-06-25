@@ -254,6 +254,15 @@ def test_spec_only_truly_orphan_baseline():
         # _run_spec_only_supplement. Same spec-only-by-design class as
         # PN398/PN399/PN400. Composes with P101/PN116/PN399 (disjoint anchors).
         "PN401",
+        # 2026-06-25 (dev424 TIER-1 backport): PN402 backport+improve of OPEN
+        # vllm#46574 (sanitize invalid -1/over-vocab MTP draft token ids
+        # before batch prep on the new V1 gpu/model_runner path so a single
+        # bad draft cannot CUDA-IMA-crash the engine) — spec-driven from
+        # inception (apply_module + own apply(), no legacy hook), default-OFF
+        # experimental stability fix; applied at legacy boot via
+        # _run_spec_only_supplement. Same spec-only-by-design class as
+        # PN398/PN399/PN400/PN401. Composes with PN378/PN361/PN133 (disjoint).
+        "PN402",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)
