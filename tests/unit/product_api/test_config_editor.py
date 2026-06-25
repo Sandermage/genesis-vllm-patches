@@ -90,6 +90,12 @@ def test_collect_v2_config_catalog_returns_all_layers():
     assert model.kind == "model"
     assert model.fields["patch_count"] >= 1
     assert model.source.endswith("qwen3.6-35b-a3b-fp8.yaml")
+    # Widened projection: the required pin + spec-decode method/drafter must reach
+    # the catalog (so config views show pin alignment without the v2Layer call).
+    assert model.fields["vllm_pin_required"] == "0.23.1rc1.dev424+g3f5a1e173"
+    assert model.fields["spec_decode_method"] == "mtp"
+    assert "spec_decode_drafter" in model.fields
+    assert "reference_metrics_ref" in model.fields
 
 
 def test_preview_v2_config_composes_selection_and_draft_yaml():

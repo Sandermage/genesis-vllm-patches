@@ -625,8 +625,10 @@ def _scan_preset_yaml(path: Path) -> dict[str, Optional[str]]:
 
 def _model_item(model_id: str, obj: Any) -> V2ConfigItem:
     fields = dataclasses.asdict(obj)
-    caps = fields.get("capabilities", {})
-    requires = fields.get("requires", {})
+    caps = fields.get("capabilities", {}) or {}
+    requires = fields.get("requires", {}) or {}
+    versions = fields.get("versions", {}) or {}
+    spec = caps.get("spec_decode", {}) or {}
     return V2ConfigItem(
         id=model_id,
         kind="model",
@@ -642,6 +644,15 @@ def _model_item(model_id: str, obj: Any) -> V2ConfigItem:
             "kv_cache_dtype": caps.get("kv_cache_dtype"),
             "tool_call_parser": caps.get("tool_call_parser"),
             "reasoning_parser": caps.get("reasoning_parser"),
+            # Spec-decode + pin alignment — previously reachable only via the
+            # v2Layer (full-definition) call, so every catalog/inspector view but
+            # models-workbench was blind to which pin a config needs and its
+            # drafter. Surfaced here so config/preset views show pin alignment.
+            "spec_decode_method": spec.get("method"),
+            "spec_decode_drafter": spec.get("model"),
+            "vllm_pin_required": versions.get("vllm_pin_required"),
+            "pin_hold": versions.get("pin_hold"),
+            "reference_metrics_ref": versions.get("reference_metrics_ref"),
             "min_gpu_count": requires.get("min_gpu_count"),
             "min_total_vram_mib": requires.get("min_total_vram_mib"),
             "patch_count": len(fields.get("patches") or {}),

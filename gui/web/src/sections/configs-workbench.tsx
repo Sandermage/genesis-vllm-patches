@@ -757,6 +757,9 @@ const inspectorRows = (): Record<string, Array<[string, string]>> => ({
   Model: [
     ["served_model_name", tr("Served")], ["quantization", tr("Quant")], ["dtype", tr("Dtype")],
     ["attention_arch", tr("Attention")], ["kv_cache_dtype", tr("KV cache")],
+    ["spec_decode_method", tr("Spec decode")], ["spec_decode_drafter", tr("Drafter model")],
+    ["vllm_pin_required", tr("Required pin")], ["pin_hold", tr("Pin hold")],
+    ["reference_metrics_ref", tr("Metrics ref")],
     ["min_gpu_count", tr("Min GPUs")], ["min_total_vram_mib", tr("Min VRAM")], ["patch_count", tr("Patches")]
   ],
   Hardware: [
