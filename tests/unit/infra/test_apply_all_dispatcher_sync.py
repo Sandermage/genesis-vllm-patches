@@ -250,6 +250,15 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # (Rename-to-PN<num> candidate to retire the hyphenated-ID friction
     # that already required a shadow.py _LEGACY_NAME_TO_PATCH_ID entry.)
     "PN-FP8MOE-KPAD",
+    # ─── 2026-06-25 dev424 integration backlog ────────────────────────────
+    # PN401 (TQ prefill continuation guard, vllm#46461), PN402 (sanitize
+    # invalid MTP draft ids, vllm#46574), PN518 (INCConfig hybrid INT4+FP8
+    # detect, vllm#46322), PN519 (SWA tile-loop first_allowed_key base,
+    # vllm#46087): all spec-driven from inception (apply_module points at the
+    # module's own apply() returning (status, reason); no apply_patch_* legacy
+    # hook), same dispatcher overlay-loader class as the PN398/PN399/PN400
+    # block above. Applied at legacy boot via _run_spec_only_supplement.
+    "PN401", "PN402", "PN518", "PN519",
 })
 
 _KNOWN_APPLY_ONLY: frozenset[str] = frozenset({

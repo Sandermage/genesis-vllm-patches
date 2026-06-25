@@ -274,6 +274,18 @@ def test_spec_only_truly_orphan_baseline():
         # _run_spec_only_supplement. Same spec-only-by-design class as
         # PN398/PN399/PN400/PN401/PN402.
         "PN518",
+        # 2026-06-25 (dev424 integration backlog): PN519 backport+improve of
+        # OPEN vllm#46087 (start the SWA/chunked KV-tile loop at
+        # first_allowed_key — compute_tile_loop_bounds returns tile_base and
+        # both triton_unified_attention consumers offset seq_offset — drops the
+        # redundant boundary tile per SWA request + kills the residue-dependent
+        # online-softmax reduction-order non-determinism on Gemma4 sliding
+        # layers). spec-driven from inception (apply_module + own apply(), no
+        # legacy hook), default-OFF experimental kernel_perf fix; applied at
+        # legacy boot via _run_spec_only_supplement. Same spec-only-by-design
+        # class as PN398/PN399/PN400/PN401/PN402. Composes with PN351 (same
+        # files, disjoint anchors). Runtime-inert on Qwen3.6 (FlashInfer/FA2).
+        "PN519",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

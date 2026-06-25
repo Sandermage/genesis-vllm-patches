@@ -183,10 +183,11 @@ HELPER_SIG_NEW = (
 )
 
 # Anchor 2 — init: add tile_base = 0 alongside the default tile_start/tile_end.
+# Anchored on the unique default-region init pair (count==1); the upstream
+# pruning comment that follows is left untouched.
 HELPER_INIT_OLD = (
     "    tile_start = 0\n"
     "    tile_end = num_tiles\n"
-    "    # TODO(Isotr0py)"
 )
 HELPER_INIT_NEW = (
     "    tile_start = 0\n"
@@ -195,7 +196,6 @@ HELPER_INIT_NEW = (
     "    # starts EXACTLY at first_allowed_key (not its tile floor); 0 for the\n"
     "    # global / USE_TD / 3D paths.\n"
     "    tile_base = 0\n"
-    "    # TODO(Isotr0py)"
 )
 
 # Anchor 3 — compute tile_base inside the SWA branch, after tile_start/tile_end.

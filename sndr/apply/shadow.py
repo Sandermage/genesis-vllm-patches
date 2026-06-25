@@ -312,6 +312,19 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # default-OFF latent guard, no legacy @register_patch
                        # hook; applied at legacy boot via
                        # _run_spec_only_supplement)
+    "PN519",           # SWA/chunked KV-tile loop first_allowed_key base
+                       # (backport+improve OPEN vllm#46087, fixes vllm#44575).
+                       # compute_tile_loop_bounds returns tile_base + both
+                       # triton_unified_attention consumers offset seq_offset so
+                       # the SWA loop starts EXACTLY at first_allowed_key (drops
+                       # the redundant boundary tile per Gemma4 SWA request +
+                       # kills the residue-dependent online-softmax reduction
+                       # non-determinism). Atomic 3-file text patch, USE_TD/3D
+                       # keep tile_base=0, >=0.23.0,<0.24.0 gated, default-OFF
+                       # experimental kernel_perf; no legacy @register_patch
+                       # hook; applied at legacy boot via
+                       # _run_spec_only_supplement. Runtime-inert on Qwen3.6
+                       # (FlashInfer/FA2, head_dim=128).
 })
 
 

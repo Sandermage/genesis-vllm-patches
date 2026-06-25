@@ -2376,6 +2376,18 @@
     "apply_module": "sndr.engines.vllm.patches.spec_decode.pn402_sanitize_invalid_draft"
   },
   {
+    "patch_id": "PN519",
+    "family": "attention",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN519_SWA_TILE_BASE",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.attention.pn519_swa_tile_base"
+  },
+  {
     "patch_id": "P1",
     "family": "quantization",
     "lifecycle": "legacy",
