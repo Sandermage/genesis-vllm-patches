@@ -42,7 +42,26 @@ DECLARED-cooperation / ordering hint — the dependent anchors vanilla upstream 
 still APPLIES when a composed sibling retires (the dev301 rig booted PN350 /
 PN348 / PN353B / PN365 clean after their sibling retired), so it is MEDIUM even
 when the dependent is perf-bearing. A non-perf dependent is MEDIUM (a behaviour
-change worth surfacing). Two levels only — HIGH / MEDIUM.
+change worth surfacing). Two severity levels — HIGH / MEDIUM.
+
+Apply-state-aware MITIGATION (dev424 ground truth 2026-06): a HIGH anchor-break
+edge carries an orthogonal ``mitigated`` flag (severity TIER is unchanged) when
+the dependent ALSO declares an ALTERNATIVE anchor sub-patch independent of the
+retired id — a working fallback that applies when the retired patch goes native.
+PN399 is the motivating case: its C2 removal is PIN-SPLIT into two
+mutually-exclusive ``required=False`` siblings — the PN353A-form
+``pn399_pn353a_decode_reserve_remove`` (whose name + ``_genesis_pn353a_torch``
+anchor text break when PN353A retires) AND the native-form
+``pn399_native_decode_reserve_remove`` (referencing neither, targeting the
+upstream-native ``_reserve_workspace`` body, applying on dev424). The native
+sibling is the fallback, so PN353A->PN399 is HIGH but MITIGATED — already
+handled. The bump-preflight gate then FAILS only on UNMITIGATED HIGH edges (a
+dependent whose ONLY path references the retired id — the real PN399-incident
+class), while still LISTING mitigated edges as HIGH-MITIGATED for visibility.
+The mitigation proxy (``_has_independent_alternative_anchor``) is static and
+pure: it splits the apply-module into ``TextPatch`` sub-patch regions and looks
+for one whose NAME and anchor text reference neither the retired id nor its
+emitted symbol.
 
 This module is PURE host code: it imports only the dispatcher spec layer (no
 torch / no vLLM), so it runs where the manifest is built and is unit-testable
@@ -139,6 +158,14 @@ class BreakEdge:
     dependent_lifecycle: str
     dependent_default_on: bool
     detail: str            # human one-liner
+    # APPLY-STATE-AWARE flag (dev424): True iff this is a HIGH anchor-break edge
+    # whose dependent ALSO declares an alternative anchor sub-patch that does NOT
+    # reference the retired id — a working fallback path independent of the
+    # retired patch (the PN399 native-form C2 sibling). The edge keeps its HIGH
+    # SEVERITY tier (still surfaced as HIGH-MITIGATED), but a mitigated edge is
+    # already handled, so the bump-preflight gate does NOT exit-1 on it. Only
+    # ever True on a HIGH edge (meaningless on MEDIUM). Default False.
+    mitigated: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -158,9 +185,23 @@ class RetireImpactReport:
     def medium(self) -> list[BreakEdge]:
         return [e for e in self.edges if e.severity == SEV_MEDIUM]
 
+    @property
+    def high_mitigated(self) -> list[BreakEdge]:
+        """HIGH edges already handled (dependent has an independent fallback)."""
+        return [e for e in self.high if e.mitigated]
+
+    @property
+    def high_unmitigated(self) -> list[BreakEdge]:
+        """HIGH edges with NO fallback — the genuine regression class the bump
+        gate must fail on (a dependent whose only path references the retired
+        id, the real PN399-incident class)."""
+        return [e for e in self.high if not e.mitigated]
+
     def to_dict(self) -> dict:
         return {
             "high_count": len(self.high),
+            "high_mitigated_count": len(self.high_mitigated),
+            "high_unmitigated_count": len(self.high_unmitigated),
             "medium_count": len(self.medium),
             "edges": [e.to_dict() for e in self.edges],
         }
@@ -272,6 +313,69 @@ def _anchor_refs_retired(
     return name_ref, text_ref
 
 
+def _has_independent_alternative_anchor(
+    dependent_module: Optional[str],
+    retired_id: str,
+    *,
+    source_reader=_read_module_source,
+) -> bool:
+    """Does the dependent declare an ALTERNATIVE anchor sub-patch independent of
+    the retired id — a working fallback path that does NOT break when the retired
+    patch goes native?
+
+    The mitigation proxy for the PN399 class. PN399's C2 removal is PIN-SPLIT into
+    two mutually-exclusive ``required=False`` siblings: the PN353A-form
+    ``pn399_pn353a_decode_reserve_remove`` (whose name + emitted-symbol anchor
+    text reference the retired PN353A — it anchor-breaks and soft-skips when
+    PN353A retires) AND the native-form ``pn399_native_decode_reserve_remove``
+    (which references neither the bare retired id nor its ``_genesis_<id>_``
+    emitted symbol — it targets the upstream-native ``_reserve_workspace`` body
+    and APPLIES on dev424). The native sibling is the working fallback, so the
+    anchor-break edge is already HANDLED.
+
+    Static proxy (no AST walk; mirrors ``_anchor_refs_retired``): split the source
+    into ``TextPatch`` sub-patch regions at each ``name=`` line, then look for at
+    least one region whose NAME does NOT reference the retired id AND whose anchor
+    text does NOT reference it (neither the bare id token nor the emitted symbol).
+    Such a region is an alternative anchor not depending on the retired patch.
+
+    A SINGLE-sub-patch dependent (e.g. a dependent whose ONLY decode-reserve path
+    references the retired id — the real PN399-incident class) has no such region
+    and is therefore NOT mitigated. Source is injected (tests run without the file).
+    """
+    src = source_reader(dependent_module)
+    if not src:
+        return False
+    id_re = _id_token_re(retired_id)
+    sym_re = _emitted_symbol_re(retired_id)
+
+    lines = src.splitlines()
+    # Index every sub-patch declaration line (a ``name=`` / ``name =``). Each
+    # region runs from its name line up to (but not including) the next one.
+    name_idx = [
+        i for i, ln in enumerate(lines)
+        if ("name=" in ln or "name =" in ln) and not ln.strip().startswith("#")
+    ]
+    if len(name_idx) < 2:
+        # Fewer than two declared anchors -> no alternative path to fall back to.
+        return False
+    bounds = name_idx + [len(lines)]
+    for k, start in enumerate(name_idx):
+        end = bounds[k + 1]
+        region = lines[start:end]
+        name_line = lines[start]
+        # An alternative sub-patch: its NAME must not reference the retired id,
+        # and no line in its region may reference the retired id (bare token) or
+        # its emitted symbol. That is a fallback anchor independent of the retired
+        # patch.
+        if id_re.search(name_line):
+            continue
+        if any(id_re.search(ln) or sym_re.search(ln) for ln in region):
+            continue
+        return True
+    return False
+
+
 # ─── core detector ────────────────────────────────────────────────────────
 
 def detect_retire_impact(
@@ -366,7 +470,19 @@ def detect_retire_impact(
             # vanilla Variant-B fallback — is NOT an anchor break either.)
             anchor_break = ("anchor_name" in via) and ("anchor_text" in via)
             severity = SEV_HIGH if (perf and anchor_break) else SEV_MEDIUM
-            detail = _format_detail(retired_id, reason, dep_id, via, severity)
+            # APPLY-STATE-AWARE downgrade (dev424): a HIGH anchor-break edge is
+            # MITIGATED when the dependent ALSO declares an alternative anchor
+            # sub-patch independent of the retired id (the PN399 native-form C2
+            # sibling) — a working fallback that applies when the retired patch
+            # goes native. The edge keeps its HIGH severity tier but the gate does
+            # not fail on it. Only meaningful for HIGH (anchor-break) edges; a
+            # MEDIUM declared-cooperation edge is never relabelled mitigated.
+            mitigated = severity == SEV_HIGH and _has_independent_alternative_anchor(
+                getattr(dep, "apply_module", None), retired_id,
+                source_reader=source_reader,
+            )
+            detail = _format_detail(
+                retired_id, reason, dep_id, via, severity, mitigated)
             edges.append(BreakEdge(
                 retired=retired_id,
                 retired_reason=reason,
@@ -377,6 +493,7 @@ def detect_retire_impact(
                 dependent_lifecycle=str(dep.lifecycle),
                 dependent_default_on=bool(dep.default_on),
                 detail=detail,
+                mitigated=mitigated,
             ))
 
     edges.sort(key=lambda e: (e.severity != SEV_HIGH, e.retired, e.dependent))
@@ -385,7 +502,7 @@ def detect_retire_impact(
 
 def _format_detail(
     retired_id: str, reason: str, dep_id: str,
-    via: list[str], severity: str,
+    via: list[str], severity: str, mitigated: bool = False,
 ) -> str:
     edges = []
     if "requires_patches" in via:
@@ -397,8 +514,19 @@ def _format_detail(
             dep_id, dep_id.lower(), retired_id.lower()))
     if "anchor_text" in via:
         edges.append("%s anchor text refs %s" % (dep_id, retired_id))
-    if severity == SEV_HIGH:
-        # anchor name+text target the retired patch's emitted bytes.
+    if mitigated:
+        # HIGH anchor-break, but the dependent has an alternative anchor
+        # sub-patch independent of the retired id (the PN399 native-form C2
+        # sibling) — a working fallback path that applies when the retired
+        # patch goes native. Already handled; the gate does not fail on it.
+        risk = ("HIGH-MITIGATED: %s has an alternative anchor sub-patch not "
+                "referencing %s (a working fallback path independent of the "
+                "retired patch — the PN399 native-form sibling) that applies on "
+                "the new pin; already handled, surfaced for visibility only"
+                % (dep_id, retired_id))
+    elif severity == SEV_HIGH:
+        # anchor name+text target the retired patch's emitted bytes, and no
+        # independent fallback anchor exists — the genuine no-op regression.
         risk = ("anchor targets the retired patch's emitted bytes — physically "
                 "no-ops (the PN399 class)")
     else:

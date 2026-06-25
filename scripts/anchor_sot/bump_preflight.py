@@ -134,10 +134,21 @@ def preflight(old_dir, new_dir):
             breakage = {"high_count": 0, "medium_count": 0, "edges": []}
     edges = breakage.get("edges") or []
     high_edges = [e for e in edges if e.get("severity") == "HIGH"]
-    print("\n(b) retire-broken dependents (HIGH=%d MEDIUM=%d):"
-          % (breakage.get("high_count", 0), breakage.get("medium_count", 0)))
+    # APPLY-STATE-AWARE: a HIGH edge flagged ``mitigated`` is already handled (the
+    # dependent has a working fallback anchor independent of the retired id — the
+    # PN399 native-form C2 sibling). It is still LISTED, but the gate fails ONLY on
+    # genuinely-UNMITIGATED HIGH edges (the real PN399-incident class: a dependent
+    # whose only path references the retired id).
+    high_unmitigated = [e for e in high_edges if not e.get("mitigated")]
+    high_mitigated = [e for e in high_edges if e.get("mitigated")]
+    print("\n(b) retire-broken dependents (HIGH=%d [mitigated=%d unmitigated=%d] "
+          "MEDIUM=%d):" % (breakage.get("high_count", 0), len(high_mitigated),
+                           len(high_unmitigated), breakage.get("medium_count", 0)))
     for e in edges:
-        mark = "HIGH" if e.get("severity") == "HIGH" else "med "
+        if e.get("severity") == "HIGH":
+            mark = "HIGH-MITIGATED" if e.get("mitigated") else "HIGH"
+        else:
+            mark = "med "
         print("    [%s] %s" % (mark, e.get("detail")))
     if not edges:
         print("    (none)")
@@ -162,7 +173,7 @@ def preflight(old_dir, new_dir):
         print("    (none)")
 
     # (d) iron-rule #9 reminder + verdict
-    perf_delta = bool(high_edges) or bool(perf_landmines)
+    perf_delta = bool(high_unmitigated) or bool(perf_landmines)
     print("\n(d) iron-rule #9 — bench methodology:")
     if perf_delta:
         print("    A canonical A/B (genesis_bench_suite.py --quick) is REQUIRED "
@@ -173,12 +184,18 @@ def preflight(old_dir, new_dir):
         print("    No perf-tier delta detected — no A/B gate triggered "
               "(still bench-validate the pin per the bump playbook).")
 
-    if high_edges:
-        print("\nRESULT: FAIL — %d HIGH-severity PERF dependent(s) broken on "
-              "%s. Re-anchor the dependent against the new pin OR run a "
-              "canonical A/B proving no regression before promoting."
-              % (len(high_edges), new_pin))
+    if high_unmitigated:
+        print("\nRESULT: FAIL — %d UNMITIGATED HIGH-severity PERF dependent(s) "
+              "broken on %s (no working fallback anchor). Re-anchor the dependent "
+              "against the new pin OR run a canonical A/B proving no regression "
+              "before promoting." % (len(high_unmitigated), new_pin))
         return 1
+    if high_mitigated:
+        print("\nRESULT: PASS — %d HIGH-severity edge(s) are MITIGATED (the "
+              "dependent has a working fallback anchor independent of the retired "
+              "id — already handled); no unmitigated HIGH on %s."
+              % (len(high_mitigated), new_pin))
+        return 0
     print("\nRESULT: PASS — no HIGH-severity perf dependent broken on %s."
           % new_pin)
     return 0

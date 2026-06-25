@@ -136,16 +136,29 @@ def main():
         len(retired), [e["key"] for e in retired[:8]]))
     hi = breakage.get("high_count", 0)
     md = breakage.get("medium_count", 0)
+    # APPLY-STATE-AWARE: a mitigated HIGH (dependent has a working fallback anchor
+    # independent of the retired id — the PN399 native-form sibling) is handled,
+    # so it is surfaced but does NOT trigger the WARN-run-A/B block.
+    unmit = [e for e in breakage.get("edges", [])
+             if e.get("severity") == "HIGH" and not e.get("mitigated")]
+    mit = [e for e in breakage.get("edges", [])
+           if e.get("severity") == "HIGH" and e.get("mitigated")]
     if hi or md:
-        print("dependency_breakage: HIGH=%d MEDIUM=%d %s" % (
-            hi, md, ["%s->%s" % (e["retired"], e["dependent"])
-                     for e in breakage["edges"][:8]]))
-        if hi:
-            print("  WARN retire-broken PERF dependents (run a canonical A/B "
-                  "before promoting — iron-rule #9):")
-            for e in breakage["edges"]:
-                if e["severity"] == "HIGH":
-                    print("    * %s" % e["detail"])
+        print("dependency_breakage: HIGH=%d [mitigated=%d unmitigated=%d] "
+              "MEDIUM=%d %s" % (
+                  hi, len(mit), len(unmit), md,
+                  ["%s->%s" % (e["retired"], e["dependent"])
+                   for e in breakage["edges"][:8]]))
+        if mit:
+            print("  NOTE retire-broken PERF dependents already MITIGATED "
+                  "(working fallback anchor; surfaced for visibility):")
+            for e in mit:
+                print("    * %s" % e["detail"])
+        if unmit:
+            print("  WARN UNMITIGATED retire-broken PERF dependents (run a "
+                  "canonical A/B before promoting — iron-rule #9):")
+            for e in unmit:
+                print("    * %s" % e["detail"])
 
 
 if __name__ == "__main__":

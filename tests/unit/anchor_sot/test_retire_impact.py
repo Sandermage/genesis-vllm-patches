@@ -68,14 +68,19 @@ def test_live_registry_flags_pn353a_breaks_pn399_high_perf():
     as a HIGH (perf, anchor-break) breakage — the exact dev148->dev301
     regression, and the ONLY genuine breakage the dev301 rig audit found.
 
-    HIGH is now justified by the ANCHOR BREAK (not perf alone): PN399's
+    HIGH is justified by the ANCHOR BREAK (not perf alone): PN399's
     apply-module names an anchor ``pn399_pn353a_decode_reserve_remove`` AND its
     anchor OLD text embeds ``_genesis_pn353a_torch`` — PN353A's EMITTED symbol.
     The anchor literally targets PN353A's emitted bytes, so when PN353A retired
-    PN399's anchor went missing and the perf optimization physically no-op'd
-    (-5.5% TPS). This survives the obvious "just drop the requires_patches line"
-    non-fix: even with PN353A scrubbed from PN399's declared edges, the anchor
-    name+emitted-symbol signal still fires — see the resilience test below.
+    PN399's PN353A-form anchor went missing. This survives the obvious "just drop
+    the requires_patches line" non-fix: even with PN353A scrubbed from PN399's
+    declared edges, the anchor name+emitted-symbol signal still fires — see the
+    resilience test below.
+
+    The edge stays HIGH severity, but on dev424 it is now MITIGATED (PN399 carries
+    a native-form C2 sibling not referencing PN353A — see
+    ``test_live_registry_pn399_high_edge_is_mitigated``). This test pins the
+    anchor-break DETECTION; the mitigation flag + detail are pinned separately.
     """
     report = detect_on_live_registry()
     edge = next(
@@ -90,7 +95,6 @@ def test_live_registry_flags_pn353a_breaks_pn399_high_perf():
     # symbol text (_genesis_pn353a_torch) both target PN353A's emitted bytes.
     assert "anchor_name" in edge.via
     assert "anchor_text" in edge.via
-    assert "physically" in edge.detail and "PN399 class" in edge.detail
     assert "PN399" in edge.detail and "PN353A" in edge.detail
     # it is ranked among the HIGH edges
     assert edge in report.high
@@ -121,6 +125,50 @@ def test_live_registry_high_is_exactly_pn399_anchor_break():
     for pair in [("PN54", "PN350"), ("PN108", "PN348"), ("PN353A", "PN353B"),
                  ("PN54", "PN365"), ("PN22", "PN357"), ("G4_19C", "G4_31")]:
         assert pair not in high_ids
+
+
+def test_live_registry_pn399_high_edge_is_mitigated():
+    """APPLY-STATE-AWARE REFINEMENT (dev424, 2026-06): the PN353A->PN399 HIGH edge
+    is HANDLED. PN399 carries TWO mutually-exclusive C2 sibling sub-patches — the
+    PN353A-form ``pn399_pn353a_decode_reserve_remove`` (which anchor-breaks when
+    PN353A retires) AND a native-form ``pn399_native_decode_reserve_remove`` that
+    does NOT reference PN353A and applies on dev424 (vllm#44053 went native). The
+    native sibling is a working fallback path independent of the retired patch, so
+    the edge is MITIGATED: still surfaced as HIGH-tier, but flagged ``mitigated``
+    so the gate does NOT false-fail (the operator already handled it)."""
+    report = detect_on_live_registry()
+    edge = next(
+        (e for e in report.edges
+         if e.retired == "PN353A" and e.dependent == "PN399"),
+        None,
+    )
+    assert edge is not None, "PN353A -> PN399 breakage not detected"
+    assert edge.severity == SEV_HIGH
+    assert edge.mitigated is True, (
+        "PN399 has a native-form sibling not referencing PN353A — must mitigate")
+    # detail spells out the mitigation (native-form fallback), not a raw HIGH.
+    assert "HIGH-MITIGATED" in edge.detail
+    assert "alternative anchor" in edge.detail or "fallback" in edge.detail
+    # it is still ranked among the HIGH edges (severity unchanged), but the
+    # report exposes the mitigated subset distinctly.
+    assert edge in report.high
+    assert edge in report.high_mitigated
+    assert edge not in report.high_unmitigated
+
+
+def test_live_registry_no_unmitigated_high_on_current_repo():
+    """RIG GROUND TRUTH (dev424): the ONLY HIGH edge (PN353A->PN399) is mitigated
+    by PN399's native-form sibling, so there is NO genuinely-unmitigated HIGH on
+    the current repo — the gate must PASS. A genuinely-unmitigated HIGH (a
+    dependent whose ONLY path references the retired id) is the real regression
+    class and is exercised by the synthetic tests below."""
+    report = detect_on_live_registry()
+    assert report.high_unmitigated == [], (
+        "expected 0 unmitigated HIGH on dev424, got %s"
+        % [(e.retired, e.dependent) for e in report.high_unmitigated])
+    # the one HIGH that exists is the mitigated PN353A->PN399.
+    assert {(e.retired, e.dependent) for e in report.high_mitigated} == {
+        ("PN353A", "PN399")}
 
 
 def test_live_registry_all_break_sources_are_actually_retired():
@@ -338,6 +386,102 @@ def test_anchor_break_flags_high_even_when_requires_patches_scrubbed():
     assert "physically" in e.detail and "PN399 class" in e.detail
 
 
+# ─── mitigation: an independent alternative anchor downgrades the gate ──────
+
+def test_high_with_independent_alternative_anchor_is_mitigated():
+    """The PN399 shape, synthesized: a perf dependent whose anchor BREAKS on the
+    retired id (name + emitted symbol -> HIGH) BUT which also declares a sibling
+    sub-patch whose name does NOT reference the retired id and whose anchor block
+    does NOT reference it either (a working fallback path independent of the
+    retired patch). The edge stays HIGH-tier but is flagged ``mitigated`` so the
+    gate does not false-fail."""
+    specs = [
+        FakeSpec("PRET", lifecycle="retired"),
+        FakeSpec("PDEP", category="kernel_perf", apply_module="m.dep",
+                 requires_patches=("PRET",)),
+    ]
+
+    def src(_m):
+        # sub-patch 1: the PRET-form anchor break (name + emitted symbol).
+        # sub-patch 2: a NATIVE-form sibling that does NOT reference PRET — the
+        # independent fallback (the mitigation).
+        return (
+            '            name="pdep_pret_decode_reserve_remove",\n'
+            "                _genesis_pret_torch.float32,\n"
+            '            name="pdep_native_decode_reserve_remove",\n'
+            "                current_workspace_manager().get_simultaneous(\n"
+        )
+
+    report = detect_retire_impact(
+        specs, registry=_reg(specs), source_reader=src)
+    assert len(report.edges) == 1
+    e = report.edges[0]
+    assert e.severity == SEV_HIGH       # severity tier unchanged
+    assert e.mitigated is True
+    assert "HIGH-MITIGATED" in e.detail
+    # exposed via the mitigated/unmitigated split.
+    assert e in report.high and e in report.high_mitigated
+    assert e not in report.high_unmitigated
+
+
+def test_unmitigated_high_has_no_independent_alternative_anchor():
+    """The real PN399-incident class: a perf dependent whose ONLY decode-reserve
+    path references the retired id (no sibling sub-patch independent of it). When
+    the retired patch goes native this dependent has NO fallback and physically
+    no-ops — it is a genuinely-unmitigated HIGH and MUST still fail the gate."""
+    specs = [
+        FakeSpec("PRET", lifecycle="retired"),
+        FakeSpec("PDEP", category="kernel_perf", apply_module="m.dep",
+                 requires_patches=("PRET",)),
+    ]
+
+    def src(_m):
+        # ONLY a PRET-form anchor break; no independent sibling sub-patch.
+        return (
+            '            name="pdep_pret_decode_reserve_remove",\n'
+            "                _genesis_pret_torch.float32,\n"
+        )
+
+    report = detect_retire_impact(
+        specs, registry=_reg(specs), source_reader=src)
+    assert len(report.edges) == 1
+    e = report.edges[0]
+    assert e.severity == SEV_HIGH
+    assert e.mitigated is False
+    assert "HIGH-MITIGATED" not in e.detail
+    assert "physically" in e.detail and "PN399 class" in e.detail
+    assert e in report.high_unmitigated
+    assert e not in report.high_mitigated
+
+
+def test_mitigation_only_applies_to_high_edges():
+    """A MEDIUM edge is never relabelled ``mitigated`` — the flag is meaningful
+    only on a HIGH (anchor-break) edge. A declared-cooperation MEDIUM that happens
+    to have sibling sub-patches stays a plain MEDIUM (no mitigated flag)."""
+    specs = [
+        FakeSpec("PRET", lifecycle="retired"),
+        FakeSpec("PDEP", category="kernel_perf", apply_module="m.dep",
+                 requires_patches=("PRET",)),
+    ]
+
+    def src(_m):
+        # an anchor NAME referencing PRET but NO emitted-symbol text -> not an
+        # anchor break -> MEDIUM. A sibling sub-patch exists but is irrelevant.
+        return (
+            '            name="pdep_pret_swap_fallback",\n'
+            "    anchor = vanilla_body  # Variant B\n"
+            '            name="pdep_other_subpatch",\n'
+        )
+
+    report = detect_retire_impact(
+        specs, registry=_reg(specs), source_reader=src)
+    assert len(report.edges) == 1
+    e = report.edges[0]
+    assert e.severity == SEV_MEDIUM
+    assert e.mitigated is False
+    assert "HIGH-MITIGATED" not in e.detail
+
+
 # ─── a retired dependent is not a live regression ──────────────────────────
 
 def test_retired_dependent_is_not_reported():
@@ -393,7 +537,8 @@ def test_breakedge_to_dict_roundtrip():
         retired="PRET", retired_reason="retired", dependent="PDEP",
         severity=SEV_HIGH, via=("requires_patches",),
         dependent_category="kernel_perf", dependent_lifecycle="experimental",
-        dependent_default_on=False, detail="x")
+        dependent_default_on=False, detail="x", mitigated=True)
     d = e.to_dict()
     assert d["retired"] == "PRET" and d["severity"] == SEV_HIGH
     assert d["via"] == ("requires_patches",)
+    assert d["mitigated"] is True
