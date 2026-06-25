@@ -725,6 +725,16 @@ def create_app(
 
         return retire_impact_status()
 
+    @app.get("/api/v1/patches/shadow")
+    async def patches_shadow() -> dict[str, Any]:
+        """Apply-order shadow diff: legacy per-patch loop vs the spec-driven loop.
+        ``spec_boot_unsafe`` = patches the legacy loop applies that would silently
+        DROP under SNDR_APPLY_VIA_SPECS=1 (a healthy-looking boot quietly missing
+        patches). Read-only; fail-safe."""
+        from .patches.shadow_status import shadow_status
+
+        return shadow_status()
+
     @app.get("/api/v1/license")
     async def license_status() -> dict[str, Any]:
         """License + sndr_engine tier status — installed?, entitled?, subject/expiry,

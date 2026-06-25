@@ -1078,6 +1078,20 @@ export type RetireImpactReport = {
   error?: string;
 };
 
+export type ShadowReport = {
+  legacy_count: number;
+  spec_count: number;
+  spec_boot_unsafe: string[];
+  spec_only_unexpected: string[];
+  legacy_unparseable: string[];
+  legacy_only: string[];
+  spec_only: string[];
+  spec_only_known: string[];
+  spec_with_apply_module: string[];
+  spec_without_apply_module: string[];
+  error?: string;
+};
+
 export type PatchManifestStatus = {
   available: boolean;
   running_vllm: string | null;
@@ -1392,6 +1406,7 @@ export const api = {
   patchDoctor: () => request<PatchDoctorReport>("/api/v1/patches/doctor"),
   patchManifest: (signal?: AbortSignal) => request<PatchManifestStatus>("/api/v1/patches/manifest", { signal }),
   retireImpact: (signal?: AbortSignal) => request<RetireImpactReport>("/api/v1/patches/retire-impact", { signal }),
+  patchShadow: (signal?: AbortSignal) => request<ShadowReport>("/api/v1/patches/shadow", { signal }),
   doctor: () => request<DoctorReport>("/api/v1/doctor"),
   memoryFit: (params: { model_id: string; hardware_id: string }, signal?: AbortSignal) =>
     request<MemoryFitReport>(`/api/v1/memory/fit${query(params)}`, { signal }),

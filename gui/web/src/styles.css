@@ -5388,3 +5388,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .retire-pair { font-family: var(--mono, monospace); }
 .retire-meta { color: var(--muted-text); }
 .retire-via { color: var(--muted-text); font-size: 11px; text-align: right; }
+
+/* Apply-order shadow blocks (Patches → Anchors) */
+.shadow-block { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
+.shadow-block .chip-row { flex-wrap: wrap; }

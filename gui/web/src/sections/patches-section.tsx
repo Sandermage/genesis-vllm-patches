@@ -6,7 +6,7 @@
 import { Suspense } from "react";
 import {
   AlertTriangle, Anchor, BarChart3, Code2, Cpu, GitBranch, Layers3, ListChecks, PackageCheck,
-  SlidersHorizontal, Table2
+  ShieldAlert, SlidersHorizontal, Table2
 } from "lucide-react";
 import { tr } from "../i18n";
 import { asNumber } from "../lib/coerce";
@@ -20,6 +20,7 @@ import { PatchLifecycleGraph, PatchModelSupport, PatchRegistryInsight, PatchSumm
 import { BundlesPanel, UpstreamDiffPanel } from "./registry";
 import { AnchorManifestPanel } from "./anchor-manifest";
 import { RetireImpactPanel } from "./retire-impact";
+import { ApplyShadowPanel } from "./apply-shadow";
 
 export function PatchesSection({
   patches,
@@ -105,6 +106,9 @@ export function PatchesSection({
                   </ModuleCard>
                   <ModuleCard title={tr("Retire-Impact")} icon={<AlertTriangle size={18} />} desc={tr("Which active dependents a retired patch would break. HIGH = a perf-bearing dependent whose anchor targets the retired patch's bytes (the silent perf-regression class the pin-bump preflight gate catches); MEDIUM = a registry edge only.")} wide>
                     <RetireImpactPanel />
+                  </ModuleCard>
+                  <ModuleCard title={tr("Apply-Order Shadow")} icon={<ShieldAlert size={18} />} desc={tr("Legacy per-patch apply loop vs the spec-driven loop. spec-boot-unsafe = patches the legacy loop applies that would silently drop under SNDR_APPLY_VIA_SPECS=1 — a healthy-looking boot quietly missing patches.")} wide>
+                    <ApplyShadowPanel />
                   </ModuleCard>
                 </ModuleGrid>
               )
