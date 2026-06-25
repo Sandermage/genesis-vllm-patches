@@ -74,6 +74,11 @@ export function PatchExplainPanel({
   const conflicts = asStringArray(spec.conflicts_with ?? meta.conflicts_with);
   const relatedPrs = asStringArray(spec.related_upstream_prs ?? meta.related_upstream_prs);
   const credit = asText(meta.credit ?? spec.credit, "");
+  const composesWith = asStringArray(spec.composes_with ?? meta.composes_with);
+  const supersededBy = asText(meta.superseded_by ?? spec.superseded_by, "");
+  const prRelationship = asText(meta.upstream_pr_relationship ?? spec.upstream_pr_relationship, "").replace(/_/g, " ");
+  const vvrRaw = meta.vllm_version_range ?? spec.vllm_version_range;
+  const pinGate = Array.isArray(vvrRaw) ? vvrRaw.filter(Boolean).map(String).join(", ") : asText(vvrRaw, "");
   const canForce = Boolean(patch.env_flag);
 
   return (
@@ -129,7 +134,7 @@ export function PatchExplainPanel({
         <p className="muted patch-applies-none">{tr("Applies to all catalog models (no model-specific constraints).")}</p>
       )}
 
-      {(requires.length > 0 || conflicts.length > 0) && (
+      {(requires.length > 0 || conflicts.length > 0 || composesWith.length > 0) && (
         <div className="patch-deps">
           {requires.length > 0 && (
             <div>
@@ -151,6 +156,16 @@ export function PatchExplainPanel({
               </div>
             </div>
           )}
+          {composesWith.length > 0 && (
+            <div>
+              <span className="patch-dep-label">{tr("Composes with")}</span>
+              <div className="chip-row">
+                {composesWith.map((c) => allPatchIds.has(c)
+                  ? <button type="button" className="chip chip-link" key={c} onClick={() => onSelectPatch(c)} title={`${tr("Open")} ${c} ${tr("in the registry")}`}>{c} →</button>
+                  : <span className="chip chip-unknown" key={c} title={tr("Not present in the current registry view")}>{c}</span>)}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -162,8 +177,9 @@ export function PatchExplainPanel({
           [tr("Implementation"), asText(spec.implementation_status, patch.implementation_status)],
           [tr("Env flag"), patch.env_flag || "-"],
           [tr("Apply module"), patch.apply_module || "-"],
-          [tr("Upstream PR"), patch.upstream_pr ? `#${patch.upstream_pr}` : "-"],
+          [tr("Upstream PR"), patch.upstream_pr ? `#${patch.upstream_pr}${prRelationship ? ` · ${prRelationship}` : ""}` : (prRelationship || "-")],
           [tr("Related PRs"), relatedPrs.length ? relatedPrs.map((p) => `#${p}`).join(", ") : "-"],
+          [tr("Pin gate"), pinGate || "-"],
           [tr("Category"), asText(spec.category, "-")],
           [tr("Source"), asText(spec.source, "-")],
           [tr("Credit"), credit || "-"]
@@ -183,6 +199,12 @@ export function PatchExplainPanel({
         </span>
       </div>
 
+      {supersededBy && (
+        <div className="explain-note">
+          <strong>{tr("Superseded by")}</strong>
+          <p>{supersededBy}</p>
+        </div>
+      )}
       <div className="explain-note">
         <strong>{tr("Lifecycle")} — {tr(patch.lifecycle)}</strong>
         <p>{patchLifecycleExplanation(patch.lifecycle)}</p>

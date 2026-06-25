@@ -1060,6 +1060,24 @@ export type AnchorManifestEntry = {
   error?: string;
 };
 
+export type RetireImpactEdge = {
+  retired: string;
+  retired_reason?: string;
+  dependent: string;
+  severity: "HIGH" | "MEDIUM";
+  via: string[];
+  dependent_category?: string;
+  dependent_lifecycle?: string;
+  dependent_default_on?: boolean;
+  detail?: string;
+};
+export type RetireImpactReport = {
+  high_count: number;
+  medium_count: number;
+  edges: RetireImpactEdge[];
+  error?: string;
+};
+
 export type PatchManifestStatus = {
   available: boolean;
   running_vllm: string | null;
@@ -1373,6 +1391,7 @@ export const api = {
     postJson<{ ok: boolean; overrides: Record<string, { state: string; env_flag: string }> }>("/api/v1/patches/overrides", { patch_id, state, env_flag }),
   patchDoctor: () => request<PatchDoctorReport>("/api/v1/patches/doctor"),
   patchManifest: (signal?: AbortSignal) => request<PatchManifestStatus>("/api/v1/patches/manifest", { signal }),
+  retireImpact: (signal?: AbortSignal) => request<RetireImpactReport>("/api/v1/patches/retire-impact", { signal }),
   doctor: () => request<DoctorReport>("/api/v1/doctor"),
   memoryFit: (params: { model_id: string; hardware_id: string }, signal?: AbortSignal) =>
     request<MemoryFitReport>(`/api/v1/memory/fit${query(params)}`, { signal }),

@@ -5371,3 +5371,20 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .deploy-toggle { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; cursor: pointer; }
 .deploy-toggle input { width: auto; margin: 0; }
 .deploy-toggle span { color: var(--muted-text); }
+
+/* Retire-impact monitor (Patches → Anchors) */
+.retire-impact-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.retire-summary { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.retire-summary.ok { color: var(--ok, #3fb950); }
+.retire-summary.danger { color: var(--danger, #f85149); }
+.retire-edges { display: flex; flex-direction: column; gap: 4px; }
+.retire-edge { display: grid; grid-template-columns: 64px minmax(160px, 1fr) auto auto; align-items: center; gap: 10px;
+  padding: 5px 8px; border-radius: 6px; background: var(--panel-2, rgba(255,255,255,0.03)); font-size: 12px; }
+.retire-edge.high { border-left: 3px solid var(--danger, #f85149); }
+.retire-edge.medium { border-left: 3px solid var(--warn, #d29922); }
+.retire-sev { font-weight: 700; font-size: 11px; letter-spacing: 0.3px; }
+.retire-sev.high { color: var(--danger, #f85149); }
+.retire-sev.medium { color: var(--warn, #d29922); }
+.retire-pair { font-family: var(--mono, monospace); }
+.retire-meta { color: var(--muted-text); }
+.retire-via { color: var(--muted-text); font-size: 11px; text-align: right; }

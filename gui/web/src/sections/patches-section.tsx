@@ -5,7 +5,7 @@
 // prop. Extracted from section-workspace.tsx.
 import { Suspense } from "react";
 import {
-  Anchor, BarChart3, Code2, Cpu, GitBranch, Layers3, ListChecks, PackageCheck,
+  AlertTriangle, Anchor, BarChart3, Code2, Cpu, GitBranch, Layers3, ListChecks, PackageCheck,
   SlidersHorizontal, Table2
 } from "lucide-react";
 import { tr } from "../i18n";
@@ -19,6 +19,7 @@ import { SkeletonCards } from "../Skeleton";
 import { PatchLifecycleGraph, PatchModelSupport, PatchRegistryInsight, PatchSummaryPanel } from "./patch-overview";
 import { BundlesPanel, UpstreamDiffPanel } from "./registry";
 import { AnchorManifestPanel } from "./anchor-manifest";
+import { RetireImpactPanel } from "./retire-impact";
 
 export function PatchesSection({
   patches,
@@ -101,6 +102,9 @@ export function PatchesSection({
                 <ModuleGrid>
                   <ModuleCard title={tr("Anchor Source-of-Truth")} icon={<Anchor size={18} />} desc={tr("Per-pin anchor manifests that drive the live patcher (fast anchoring + md5-drift fallback). Shows each pin's anchor counts, which is active for the running engine, and live drift vs the installed source.")} wide>
                     <AnchorManifestPanel />
+                  </ModuleCard>
+                  <ModuleCard title={tr("Retire-Impact")} icon={<AlertTriangle size={18} />} desc={tr("Which active dependents a retired patch would break. HIGH = a perf-bearing dependent whose anchor targets the retired patch's bytes (the silent perf-regression class the pin-bump preflight gate catches); MEDIUM = a registry edge only.")} wide>
+                    <RetireImpactPanel />
                   </ModuleCard>
                 </ModuleGrid>
               )

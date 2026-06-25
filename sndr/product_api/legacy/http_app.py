@@ -714,6 +714,17 @@ def create_app(
 
         return manifest_status(drift=drift)
 
+    @app.get("/api/v1/patches/retire-impact")
+    async def patches_retire_impact() -> dict[str, Any]:
+        """Anchor-SoT retire-impact: which active dependents a retired patch would
+        break. HIGH = perf-bearing dependent whose anchor targets the retired
+        patch's emitted bytes (the dev301-class silent regression); MEDIUM =
+        registry edge only. The signal the pin-bump preflight gate exists for.
+        Read-only; fail-safe (empty report off-engine)."""
+        from .patches.retire_impact_status import retire_impact_status
+
+        return retire_impact_status()
+
     @app.get("/api/v1/license")
     async def license_status() -> dict[str, Any]:
         """License + sndr_engine tier status — installed?, entitled?, subject/expiry,
