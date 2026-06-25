@@ -8256,6 +8256,87 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
     },
 
+    "PN519": {
+        "title": (
+            "Start the SWA/chunked KV-tile loop exactly at first_allowed_key "
+            "(compute_tile_loop_bounds returns tile_base; both "
+            "triton_unified_attention consumers offset seq_offset) — drops the "
+            "redundant boundary tile per SWA request + kills the residue-"
+            "dependent online-softmax reduction-order non-determinism on Gemma4 "
+            "sliding layers (backport+improve OPEN vllm#46087, fixes vllm#44575)"
+        ),
+        "tier": "community",
+        "family": "attention",
+        "category": "kernel_perf",
+        "env_flag": "GENESIS_ENABLE_PN519_SWA_TILE_BASE",
+        "default_on": False,
+        "credit": (
+            "Genesis backport+improvement of OPEN vllm#46087 ([Kernel] Start "
+            "SWA/chunked KV-tile loop at first allowed key, fixes vllm#44575), "
+            "authored against live dev424 (0.23.1rc1.dev424+g3f5a1e173). "
+            "compute_tile_loop_bounds in "
+            "vllm/v1/attention/ops/triton_attention_helpers.py starts the "
+            "sliding-window/chunked tile loop at the tile FLOOR "
+            "(tile_start = first_allowed_key // TILE_SIZE) and the two consumer "
+            "kernels (triton_unified_attention.py + its _diffkv sibling) index "
+            "seq_offset = j*TILE_SIZE + offs_t, so a window of W keys spans "
+            "ceil((r + W)/TILE_SIZE) tiles instead of the minimal "
+            "ceil(W/TILE_SIZE), where r = first_allowed_key % TILE_SIZE: (1) "
+            "PERF — one redundant boundary tile per SWA request whenever r != 0 "
+            "(pre-window keys loaded then masked out); (2) DETERMINISM — the "
+            "residue shifts which keys land in the boundary tile, perturbing "
+            "the online-softmax reduction ORDER, so output is not byte-"
+            "identical across windows whose first_allowed_key differ by a sub-"
+            "tile residue. Our Gemma4 (26B-A4B + 31B) interleaved-SWA layers "
+            "run this exact kernel — the 512-wide global heads route through "
+            "triton_unified_attention.py on Ampere (PN351 vendors a sibling "
+            "tune to the same file) and the sliding layers hit the SWA tile "
+            "loop. Fix: compute_tile_loop_bounds returns a 4th value tile_base "
+            "(non-zero only on the 2D-pointer SWA/chunked path; USE_TD and 3D-"
+            "segmented paths keep it 0); both consumers offset seq_offset = "
+            "tile_base + j*TILE_SIZE + offs_t so iteration starts EXACTLY at "
+            "first_allowed_key. tile_end (from last_allowed_key) is unchanged, "
+            "so the iteration count NEVER grows and the reduction order is "
+            "residue-invariant -> byte-identical output. BETTER THAN UPSTREAM "
+            "(iron rule #10): (1) ATOMIC three-file apply — because "
+            "compute_tile_loop_bounds now returns a 4-tuple, a helper-only "
+            "apply (4-tuple producer feeding a 3-tuple unpack) is a silent "
+            "ValueError at the first decode; PN519 reports 'applied' only when "
+            "all three files carry the marker and FAILS LOUDLY on any consumer "
+            "anchor drift, never leaving a crash-on-first-decode half-patched "
+            "tree; (2) USE_TD/3D byte-unchanged exactly as upstream (our "
+            "TurboQuant USE_TD decode path + 3D-segmented reduction keep "
+            "tile_base=0). Runtime-inert on Qwen3.6: the 35B FP8 / 27B INT4 "
+            "PROD models run FlashInfer / FA2 (head_dim=128) and never execute "
+            "the Triton unified kernel — the patched code is imported but never "
+            "run, so default_on is scoped to the Gemma4 SWA configs only. "
+            "Composes with PN351 (same files, DISJOINT anchors). Self-skips "
+            "once a pin carries vllm#46087 natively (drift marker = the PR's "
+            "4-tuple return literal). default_on False / lifecycle experimental "
+            "pending Gemma4 rig validation."
+        ),
+        "upstream_pr": 46087,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {
+            "vllm_version_range": (">=0.23.0", "<0.24.0"),
+        },
+        "implementation_status": "full",
+        "apply_module": "sndr.engines.vllm.patches.attention.pn519_swa_tile_base",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+        "composes_with": [
+            "PN351",
+        ],
+        # Same three files as the SWA tile-loop path; PN351 touches
+        # _get_tile_size + the kernel launch kwargs (disjoint anchors), PN519
+        # touches compute_tile_loop_bounds + the seq_offset index. No overlap
+        # with PN399 (TQ attn file) or PN345/PN29x (FLA chunk kernels). All
+        # anchors byte-verified count==1 on dev424 (helper signature/init/tile/
+        # return + both consumers' 4-tuple unpack + seq_offset). Supersedes
+        # nothing.
+        "conflicts_with": [],
+    },
+
     # ─── Legacy patches (P1–P46 series, pre-dispatcher era) ─────────────
     # These patches predate the PATCH_REGISTRY metadata system. They have
     # been live in PROD since pre-v7.0 and don't currently read an env

@@ -1,0 +1,35 @@
+    context_len = seq_len - cur_batch_query_len
+
+    if USE_ALIBI_SLOPES:
+        alibi_slope = tl.load(
+            alibi_slopes_ptr + query_offset_1, mask=query_mask_1, other=0.0
+        )
+
+    if USE_QQ_BIAS:
+        qq_bias_row_ptrs = qq_bias_ptr + query_pos[:, None] * qq_bias_stride_0
+
+    loop_lo, loop_hi, max_seq_prefix_len = compute_tile_loop_bounds(
+        context_len,
+        seq_len,
+        cur_batch_query_len,
+        q_block_local_idx,
+        segm_idx,
+        tiles_per_segment,
+        TILE_SIZE,
+        BLOCK_M,
+        BLOCK_Q,
+        num_queries_per_kv,
+        SLIDING_WINDOW,
+        USE_MM_PREFIX,
+        IS_3D,
+        USE_CAUSAL,
+        USE_PER_SEQ_CAUSAL,
+        CHUNK_LOOKBACK,
+        CHUNK_SIZE,
+    )
+
+    # iterate through tiles (now limited to the sliding window range)
+    for j in range(loop_lo, loop_hi):
+        seq_offset = j * TILE_SIZE + offs_t
+        tile_mask = seq_offset < max_seq_prefix_len
+

@@ -1,0 +1,95 @@
+def compute_tile_loop_bounds(
+    context_len,
+    seq_len,
+    cur_batch_query_len,
+    q_block_local_idx,
+    segm_idx_or_0,
+    tiles_per_segment_or_0,
+    TILE_SIZE: tl.constexpr,
+    BLOCK_M: tl.constexpr,
+    BLOCK_Q: tl.constexpr,
+    num_queries_per_kv: tl.constexpr,
+    SLIDING_WINDOW: tl.constexpr,
+    USE_MM_PREFIX: tl.constexpr,
+    IS_3D: tl.constexpr,
+    USE_CAUSAL: tl.constexpr = True,
+    USE_PER_SEQ_CAUSAL: tl.constexpr = False,
+    CHUNK_LOOKBACK: tl.constexpr = -1,
+    CHUNK_SIZE: tl.constexpr = -1,
+):
+    """Compute the tile-loop bounds ``(loop_lo, loop_hi)`` and the
+    derived ``max_seq_prefix_len`` used for per-tile masking.
+
+    Combines three concerns into one helper:
+
+    1. Longest prefix spanned by any query token in this q-block.
+       Clamped to ``seq_len`` (causal) or extended to it when
+       mm_prefix is active or non-causal sequences need the full
+       sequence.
+    2. Sliding-window pruning: narrows ``[tile_start, tile_end)`` to
+       only tiles that can contain an allowed key under SWA.
+       For non-causal sequences, the window extends in both directions.
+    3. 3D scoping: when ``IS_3D`` is True, further narrows to the
+       segment's slice via ``(segm_idx * tiles_per_segment,
+       (segm_idx + 1) * tiles_per_segment)``.
+    """
+    # compute the length of the longest sequence prefix spanned by any
+    # query token in the current q_block (q_block_local_idx)
+    max_seq_prefix_len = (
+        context_len
+        + q_block_local_idx * BLOCK_Q
+        + (BLOCK_M - 1) // num_queries_per_kv
+        + 1
+    )
+    if USE_MM_PREFIX or USE_PER_SEQ_CAUSAL or (not USE_CAUSAL):
+        # Non-causal or mixed batches need the full sequence range.
+        # Per-element masking in compute_kv_seq_mask handles the
+        # actual causal/non-causal boundary per sequence.
+        max_seq_prefix_len = tl.maximum(max_seq_prefix_len, seq_len)
+    else:
+        max_seq_prefix_len = tl.minimum(max_seq_prefix_len, seq_len)
+
+    num_tiles = cdiv_fn(max_seq_prefix_len, TILE_SIZE)
+
+    # ---- Sliding-window tile pruning --------------------
+    # Default: keep previous global behavior
+    tile_start = 0
+    tile_end = num_tiles
+    # TODO(Isotr0py): sliding window pruning with image bidirectional mask
+    if SLIDING_WINDOW > 0 and not USE_MM_PREFIX:
+        # Query rows covered by this Q-block
+        qpos_lo = q_block_local_idx * BLOCK_Q
+        qpos_hi = tl.minimum(
+            qpos_lo + (BLOCK_M - 1) // num_queries_per_kv,
+            cur_batch_query_len - 1,
+        )
+        # For sliding window, each query position q can only attend to
+        # keys in the range [q_abs - SLIDING_WINDOW + 1, q_abs]
+        # where q_abs = context_len + q
+        # The union of allowed key positions for this Q-block is:
+        # [context_len + qpos_lo - SLIDING_WINDOW + 1, context_len + qpos_hi]
+        q_abs = context_len + qpos_lo
+        if CHUNK_LOOKBACK > -1:
+            first_allowed_key = ((q_abs // CHUNK_SIZE) - CHUNK_LOOKBACK) * CHUNK_SIZE
+        else:
+            first_allowed_key = q_abs - SLIDING_WINDOW + 1
+        if USE_PER_SEQ_CAUSAL or (not USE_CAUSAL):
+            # Non-causal: keys can be AHEAD of query within the window
+            last_allowed_key = tl.minimum(
+                context_len + qpos_hi + SLIDING_WINDOW - 1,
+                seq_len - 1,
+            )
+        else:
+            last_allowed_key = context_len + qpos_hi
+        # Convert to tile indices and clamp
+        tile_start = tl.maximum(0, first_allowed_key // TILE_SIZE)
+        tile_end = tl.minimum((last_allowed_key // TILE_SIZE) + 1, num_tiles)
+
+    if IS_3D:
+        loop_lo = max(segm_idx_or_0 * tiles_per_segment_or_0, tile_start)
+        loop_hi = min((segm_idx_or_0 + 1) * tiles_per_segment_or_0, tile_end)
+    else:
+        loop_lo = tile_start
+        loop_hi = tile_end
+
+    return loop_lo, loop_hi, max_seq_prefix_len

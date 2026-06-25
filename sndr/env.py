@@ -544,6 +544,7 @@ class Flags:
     # ── 2026-06 vendor wave (PN290+ / June sessions) ──
     # attention family
     PN351 = "PN351"  # PN351: Triton unified_attention head_dim>=512 tune
+    PN519_SWA_TILE_BASE = "PN519_SWA_TILE_BASE"  # PN519: start the SWA/chunked KV-tile loop exactly at first_allowed_key (compute_tile_loop_bounds returns tile_base; both triton_unified_attention consumers offset seq_offset) — drops the redundant boundary tile per SWA request + kills the residue-dependent online-softmax reduction-order non-determinism on Gemma4 sliding layers (backport+improve OPEN vllm#46087, fixes vllm#44575; atomic 3-file apply, USE_TD/3D keep tile_base=0; perf+determinism, default OFF/experimental, Gemma4 SWA only — Qwen3.6 FlashInfer/FA2 never runs this kernel)
     # attention.gdn family
     PN293_MAMBA_ATTN_PREFILL_FASTPATH = "PN293_MAMBA_ATTN_PREFILL_FASTPATH"  # PN293: mamba_attn _compute_common_metadata prefill fast-path
     PN298_FLA_CHUNK_O_ARCH_WARPS = "PN298_FLA_CHUNK_O_ARCH_WARPS"  # PN298: FLA chunk_o NUM_WARPS arch-aware prune

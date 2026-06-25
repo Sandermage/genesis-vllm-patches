@@ -4,26 +4,26 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-25T18:15:22Z
-Total entries: **320**
+Generated: 2026-06-25T18:43:16Z
+Total entries: **321**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **320**
+- `tier=community`: **321**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **233**
+- `lifecycle=experimental`: **234**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
 - `lifecycle=retired`: **38**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **57** / 320
+### Default-on at boot: **57** / 321
 
 ### By family
-- `attention`: 1
+- `attention`: 2
 - `attention.flash`: 3
 - `attention.gdn`: 34
 - `attention.turboquant`: 62
@@ -53,11 +53,12 @@ Total entries: **320**
 
 ## Patches by family
 
-### `attention` (1)
+### `attention` (2)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **PN351** | `community` | `experimental` | · | `GENESIS_ENABLE_PN351` | [#43257](https://github.com/vllm-project/vllm/pull/43257) | Triton unified_attention head_dim>=512 tune (vendor of OPEN vllm#43257) |
+| **PN519** | `community` | `experimental` | · | `GENESIS_ENABLE_PN519_SWA_TILE_BASE` | [#46087](https://github.com/vllm-project/vllm/pull/46087) | Start the SWA/chunked KV-tile loop exactly at first_allowed_key (compute_tile... |
 
 ### `attention.flash` (3)
 
