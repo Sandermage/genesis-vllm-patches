@@ -117,6 +117,42 @@ def test_preflight_fails_when_perf_dependent_breaks(tmp_path):
     assert "genesis_bench_suite.py" in r.stdout
 
 
+def test_preflight_fails_on_synthetic_high_anchor_break(tmp_path):
+    """Registry-independent: a synthetic HIGH anchor-break perf dependent in the
+    new pin's dependency_breakage section makes preflight exit non-zero. Locks
+    the gate contract to ``severity == HIGH`` (the anchor-break tier) regardless
+    of the live registry's current edge set."""
+    old = _pin_dir(
+        tmp_path, "old",
+        {"pins": {"vllm": "dev148"}, "files": {"f.py": {"patches": {
+            "SYNDEP": {"anchors": {"a1": {"byte_offset": 1}}}}}}},
+        {"rejected": []})
+    new = _pin_dir(
+        tmp_path, "new",
+        {"pins": {"vllm": "dev301"}, "files": {"f.py": {"patches": {}}}},
+        {"rejected": [{"key": "SYNRET::s1", "status": "retired"}],
+         "dependency_breakage": {
+             "high_count": 1, "medium_count": 0,
+             "edges": [{
+                 "retired": "SYNRET", "retired_reason": "retired",
+                 "dependent": "SYNDEP", "severity": "HIGH",
+                 "via": ["anchor_name", "anchor_text"],
+                 "dependent_category": "kernel_perf",
+                 "dependent_lifecycle": "experimental",
+                 "dependent_default_on": True,
+                 "detail": ("retiring SYNRET (retired) breaks dependent SYNDEP "
+                            "(SYNDEP anchor 'syndep_synret_*') — SYNDEP will "
+                            "skip/no-op (anchor targets the retired patch's "
+                            "emitted bytes — physically no-ops (the PN399 "
+                            "class))")}]}})
+    r = subprocess.run([sys.executable, str(PREFLIGHT), str(old), str(new)],
+                       capture_output=True, text=True)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "RESULT: FAIL" in r.stdout
+    assert "SYNDEP" in r.stdout
+    assert "physically no-ops" in r.stdout
+
+
 def test_preflight_passes_on_clean_bump(tmp_path):
     """No newly-retired patch + no breakage -> exit 0."""
     anchors = {"pins": {"vllm": "dev148"}, "files": {"f.py": {"patches": {

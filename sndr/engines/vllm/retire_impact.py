@@ -31,10 +31,18 @@ optimization no-op'd -> a real -5.5% TPS regression that no gate caught. The
 anchor-SOT ``drift.rej.json`` showed ``genuine_drift=0`` (clean) while a perf
 patch was silently dead.
 
-Severity: a dependent that itself carries a PERF signal (category in the perf
-set, OR title/credit mentions TPS / overhead / throughput / regression / ...) is
-HIGH — a silent perf regression is exactly the landmine above. Everything else
-is MEDIUM (a dependent that skips is still a behaviour change worth surfacing).
+Severity (rig-audit refined, dev301 ground truth 2026-06): only an ANCHOR-BREAK
+edge warrants HIGH. The physical breakage mechanism is the dependent's TextPatch
+anchor targeting the retired patch's EMITTED bytes — anchor NAME references the
+retired id AND anchor TEXT embeds its ``_genesis_<id>_`` emitted symbol (the
+PN399 class). Such a dependent silently no-ops when the retired patch goes
+native, so a PERF-bearing anchor-break dependent is HIGH (the −5.5% TPS landmine
+above). A ``requires_patches`` / ``composes_with`` edge with NO anchor break is a
+DECLARED-cooperation / ordering hint — the dependent anchors vanilla upstream and
+still APPLIES when a composed sibling retires (the dev301 rig booted PN350 /
+PN348 / PN353B / PN365 clean after their sibling retired), so it is MEDIUM even
+when the dependent is perf-bearing. A non-perf dependent is MEDIUM (a behaviour
+change worth surfacing). Two levels only — HIGH / MEDIUM.
 
 This module is PURE host code: it imports only the dispatcher spec layer (no
 torch / no vLLM), so it runs where the manifest is built and is unit-testable
@@ -121,6 +129,10 @@ class BreakEdge:
     retired: str          # the retired / gated-out patch id
     retired_reason: str    # "retired" | "deprecated" | "version_gated"
     dependent: str         # the patch that breaks
+    # SEV_HIGH only when the dependent is PERF-bearing AND anchor-breaks (its
+    # anchor name+text target the retired patch's emitted bytes — the PN399
+    # class that physically no-ops). Declared-cooperation edges
+    # (requires_patches / composes_with with no anchor break) are SEV_MEDIUM.
     severity: str          # SEV_HIGH | SEV_MEDIUM
     via: tuple[str, ...]   # edge kinds: requires_patches/composes_with/anchor_name/anchor_text
     dependent_category: str
@@ -192,6 +204,21 @@ def _read_module_source(apply_module: Optional[str]) -> Optional[str]:
         return None
 
 
+def _emitted_symbol_re(patch_id: str) -> re.Pattern:
+    """Matcher for the EMITTED-SYMBOL a retired patch injects into source.
+
+    Genesis text-patches name the host-bound symbols they emit with the
+    ``_genesis_<patch_id>_...`` convention (e.g. PN353A emits
+    ``_genesis_pn353a_torch``). A dependent whose anchor TEXT contains such a
+    symbol is physically targeting the retired patch's EMITTED bytes — when the
+    retired patch goes native the symbol is absent and the anchor no-ops. This
+    is the load-bearing anchor-text signal; a bare sibling-id MENTION in a
+    docstring (``Composes with PN54``) is NOT (it targets nothing).
+    """
+    return re.compile(r"_genesis_%s(?![0-9A-Za-z])" % re.escape(patch_id),
+                      re.IGNORECASE)
+
+
 def _anchor_refs_retired(
     dependent_module: Optional[str],
     retired_id: str,
@@ -200,31 +227,48 @@ def _anchor_refs_retired(
 ) -> tuple[bool, bool]:
     """(anchor_name_ref, anchor_text_ref) — does the dependent's apply-module
     reference ``retired_id`` in an anchor NAME (a ``TextPatch`` ``name=``) or in
-    anchor TEXT (a retired-id-bearing symbol)?
+    anchor TEXT (a retired-patch-EMITTED ``_genesis_<id>_`` symbol)?
 
-    A pragmatic source scan, not an AST walk: the anchor-name signal is a
-    snake-case occurrence of the retired id inside a ``name=`` line; the
-    anchor-text signal is any other occurrence of the retired id in the source.
+    A pragmatic source scan, not an AST walk:
+
+      * anchor-NAME signal — a snake-case occurrence of the retired id inside a
+        ``name=`` line (the ``TextPatch`` name physically targets the retired
+        patch, e.g. ``pn399_pn353a_decode_reserve_remove``).
+      * anchor-TEXT signal — an occurrence of the retired patch's EMITTED symbol
+        (``_genesis_<retired_id>_...``) anywhere in the source. This is the
+        retired-specific symbol the module docstring promises, NOT a bare
+        sibling-id mention. A bare ``PN54`` in a docstring ("Composes with
+        PN54") targets nothing and must NOT count as anchor text — those
+        incidental prose mentions are exactly the false-positives the rig audit
+        proved (PN348/PN350/PN365 APPLY cleanly when their composed sibling
+        retires; only PN399's anchor, which embeds ``_genesis_pn353a_torch``,
+        physically no-ops).
+
     Source is injected (``source_reader``) so tests run without the real file.
     """
     src = source_reader(dependent_module)
     if not src:
         return False, False
     id_re = _id_token_re(retired_id)
+    sym_re = _emitted_symbol_re(retired_id)
     name_ref = False
     text_ref = False
     for line in src.splitlines():
+        # anchor TEXT = the retired patch's emitted symbol embedded in the
+        # dependent's anchor bytes (even inside comments — the symbol IS the
+        # targeted byte; what matters is that the anchor literally contains it).
+        if sym_re.search(line):
+            text_ref = True
         if not id_re.search(line):
             continue
         stripped = line.strip()
         # comment lines describe the relationship — informative but not the
-        # load-bearing anchor; skip so a doc-comment doesn't inflate signal.
+        # load-bearing anchor NAME; skip so a doc-comment doesn't inflate the
+        # name signal (the emitted-symbol text scan above is unaffected).
         if stripped.startswith("#"):
             continue
         if "name=" in line or "name =" in line:
             name_ref = True
-        else:
-            text_ref = True
     return name_ref, text_ref
 
 
@@ -309,7 +353,19 @@ def detect_retire_impact(
                 via.append("anchor_text")
 
             perf = is_perf_signal(dep.category, dep.title, credit)
-            severity = SEV_HIGH if perf else SEV_MEDIUM
+            # Rig-audit refinement (dev301 ground truth): only an ANCHOR-BREAK
+            # edge is a physical no-op. The dependent's TextPatch anchor targets
+            # the retired patch's EMITTED bytes — its anchor NAME references the
+            # retired id and its anchor TEXT embeds the ``_genesis_<id>_`` symbol
+            # (the PN399 class). A bare ``composes_with`` / ``requires_patches``
+            # edge is declared cooperation: the dependent anchors vanilla
+            # upstream and still APPLIES when the sibling retires (PN350/PN348/
+            # PN353B/PN365 booted clean on dev301), so it is MEDIUM even when
+            # perf-bearing. (anchor_name without the emitted-symbol text — e.g.
+            # PN357's guarded ``pn357_dflash_swap_pn22_fallback``, which has a
+            # vanilla Variant-B fallback — is NOT an anchor break either.)
+            anchor_break = ("anchor_name" in via) and ("anchor_text" in via)
+            severity = SEV_HIGH if (perf and anchor_break) else SEV_MEDIUM
             detail = _format_detail(retired_id, reason, dep_id, via, severity)
             edges.append(BreakEdge(
                 retired=retired_id,
@@ -341,8 +397,15 @@ def _format_detail(
             dep_id, dep_id.lower(), retired_id.lower()))
     if "anchor_text" in via:
         edges.append("%s anchor text refs %s" % (dep_id, retired_id))
-    risk = ("perf/correctness risk — its optimization NO-OPs"
-            if severity == SEV_HIGH else "behaviour change")
+    if severity == SEV_HIGH:
+        # anchor name+text target the retired patch's emitted bytes.
+        risk = ("anchor targets the retired patch's emitted bytes — physically "
+                "no-ops (the PN399 class)")
+    else:
+        # composes_with / requires only (or a guarded anchor with a vanilla
+        # fallback): declared cooperation, dependent anchors vanilla upstream.
+        risk = ("declared cooperation; dependent anchors vanilla upstream, so "
+                "it likely still applies — re-verify on bump")
     return ("retiring %s (%s) breaks dependent %s (%s) — %s will skip/no-op (%s)"
             % (retired_id, reason, dep_id, " / ".join(edges), dep_id, risk))
 

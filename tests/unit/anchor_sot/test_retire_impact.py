@@ -3,9 +3,16 @@ through on dev148->dev301 (PN353A retired -> PN399 silently no-op'd -> -5.5% TPS
 with genuine_drift=0).
 
 Covers:
-  * the detector FLAGS PN353A -> PN399 on the LIVE registry (HIGH, perf),
+  * the detector FLAGS PN353A -> PN399 on the LIVE registry as the ONLY HIGH
+    (perf + anchor break — name + emitted-symbol text),
+  * the rig-audit refinement: composes_with / requires-only perf edges are
+    MEDIUM (declared cooperation; dependent anchors vanilla upstream and still
+    APPLIES — PN350/PN348/PN353B/PN365 booted clean on dev301; PN357 too),
   * a synthetic CLEAN case (retired patch, no dependents) flags nothing,
-  * strong vs weak signals (anchor_text alone never reports an edge),
+  * strong vs weak signals (anchor_text alone never reports an edge; anchor text
+    = the retired patch's EMITTED symbol, not a bare sibling-id prose mention),
+  * the anchor break is the LOAD-BEARING HIGH signal (survives requires_patches
+    scrubbing),
   * perf-bearing classification (category OR title/credit text),
   * a retired patch depending on another retired patch is not a live edge.
 """
@@ -58,16 +65,17 @@ def _no_source(_module):
 
 def test_live_registry_flags_pn353a_breaks_pn399_high_perf():
     """ACCEPTANCE: on the CURRENT repo the detector must flag PN353A -> PN399
-    as a HIGH (perf) breakage — the exact dev148->dev301 regression.
+    as a HIGH (perf, anchor-break) breakage — the exact dev148->dev301
+    regression, and the ONLY genuine breakage the dev301 rig audit found.
 
-    Robustness note: even after PN353A was scrubbed from PN399's
-    ``requires_patches`` / ``composes_with`` (the dev301 re-anchor that removed
-    the declared edges), PN399's apply-module STILL names an anchor
-    ``pn399_pn353a_decode_reserve_remove`` and emits ``_genesis_pn353a_torch``
-    in anchor TEXT — so the detector catches the dependency via the LOAD-BEARING
-    anchor-name signal, not a declaration a maintainer can delete. That is the
-    whole point: the regression class survives the obvious "just drop the
-    requires_patches line" non-fix, and so must the detector.
+    HIGH is now justified by the ANCHOR BREAK (not perf alone): PN399's
+    apply-module names an anchor ``pn399_pn353a_decode_reserve_remove`` AND its
+    anchor OLD text embeds ``_genesis_pn353a_torch`` — PN353A's EMITTED symbol.
+    The anchor literally targets PN353A's emitted bytes, so when PN353A retired
+    PN399's anchor went missing and the perf optimization physically no-op'd
+    (-5.5% TPS). This survives the obvious "just drop the requires_patches line"
+    non-fix: even with PN353A scrubbed from PN399's declared edges, the anchor
+    name+emitted-symbol signal still fires — see the resilience test below.
     """
     report = detect_on_live_registry()
     edge = next(
@@ -78,12 +86,41 @@ def test_live_registry_flags_pn353a_breaks_pn399_high_perf():
     assert edge is not None, "PN353A -> PN399 breakage not detected"
     assert edge.severity == SEV_HIGH
     assert edge.retired_reason == "retired"
-    # the anchor-name signal is the load-bearing one (survives declaration
-    # scrubbing): pn399_pn353a_decode_reserve_remove.
+    # the anchor BREAK: name (pn399_pn353a_decode_reserve_remove) AND emitted
+    # symbol text (_genesis_pn353a_torch) both target PN353A's emitted bytes.
     assert "anchor_name" in edge.via
+    assert "anchor_text" in edge.via
+    assert "physically" in edge.detail and "PN399 class" in edge.detail
     assert "PN399" in edge.detail and "PN353A" in edge.detail
     # it is ranked among the HIGH edges
     assert edge in report.high
+
+
+def test_live_registry_high_is_exactly_pn399_anchor_break():
+    """RIG-AUDIT GROUND TRUTH (dev301, 2026-06): exactly ONE HIGH edge —
+    PN353A -> PN399, the only dependent that physically anchor-broke. Every other
+    flagged edge is a ``composes_with`` / declared-cooperation false-positive that
+    the rig booted CLEAN (PN350/PN348/PN353B/PN365 APPLY on dev301; PN357 skips
+    benignly via its own upstream-merge marker), so they must be MEDIUM."""
+    report = detect_on_live_registry()
+    high_ids = {(e.retired, e.dependent) for e in report.high}
+    assert high_ids == {("PN353A", "PN399")}, (
+        "expected exactly 1 HIGH (PN353A->PN399), got %s" % sorted(high_ids))
+    assert len(report.high) == 1
+    medium_ids = {(e.retired, e.dependent) for e in report.medium}
+    # the four rig-proven composes_with-only false-positives are now MEDIUM.
+    for retired, dep in [("PN54", "PN350"), ("PN108", "PN348"),
+                         ("PN353A", "PN353B"), ("PN54", "PN365")]:
+        assert (retired, dep) in medium_ids, (
+            "%s->%s must be MEDIUM (rig-proven false-positive)" % (retired, dep))
+    # PN357 (composes_with PN22 + a guarded anchor name, no emitted symbol) and
+    # the G4_19C->G4_31 cooperation edge also stay MEDIUM.
+    assert ("PN22", "PN357") in medium_ids
+    assert ("G4_19C", "G4_31") in medium_ids
+    # and none of those MEDIUM dependents leaked into HIGH.
+    for pair in [("PN54", "PN350"), ("PN108", "PN348"), ("PN353A", "PN353B"),
+                 ("PN54", "PN365"), ("PN22", "PN357"), ("G4_19C", "G4_31")]:
+        assert pair not in high_ids
 
 
 def test_live_registry_all_break_sources_are_actually_retired():
@@ -116,7 +153,12 @@ def test_retired_patch_with_no_dependents_flags_nothing():
 
 # ─── synthetic break via requires_patches (HIGH perf) ──────────────────────
 
-def test_requires_patches_perf_dependent_is_high():
+def test_requires_patches_perf_dependent_with_no_anchor_break_is_medium():
+    """Rig-audit refinement (dev301 ground truth): a ``requires_patches`` edge
+    with NO anchor break is DECLARED cooperation, not a physical anchor — the
+    dependent anchors vanilla upstream and still APPLIES. So even a perf-bearing
+    dependent is MEDIUM, not HIGH. (This is the evidence-backed downgrade that
+    the rig proved on PN350/PN348/PN353B/PN365 — they booted clean on dev301.)"""
     specs = [
         FakeSpec("PRET", lifecycle="retired"),
         FakeSpec("PDEP", category="kernel_perf",
@@ -126,8 +168,11 @@ def test_requires_patches_perf_dependent_is_high():
         specs, registry=_reg(specs), source_reader=_no_source)
     assert len(report.edges) == 1
     e = report.edges[0]
-    assert (e.retired, e.dependent, e.severity) == ("PRET", "PDEP", SEV_HIGH)
+    assert (e.retired, e.dependent, e.severity) == ("PRET", "PDEP", SEV_MEDIUM)
     assert e.via == ("requires_patches",)
+    # detail spells out the declared-cooperation rationale.
+    assert "declared cooperation" in e.detail
+    assert "re-verify on bump" in e.detail
 
 
 def test_composes_with_non_perf_dependent_is_medium():
@@ -157,7 +202,9 @@ def test_version_gated_out_source_breaks_dependent():
         source_reader=_no_source)
     assert len(report.edges) == 1
     assert report.edges[0].retired_reason == "version_gated"
-    assert report.edges[0].severity == SEV_HIGH
+    # a version-gated source still produces an edge; without an anchor break it
+    # is MEDIUM (declared cooperation), per the rig-audit refinement.
+    assert report.edges[0].severity == SEV_MEDIUM
 
 
 # ─── strong vs weak signal: anchor_text alone never reports ────────────────
@@ -181,6 +228,9 @@ def test_anchor_text_alone_does_not_report_edge():
 
 
 def test_anchor_text_enriches_an_existing_strong_edge():
+    """anchor TEXT = the retired patch's EMITTED symbol (``_genesis_pret_*``),
+    not a bare-id mention. With name + emitted-symbol text + perf this is a full
+    anchor break -> HIGH (the PN399 class)."""
     specs = [
         FakeSpec("PRET", lifecycle="retired"),
         FakeSpec("PDEP", category="kernel_perf", apply_module="m.dep",
@@ -196,15 +246,54 @@ def test_anchor_text_enriches_an_existing_strong_edge():
     report = detect_retire_impact(
         specs, registry=_reg(specs), source_reader=src)
     assert len(report.edges) == 1
-    via = report.edges[0].via
+    e = report.edges[0]
+    via = e.via
     assert "requires_patches" in via
     assert "anchor_name" in via
     assert "anchor_text" in via
+    # name + emitted-symbol text + perf -> a physical anchor break -> HIGH.
+    assert e.severity == SEV_HIGH
+    assert "physically" in e.detail and "PN399 class" in e.detail
 
 
-def test_anchor_name_alone_is_a_strong_signal():
-    """An anchor NAME referencing the retired id is load-bearing on its own
-    (the PN399 ``pn399_pn353a_*`` case) — reports even without a registry edge."""
+def test_anchor_break_needs_emitted_symbol_not_bare_id_mention():
+    """The rig-audit discriminator: a perf dependent that NAMES a guarded anchor
+    referencing the retired id AND merely MENTIONS the bare retired id in its
+    docstring (no ``_genesis_<id>_`` emitted symbol) is MEDIUM, not HIGH — this
+    is the PN357 shape (dual-anchor with a vanilla Variant-B fallback). Only an
+    anchor whose TEXT embeds the retired patch's EMITTED bytes is HIGH."""
+    specs = [
+        FakeSpec("PRET", lifecycle="retired"),
+        FakeSpec("PDEP", category="kernel_perf", apply_module="m.dep",
+                 requires_patches=("PRET",)),
+    ]
+
+    def src(_m):
+        # a real guarded anchor NAME for PRET, plus a docstring prose mention of
+        # the bare id — but NO _genesis_pret_ emitted symbol (no physical break).
+        return (
+            '    """Composes with PRET; swaps PRET fallback when present."""\n'
+            '            name="pdep_swap_pret_fallback",\n'
+            "    anchor = vanilla_class_body  # Variant B fallback\n"
+        )
+
+    report = detect_retire_impact(
+        specs, registry=_reg(specs), source_reader=src)
+    assert len(report.edges) == 1
+    e = report.edges[0]
+    assert "anchor_name" in e.via
+    assert "anchor_text" not in e.via       # bare-id prose is NOT anchor text
+    assert e.severity == SEV_MEDIUM
+    assert "declared cooperation" in e.detail
+
+
+def test_anchor_name_alone_is_a_strong_edge_signal_but_medium():
+    """An anchor NAME referencing the retired id is a load-bearing EDGE signal
+    on its own (reports even without a registry edge — the resilience that
+    survives ``requires_patches`` scrubbing). But a name WITHOUT the retired
+    patch's emitted-symbol anchor text is NOT a physical anchor break (it can be
+    a guarded anchor with a vanilla fallback — the PN357 case), so it is MEDIUM,
+    not HIGH. HIGH needs name AND emitted-symbol text (the PN399 class)."""
     specs = [
         FakeSpec("PRET", lifecycle="retired"),
         FakeSpec("PDEP", category="kernel_perf", apply_module="m.dep"),
@@ -217,6 +306,36 @@ def test_anchor_name_alone_is_a_strong_signal():
         specs, registry=_reg(specs), source_reader=src)
     assert len(report.edges) == 1
     assert report.edges[0].via == ("anchor_name",)
+    assert report.edges[0].severity == SEV_MEDIUM
+
+
+def test_anchor_break_flags_high_even_when_requires_patches_scrubbed():
+    """RESILIENCE (the PN399 class): the anchor break is the LOAD-BEARING signal.
+    A maintainer who 'fixes' the warning by deleting the declared
+    ``requires_patches`` / ``composes_with`` line does NOT silence the detector —
+    the apply-module STILL names the anchor and embeds the retired patch's
+    emitted symbol, so the HIGH still fires. The regression class survives the
+    obvious non-fix, and so must the detector."""
+    specs = [
+        FakeSpec("PRET", lifecycle="retired"),
+        # NO requires_patches, NO composes_with — the declared edges are scrubbed.
+        FakeSpec("PDEP", category="kernel_perf", apply_module="m.dep"),
+    ]
+
+    def src(_m):
+        # name + emitted-symbol anchor text -> a physical anchor break.
+        return (
+            '            name="pdep_pret_decode_reserve_remove",\n'
+            "                _genesis_pret_torch.float32,\n"
+        )
+
+    report = detect_retire_impact(
+        specs, registry=_reg(specs), source_reader=src)  # no composes overlay
+    assert len(report.edges) == 1
+    e = report.edges[0]
+    assert e.via == ("anchor_name", "anchor_text")  # only anchor signals
+    assert e.severity == SEV_HIGH
+    assert "physically" in e.detail and "PN399 class" in e.detail
 
 
 # ─── a retired dependent is not a live regression ──────────────────────────
