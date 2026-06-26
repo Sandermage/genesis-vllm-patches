@@ -10,7 +10,7 @@ Design: ``sndr/engines/vllm/anchor_discovery.py`` (lib) is imported by
 ``tools/check_upstream_drift.py`` (tool) and ``scripts/build_anchor_manifest.py``
 (tool). Libs are never imported FROM tools — the dependency points one way.
 
-See docs/superpowers/specs/2026-06-21-anchor-sot-design.md (Phase 1).
+Implements Phase 1 of the per-pin anchor source-of-truth design.
 """
 from __future__ import annotations
 

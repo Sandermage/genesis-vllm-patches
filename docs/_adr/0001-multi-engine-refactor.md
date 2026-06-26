@@ -3,7 +3,7 @@
 **Date**: 2026-06-05
 **Status**: Accepted
 **Deciders**: @sander
-**Related**: [Master Spec](../superpowers/specs/2026-06-05-sndr-platform-master-spec.md), [Execution Journal](../superpowers/journal/2026-06-05-sndr-platform-execution-log.md)
+**Related**: Master Spec and Execution Journal (maintainer-internal working notes, not published)
 
 ## Context
 
@@ -66,8 +66,8 @@ Execute a 12-week refactor to `sndr-platform`. Key architectural elements:
    loaded via setuptools entry points.
 10. **Quality gates** enforced per phase: coverage, lint, security, performance.
 
-Full architectural specification in
-[`docs/superpowers/specs/2026-06-05-sndr-platform-master-spec.md`](../superpowers/specs/2026-06-05-sndr-platform-master-spec.md).
+Full architectural specification lives in the maintainer-internal
+master engineering spec (not published).
 
 ## Consequences
 
@@ -164,8 +164,8 @@ of the multi-engine benefit without the import path migration.
 
 ## References
 
-- **Master Spec**: [`docs/superpowers/specs/2026-06-05-sndr-platform-master-spec.md`](../superpowers/specs/2026-06-05-sndr-platform-master-spec.md)
-- **Execution Journal**: [`docs/superpowers/journal/2026-06-05-sndr-platform-execution-log.md`](../superpowers/journal/2026-06-05-sndr-platform-execution-log.md)
+- **Master Spec**: maintainer-internal master engineering spec (not published)
+- **Execution Journal**: maintainer-internal refactor execution log (not published)
 - **Risk Register**: Master Spec Part 19
 - **Migration Plan**: Master Spec Part 16
 - **Carbon Design System**: https://carbondesignsystem.com/

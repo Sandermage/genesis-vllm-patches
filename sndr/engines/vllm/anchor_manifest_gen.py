@@ -15,7 +15,7 @@ Source reading is injected (``read_source(target_rel) -> str | None``) so the
 classifier is unit-testable on synthetic fixtures locally and runs against the
 live pristine tree on the rig.
 
-See docs/superpowers/specs/2026-06-21-anchor-sot-design.md (Phase 2).
+Implements Phase 2 of the per-pin anchor source-of-truth design.
 """
 from __future__ import annotations
 
