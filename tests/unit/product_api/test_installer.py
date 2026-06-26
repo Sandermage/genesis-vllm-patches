@@ -17,7 +17,7 @@ def _fake_dep(preset, target, host_paths=None, image_override=None, with_daemon=
 
 def test_plan_lays_out_ordered_steps(monkeypatch):
     monkeypatch.setattr(deployment, "build_deployment", _fake_dep)
-    plan = installer.build_install_plan(host={"label": "Prod", "host": "192.168.1.10"}, preset_id="p", target="proxmox_vm")
+    plan = installer.build_install_plan(host={"label": "Prod", "host": "192.0.2.10"}, preset_id="p", target="proxmox_vm")
     kinds = [s["kind"] for s in plan["steps"]]
     assert kinds[0] == "preflight"          # SSH/SFTP check first
     assert "sftp" in kinds                  # push the artifact
@@ -29,7 +29,7 @@ def test_plan_lays_out_ordered_steps(monkeypatch):
 
 def test_plan_flags_dangerous_provisioning_steps(monkeypatch):
     monkeypatch.setattr(deployment, "build_deployment", _fake_dep)
-    plan = installer.build_install_plan(host={"label": "Prod", "host": "192.168.1.10"}, preset_id="p", target="proxmox_vm")
+    plan = installer.build_install_plan(host={"label": "Prod", "host": "192.0.2.10"}, preset_id="p", target="proxmox_vm")
     danger = [s for s in plan["steps"] if s["danger"]]
     assert danger and any("provision-vm.sh" in s.get("cmd", "") for s in danger)
     assert plan["danger_count"] == len(danger)

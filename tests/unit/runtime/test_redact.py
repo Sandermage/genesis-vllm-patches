@@ -15,19 +15,19 @@ from sndr.runtime.redact import (
 
 class TestRedactDefaults:
     def test_ipv4_redacted(self):
-        out = redact("connect to 192.168.1.10 for the API")
-        assert "192.168.1.10" not in out
+        out = redact("connect to 192.168.1.50 for the API")
+        assert "192.168.1.50" not in out
         assert "<IP>" in out
 
     def test_ipv4_inside_url(self):
-        out = redact("http://192.168.1.10:8000/v1/models")
+        out = redact("http://192.168.1.50:8000/v1/models")
         assert "<IP>" in out
-        assert "192.168.1.10" not in out
+        assert "192.168.1.50" not in out
 
     def test_ssh_target_preserves_user(self):
-        out = redact("ssh sander@192.168.1.10")
-        assert "sander" in out
-        assert "192.168.1.10" not in out
+        out = redact("ssh user@192.168.1.50")
+        assert "user" in out
+        assert "192.168.1.50" not in out
         assert "<HOSTNAME>" in out
 
     def test_ssh_target_with_dns_hostname(self):
@@ -111,19 +111,19 @@ class TestRedactPreserves:
 class TestRedactor:
     def test_counts_track_hits(self):
         r = Redactor()
-        text = "192.168.1.10 and 10.0.0.1 and another 172.16.0.5"
+        text = "192.168.1.50 and 10.0.0.1 and another 172.16.0.5"
         r.redact(text)
         assert r.counts["ipv4"] == 3
 
     def test_counts_accumulate_across_calls(self):
         r = Redactor()
-        r.redact("192.168.1.10")
+        r.redact("192.168.1.50")
         r.redact("10.0.0.1")
         assert r.counts["ipv4"] == 2
 
     def test_reset_counts(self):
         r = Redactor()
-        r.redact("192.168.1.10")
+        r.redact("192.168.1.50")
         assert r.counts["ipv4"] == 1
         r.reset_counts()
         assert "ipv4" not in r.counts
@@ -139,25 +139,25 @@ class TestRedactor:
 
 class TestRedactDict:
     def test_string_leaf_redacted(self):
-        d = {"endpoint": "http://192.168.1.10:8000"}
+        d = {"endpoint": "http://192.168.1.50:8000"}
         out = redact_dict(d)
-        assert "192.168.1.10" not in out["endpoint"]
+        assert "192.168.1.50" not in out["endpoint"]
 
     def test_nested_structure(self):
         d = {
             "config": {
-                "ssh": "ssh sander@192.168.1.10",
+                "ssh": "ssh user@192.168.1.50",
                 "model": "/models/Qwen3.6-35B-A3B-FP8",
             },
-            "logs": ["192.168.1.10:8000", "/Users/sander/.sndr"],
+            "logs": ["192.168.1.50:8000", "/Users/sander/.sndr"],
         }
         out = redact_dict(d)
-        assert "sander@" in out["config"]["ssh"]
+        assert "user@" in out["config"]["ssh"]
         assert "<HOSTNAME>" in out["config"]["ssh"]
         # Model path preserved
         assert "Qwen3.6-35B-A3B-FP8" in out["config"]["model"]
         # IPs in list redacted
-        assert "192.168.1.10" not in out["logs"][0]
+        assert "192.168.1.50" not in out["logs"][0]
         # User path masked
         assert "/Users/<USER>" in out["logs"][1]
 

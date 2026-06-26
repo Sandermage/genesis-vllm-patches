@@ -808,7 +808,7 @@ export default function App() {
                 onBlur={(e) => updateSettings({ remoteHost: e.target.value.trim() || DEFAULT_REMOTE_HOST })}
                 spellCheck={false}
                 aria-label={tr("Remote engine host")}
-                title={tr("Engine host for Remote GPU mode — set the address of your GPU node (e.g. 192.168.1.10)")}
+                title={tr("Engine host for Remote GPU mode — set the address of your GPU node (e.g. 192.0.2.10)")}
                 placeholder={DEFAULT_REMOTE_HOST}
               />
             ) : (

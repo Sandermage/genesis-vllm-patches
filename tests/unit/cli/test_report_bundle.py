@@ -103,19 +103,19 @@ class TestMaybeRedact:
 
     def test_redaction_on_masks_sensitive_data(self):
         artifacts = {
-            "logs.txt": "client=192.168.1.10 GENESIS_API_KEY=secret",
+            "logs.txt": "client=192.168.1.50 GENESIS_API_KEY=secret",
             "summary": {
-                "endpoint": "http://192.168.1.10:8000",
-                "ssh": "ssh sander@gpu.example.com",
+                "endpoint": "http://192.168.1.50:8000",
+                "ssh": "ssh user@gpu.example.com",
             },
         }
         out, counts = R._maybe_redact(artifacts, do_redact=True)
         # Top-level string redacted
-        assert "192.168.1.10" not in out["logs.txt"]
+        assert "192.168.1.50" not in out["logs.txt"]
         assert "secret" not in out["logs.txt"]
         # Nested dict leaves redacted
-        assert "192.168.1.10" not in out["summary"]["endpoint"]
-        assert "sander@<HOSTNAME>" in out["summary"]["ssh"]
+        assert "192.168.1.50" not in out["summary"]["endpoint"]
+        assert "user@<HOSTNAME>" in out["summary"]["ssh"]
         # Counts populated
         assert counts.get("ipv4", 0) >= 2
 

@@ -205,7 +205,7 @@ def test_probe_host_forwards_api_key_to_models(monkeypatch):
             return 200, '{"data":[{"id":"qwen-35b"}]}'
         raise AssertionError(url)
     monkeypatch.setattr(ec, "_get", fake_get)
-    out = ec.probe_host("192.168.1.10", 8102, api_key="genesis-local")
+    out = ec.probe_host("192.0.2.10", 8102, api_key="genesis-local")
     assert out["reachable"] is True and out["models"] == ["qwen-35b"]
     assert seen["models"] == "genesis-local" and seen["version"] == "genesis-local"
 

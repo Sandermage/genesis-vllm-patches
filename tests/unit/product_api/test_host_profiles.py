@@ -17,7 +17,7 @@ def test_upsert_list_and_delete_roundtrip(monkeypatch, tmp_path):
         "label": "GPU Build 01",
         "host": "gpu-build-01",
         "transport": "ssh",
-        "ssh_target": "sander@gpu-build-01",
+        "ssh_target": "user@gpu-build-01",
         "port": 8765,
         "notes": "2x A5000",
     })
@@ -51,9 +51,9 @@ def test_enterprise_fields_persist(monkeypatch, tmp_path):
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
     profile = upsert_host_profile({
         "label": "Prod A5000",
-        "host": "192.168.1.10",
+        "host": "192.0.2.10",
         "transport": "ssh",
-        "ssh_target": "sander@192.168.1.10",
+        "ssh_target": "user@192.0.2.10",
         "port": 8765,
         "role": "production",
         "hardware": "2x A5000 24GB",
@@ -82,13 +82,13 @@ def test_legacy_rows_get_defaults(monkeypatch, tmp_path):
 def test_ssh_fields_persist(monkeypatch, tmp_path):
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
     profile = upsert_host_profile({
-        "label": "Prod", "host": "192.168.1.10",
-        "ssh_user": "sander", "ssh_auth": "key", "ssh_key_path": "~/.ssh/id_ed25519", "ssh_port": 2222,
+        "label": "Prod", "host": "192.0.2.10",
+        "ssh_user": "operator", "ssh_auth": "key", "ssh_key_path": "~/.ssh/id_ed25519", "ssh_port": 2222,
     })
-    assert profile.ssh_user == "sander" and profile.ssh_auth == "key"
+    assert profile.ssh_user == "operator" and profile.ssh_auth == "key"
     assert profile.ssh_key_path == "~/.ssh/id_ed25519" and profile.ssh_port == 2222
     again = list_host_profiles()[0]
-    assert again.ssh_user == "sander" and again.ssh_port == 2222
+    assert again.ssh_user == "operator" and again.ssh_port == 2222
     # Defaults for a legacy/minimal row.
     minimal = upsert_host_profile({"label": "Min", "host": "h2"})
     assert minimal.ssh_auth == "agent" and minimal.ssh_port == 22
@@ -102,7 +102,7 @@ def test_api_key_is_never_persisted_or_exposed_by_profile(monkeypatch, tmp_path)
 
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
     profile = upsert_host_profile({
-        "label": "Prod 35B", "host": "192.168.1.10", "engine_port": 8102,
+        "label": "Prod 35B", "host": "192.0.2.10", "engine_port": 8102,
         "api_key": "genesis-local",
     })
     # Not persisted to disk and not echoed back through the profile object.
@@ -151,7 +151,7 @@ def test_host_routes(monkeypatch, tmp_path):
 
     # CRUD with enterprise fields + a key-protected engine.
     up = client.post("/api/v1/hosts", json={
-        "label": "Prod", "host": "192.168.1.10", "ssh_target": "sander@192.168.1.10",
+        "label": "Prod", "host": "192.0.2.10", "ssh_target": "user@192.0.2.10",
         "role": "production", "hardware": "2x A5000", "gpus": 2, "engine_port": 8101, "tags": ["27b"],
         "api_key": "genesis-local",
     })
@@ -169,7 +169,7 @@ def test_host_routes(monkeypatch, tmp_path):
         assert "api_key" not in h
 
     # probe — the daemon resolves the stored key server-side from host_id.
-    probe = client.get("/api/v1/hosts/probe?host=192.168.1.10&port=8101&host_id=prod")
+    probe = client.get("/api/v1/hosts/probe?host=192.0.2.10&port=8101&host_id=prod")
     assert probe.status_code == 200 and probe.json()["reachable"] is True and probe.json()["version"] == "0.20.2"
     assert seen_keys[-1] == "genesis-local"  # injected without the browser ever holding it
 

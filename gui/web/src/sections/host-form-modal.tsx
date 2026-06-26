@@ -80,8 +80,8 @@ export function HostFormModal({
         </div>
         <div className="host-form-grid">
           <label className="param-field"><span>{tr("Label")}</span><input value={form.label} onChange={(e) => set({ label: e.target.value })} placeholder="Prod A5000" /></label>
-          <label className="param-field"><span>{tr("Host / IP")}</span><input value={form.host} onChange={(e) => set({ host: e.target.value })} placeholder="192.168.1.10" /></label>
-          <label className="param-field"><span>{tr("SSH target")}</span><input value={form.ssh_target} onChange={(e) => set({ ssh_target: e.target.value })} placeholder="user@192.168.1.10" /></label>
+          <label className="param-field"><span>{tr("Host / IP")}</span><input value={form.host} onChange={(e) => set({ host: e.target.value })} placeholder="192.0.2.10" /></label>
+          <label className="param-field"><span>{tr("SSH target")}</span><input value={form.ssh_target} onChange={(e) => set({ ssh_target: e.target.value })} placeholder="user@192.0.2.10" /></label>
           <label className="param-field"><span>{tr("Role")}</span>
             <select value={form.role} onChange={(e) => set({ role: e.target.value })}>
               <option value="">{tr("— none —")}</option>
@@ -95,7 +95,7 @@ export function HostFormModal({
         </div>
         <label className="param-field"><span>{tr("Engine API key")}{initial?.has_api_key ? tr(" (stored — leave blank to keep)") : tr(" (optional)")}</span><input type="password" value={form.api_key} onChange={(e) => set({ api_key: e.target.value })} placeholder={initial?.has_api_key ? tr("•••••• stored — type to replace") : tr("if the engine needs one — e.g. genesis-local")} autoComplete="off" spellCheck={false} /></label>
         <div className="host-form-grid host-ssh-grid">
-          <label className="param-field"><span>{tr("SSH user")}</span><input value={form.ssh_user} onChange={(e) => set({ ssh_user: e.target.value })} placeholder="sander" /></label>
+          <label className="param-field"><span>{tr("SSH user")}</span><input value={form.ssh_user} onChange={(e) => set({ ssh_user: e.target.value })} placeholder="user" /></label>
           <label className="param-field"><span>{tr("SSH port")}</span><input type="number" value={form.ssh_port} onChange={(e) => set({ ssh_port: Number(e.target.value) || 22 })} /></label>
           <label className="param-field"><span>{tr("SSH auth")}</span>
             <select value={form.ssh_auth} onChange={(e) => set({ ssh_auth: e.target.value })}>

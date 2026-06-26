@@ -188,7 +188,7 @@ class TestCli:
                 "--interval", "30",
                 "--duration", "7200",
                 "--port", "8101",
-                "--host", "192.168.1.10",
+                "--host", "192.0.2.10",
                 "--output", "/tmp/x.jsonl",
             ]
         )

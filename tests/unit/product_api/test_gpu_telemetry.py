@@ -62,13 +62,13 @@ _NETDEV = (
 
 
 def test_parse_net():
-    net = G.parse_net(_NETDEV, "192.168.1.10 172.17.0.1\n")
+    net = G.parse_net(_NETDEV, "192.0.2.10 172.17.0.1\n")
     names = [i["name"] for i in net["interfaces"]]
     assert "lo" not in names              # loopback dropped
     assert names[0] == "eth0"             # busiest first
     assert net["interfaces"][0]["rx_bytes"] == 5000000000
     assert net["interfaces"][0]["tx_bytes"] == 2000000000
-    assert net["primary_ip"] == "192.168.1.10"
+    assert net["primary_ip"] == "192.0.2.10"
 
 
 def test_parse_net_empty():

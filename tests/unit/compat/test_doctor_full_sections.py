@@ -147,9 +147,9 @@ class TestCliFlags:
         """--redact swaps IPs / hostnames in the JSON dump."""
         from sndr.compat import doctor as D
         # Inject a fake env var that would surface unredacted on a real host
-        monkeypatch.setenv("SNDR_DOCTOR_REMOTE", "ops@192.168.1.10")
+        monkeypatch.setenv("SNDR_DOCTOR_REMOTE", "ops@192.168.1.50")
         D.main(["--full", "--redact", "--json"])
         out = capsys.readouterr().out
         # Either the IP is masked or the rendering omits it; the contract
         # is "raw IP must not appear anywhere in --redact output".
-        assert "192.168.1.10" not in out
+        assert "192.168.1.50" not in out

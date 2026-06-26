@@ -15,7 +15,7 @@ Output: markdown table block ready to paste into README.
 
 Usage::
 
-    GENESIS_ENDPOINT=http://192.168.1.10:8000 \\
+    GENESIS_ENDPOINT=http://192.0.2.10:8000 \\
     GENESIS_MODEL=qwen3.6-27b \\
     python3 tests/bench/comprehensive_bench.py
 
@@ -37,10 +37,10 @@ from typing import Any
 
 API_KEY = os.environ.get("GENESIS_API_KEY", "genesis-local")
 ENDPOINT = os.environ.get(
-    "GENESIS_ENDPOINT", "http://192.168.1.10:8000/v1/chat/completions"
+    "GENESIS_ENDPOINT", "http://192.0.2.10:8000/v1/chat/completions"
 )
 MODEL = os.environ.get("GENESIS_MODEL", "qwen3.6-27b")
-SSH_HOST = os.environ.get("GENESIS_SSH_HOST", "sander@192.168.1.10")
+SSH_HOST = os.environ.get("GENESIS_SSH_HOST", "user@192.0.2.10")
 
 
 def _api_post(payload: dict, timeout: float = 600.0) -> dict | None:

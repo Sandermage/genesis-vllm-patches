@@ -43,13 +43,13 @@ class TestQuietPaths:
 class TestLogLineFormat:
     def test_simple_get(self):
         line = _format_log_line(
-            "GET", "/v1/models", 401, "1.1", "192.168.1.10",
+            "GET", "/v1/models", 401, "1.1", "192.0.2.10",
         )
         assert "[Genesis-API]" in line
         assert "401" in line
         assert "GET" in line
         assert "/v1/models" in line
-        assert "client=192.168.1.10" in line
+        assert "client=192.0.2.10" in line
 
     def test_chat_completion_post(self):
         line = _format_log_line(
@@ -65,7 +65,7 @@ class TestClientHostFromAddr:
         assert _client_host_from_addr("10.0.0.5:41234") == "10.0.0.5"
 
     def test_bare_ip_passes_through(self):
-        assert _client_host_from_addr("192.168.1.10") == "192.168.1.10"
+        assert _client_host_from_addr("192.0.2.10") == "192.0.2.10"
 
     def test_empty_returns_question(self):
         assert _client_host_from_addr("") == "?"
@@ -76,7 +76,7 @@ class TestClientHostFromAddr:
 
 
 def _make_uvicorn_record(
-    client_addr: str = "192.168.1.10:45116",
+    client_addr: str = "192.0.2.10:45116",
     method: str = "GET",
     full_path: str = "/v1/models",
     http_version: str = "1.1",
@@ -301,7 +301,7 @@ class TestDropUvicornAccessFilter:
         )
         f = _DropUvicornAccessInfo()
         rec = _make_record("uvicorn.access", logging.INFO,
-                           '192.168.1.10 - "GET /v1/models" 401')
+                           '192.0.2.10 - "GET /v1/models" 401')
         assert f.filter(rec) is False
 
     def test_keeps_uvicorn_access_warning(self):
@@ -428,7 +428,7 @@ class TestSuppressUvicornAccessLogger:
         uv = logging.getLogger("uvicorn.access")
         uv.setLevel(logging.INFO)
         with caplog.at_level(logging.INFO, logger="uvicorn.access"):
-            uv.info('192.168.1.10:45116 - "GET /v1/models HTTP/1.1" 401')
+            uv.info('192.0.2.10:45116 - "GET /v1/models HTTP/1.1" 401')
             uv.warning("503 backend down")
 
         names_levels = [(r.name, r.levelno, r.getMessage())

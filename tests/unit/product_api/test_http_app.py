@@ -195,7 +195,7 @@ def test_hosts_ssh_check_persists_password_and_reports(monkeypatch, tmp_path):
 
     client = _client()
     resp = client.post("/api/v1/hosts/ssh-check", json={
-        "host": "192.168.1.10", "host_id": "prod", "user": "sander",
+        "host": "192.0.2.10", "host_id": "prod", "user": "operator",
         "auth_method": "password", "password": "s3cret", "ssh_port": 22,
     })
     assert resp.status_code == 200
@@ -206,7 +206,7 @@ def test_hosts_ssh_check_persists_password_and_reports(monkeypatch, tmp_path):
     # And it was persisted (encrypted) for reuse, keyed by the host id.
     assert secrets_store.get_secret("ssh:prod") == "s3cret"
     # The host list now reports a stored password without leaking it.
-    client.post("/api/v1/hosts", json={"label": "Prod", "host": "192.168.1.10", "id": "prod"})
+    client.post("/api/v1/hosts", json={"label": "Prod", "host": "192.0.2.10", "id": "prod"})
     hosts = client.get("/api/v1/hosts").json()["hosts"]
     prod = next(h for h in hosts if h["id"] == "prod")
     assert prod["has_ssh_password"] is True
@@ -226,7 +226,7 @@ def test_hosts_fetch_api_key_stores_on_profile(monkeypatch, tmp_path):
         lambda target, **kw: {"available": True, "found": True, "key": "genesis-local", "source": "container:vllm-x", "error": None},
     )
     client = _client()
-    client.post("/api/v1/hosts", json={"label": "Prod", "host": "192.168.1.10", "id": "prod", "ssh_user": "sander"})
+    client.post("/api/v1/hosts", json={"label": "Prod", "host": "192.0.2.10", "id": "prod", "ssh_user": "operator"})
     resp = client.post("/api/v1/hosts/fetch-api-key", json={"host_id": "prod"})
     assert resp.status_code == 200
     body = resp.json()

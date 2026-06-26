@@ -145,7 +145,7 @@ def test_host_key_policy_tofu_opt_out(fake_paramiko, monkeypatch):
 
 def test_check_connectivity_success(fake_paramiko):
     out = ssh_client.check_connectivity(
-        {"host": "192.168.1.10", "port": 22, "user": "sander", "auth_method": "key", "key_path": "~/.ssh/id_ed25519"}
+        {"host": "192.0.2.10", "port": 22, "user": "operator", "auth_method": "key", "key_path": "~/.ssh/id_ed25519"}
     )
     assert out["ssh_ok"] is True
     assert out["sftp_ok"] is True
@@ -157,7 +157,7 @@ def test_check_connectivity_success(fake_paramiko):
 def test_check_connectivity_auth_failure(fake_paramiko):
     _FakeSSHClient.fail_auth = True
     out = ssh_client.check_connectivity(
-        {"host": "192.168.1.10", "user": "sander", "auth_method": "password", "password": "wrong"}
+        {"host": "192.0.2.10", "user": "operator", "auth_method": "password", "password": "wrong"}
     )
     assert out["ssh_ok"] is False
     assert "Authentication" in (out["error"] or "")
@@ -194,7 +194,7 @@ def test_discover_api_key_from_container_env(fake_paramiko):
         "docker ps": "vllm-pn95-2xa5000\nredis\n",
         "docker inspect vllm-pn95-2xa5000": "PATH=/usr/bin\nVLLM_API_KEY=genesis-local\nFOO=bar\n",
     }
-    out = ssh_client.discover_api_key({"host": "192.168.1.10", "user": "sander", "auth_method": "agent"})
+    out = ssh_client.discover_api_key({"host": "192.0.2.10", "user": "operator", "auth_method": "agent"})
     assert out["found"] is True
     assert out["key"] == "genesis-local"
     assert out["source"] == "container:vllm-pn95-2xa5000"
@@ -225,7 +225,7 @@ def test_discover_host_finds_engines_and_gpus(fake_paramiko):
         "nvidia-smi --query-gpu": "NVIDIA RTX A5000, 24564, 41, 8.6\nNVIDIA RTX A5000, 24564, 0, 8.6\n",
         "nvidia-smi topo -m": "\tGPU0\tGPU1\nGPU0\t X \tPHB\nGPU1\tPHB\t X \n",
     }
-    out = ssh_client.discover_host({"host": "192.168.1.10", "user": "sander", "auth_method": "agent"})
+    out = ssh_client.discover_host({"host": "192.0.2.10", "user": "operator", "auth_method": "agent"})
     assert out["docker"] is True
     # Only vLLM containers, with their published host ports parsed.
     ports = {e["container"]: e["host_port"] for e in out["engines"]}
@@ -248,7 +248,7 @@ def test_read_model_config_from_running_container(fake_paramiko):
         "cat '/models/Qwen3.6-35B-A3B-FP8/config.json'": cfg,
         "du -sb": "37580963840\t/models/Qwen3.6-35B-A3B-FP8\n",
     }
-    out = ssh_client.read_model_config({"host": "192.168.1.10", "user": "sander", "auth_method": "agent"},
+    out = ssh_client.read_model_config({"host": "192.0.2.10", "user": "operator", "auth_method": "agent"},
                                        container="vllm-35b-prod")
     assert out["ok"] is True
     assert out["num_layers"] == 62 and out["num_kv_heads"] == 4 and out["head_dim"] == 128
@@ -268,7 +268,7 @@ def test_read_sndr_state_introspects_the_container(fake_paramiko):
         "docker ps": "vllm-gemma4\n",
         "base64 -d | python3 -": 'some warning\n{"vllm": "0.21.1rc1.dev354", "sndr": "11.0.0", "configs": 11, "patches": 134}\n',
     }
-    out = ssh_client.read_sndr_state({"host": "192.168.1.10", "user": "sander", "auth_method": "agent"})
+    out = ssh_client.read_sndr_state({"host": "192.0.2.10", "user": "operator", "auth_method": "agent"})
     assert out["ok"] is True and out["container"] == "vllm-gemma4"
     assert out["sndr_version"] == "11.0.0" and out["vllm_version"] == "0.21.1rc1.dev354"
     assert out["configs"] == 11 and out["patches"] == 134
@@ -282,7 +282,7 @@ def test_read_sndr_state_rejects_bad_container(fake_paramiko):
 def test_run_apply_uploads_artifact_and_runs_commands(fake_paramiko):
     _FakeSFTP.put_calls = []
     out = ssh_client.run_apply(
-        {"host": "192.168.1.10", "user": "sander", "auth_method": "agent"},
+        {"host": "192.0.2.10", "user": "operator", "auth_method": "agent"},
         artifact_name="run-sndr-daemon.sh", artifact_content="#!/bin/sh\necho hi\n",
         commands=["chmod +x run-sndr-daemon.sh", "echo started"],
     )
@@ -312,7 +312,7 @@ def test_discover_host_captures_active_genesis_flags(fake_paramiko):
         "docker inspect": "PATH=/usr/bin\nGENESIS_ENABLE_P94=1\nGENESIS_ENABLE_PN95=0\nGENESIS_ENABLE_P82=1\nVLLM_API_KEY=x\n",
         "nvidia-smi": "",
     }
-    out = ssh_client.discover_host({"host": "192.168.1.10", "user": "sander", "auth_method": "agent"})
+    out = ssh_client.discover_host({"host": "192.0.2.10", "user": "operator", "auth_method": "agent"})
     flags = out["engines"][0]["genesis_flags"]
     assert flags == ["GENESIS_ENABLE_P94", "GENESIS_ENABLE_P82"]  # only the =1 ones
 

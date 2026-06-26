@@ -23,7 +23,12 @@
 PYTHON ?= python3
 PYTEST ?= $(PYTHON) -m pytest
 
-# Rig repo root (GENESIS_PROJECT_ROOT on sander@192.168.1.10) — anchor-SoT regen.
+# GPU rig host for the optional SSH-driven maintainer targets below
+# (rebuild-pin / audit-pin / audit-yaml). Override on the command line:
+#   make rebuild-pin SSH_HOST=$(GENESIS_RIG_HOST)
+# Defaults to a generic hostname so the public tree carries no internal IP.
+GENESIS_RIG_HOST ?= rig.local
+# Rig repo root ($(GENESIS_RIG_HOST):$(RIG_REPO)) — anchor-SoT regen target.
 RIG_REPO ?= /tmp/genesis-consolidated
 
 help: ## Show this help message
@@ -162,7 +167,7 @@ tokenizer-fingerprint: ## Tokenizer-fingerprint gate, run in-container pre-bench
 		$${JSON_OUT:+--json-out "$${JSON_OUT}"} \
 		$${COMPARE:+--compare "$${COMPARE}"}
 
-rebuild-pin: ## Phase 4: regenerate the per-pin anchor source-of-truth on the rig, pull it back (env: SSH_HOST [CONTAINER] [IMAGE]); see docs/superpowers/specs/2026-06-21-anchor-sot-design.md
+rebuild-pin: ## Phase 4: regenerate the per-pin anchor source-of-truth on the rig, pull it back (env: SSH_HOST [CONTAINER] [IMAGE])
 	@test -n "$${SSH_HOST}" || { \
 		echo "Usage: make rebuild-pin SSH_HOST=<user@host> [CONTAINER=...] [IMAGE=...]"; \
 		echo "Runs the proven 2-step: running-container discovery + bare-image pristine source."; \
@@ -200,7 +205,7 @@ audit-public-paths: ## Etap 6.7: forbid private LAN IPs / home paths / usernames
 	@echo "=== audit-public-paths ==="
 	@# grep is universally available; previous `rg` invocation silently
 	@# returned empty (false-clean) on systems without ripgrep installed.
-	@bad=$$(grep -rEn "192\.168\.1\.10|/home/sander|sander@|User=sander" \
+	@bad=$$(grep -rEn "(^|[^0-9])(10|172\.(1[6-9]|2[0-9]|3[01])|192\.168)\.[0-9]+\.[0-9]+|/home/sander|sander@|User=sander" \
 	    README.md docs/ scripts/ tools/ benchmarks/ vllm/ \
 	    --include='*.py' --include='*.sh' --include='*.md' \
 	    --include='*.yaml' --include='*.yml' --include='*.json' \

@@ -906,7 +906,7 @@ const RU_BY_EN: Record<string, string> = {
   "Engine health alerts → Telegram": "Оповещения о состоянии движка → Telegram",
   "Engine host — open its card to see runtime state (Discover / Chat / Terminal)": "Хост движка — откройте его карточку, чтобы увидеть состояние среды выполнения (Discover / Chat / Terminal)",
   "engine host →": "хост движка →",
-  "Engine host for Remote GPU mode — set the address of your GPU node (e.g. 192.168.1.10)": "Хост движка для режима удалённого GPU — укажите адрес вашего GPU-узла (например, 192.168.1.10)",
+  "Engine host for Remote GPU mode — set the address of your GPU node (e.g. 192.0.2.10)": "Хост движка для режима удалённого GPU — укажите адрес вашего GPU-узла (например, 192.0.2.10)",
   "Engine Installed": "Движок установлен",
   "Engine name": "Имя движка",
   "Engine not installed": "Движок не установлен",

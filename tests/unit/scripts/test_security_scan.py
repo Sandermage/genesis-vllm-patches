@@ -140,7 +140,7 @@ class TestPrivateIps:
         d = tmp_path / "docs"
         d.mkdir()
         f = d / "RUNBOOK.md"
-        f.write_text("ssh rig at 192.168.1.10\n")
+        f.write_text("ssh rig at 192.168.1.50\n")
         monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
         result = mod.check_no_private_ips(["docs/RUNBOOK.md"])
         assert len(result) == 1
@@ -181,7 +181,7 @@ class TestPrivateIps:
         mod = _import_script()
         f = tmp_path / "scripts" / "stuff.py"
         f.parent.mkdir()
-        f.write_text("HOST = '192.168.1.10'\n")
+        f.write_text("HOST = '192.168.1.50'\n")
         monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
         result = mod.check_no_private_ips(["scripts/stuff.py"])
         # Non-docs paths skipped by this check

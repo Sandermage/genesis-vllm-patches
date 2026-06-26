@@ -65,7 +65,7 @@ class TestD2NoPrivateIPs:
     @pytest.mark.parametrize("ip", [
         "10.0.0.1", "10.20.30.40",
         "172.16.5.5", "172.31.255.1",
-        "192.168.1.10", "192.168.255.255",
+        "192.168.1.50", "192.168.255.255",
     ])
     def test_rfc1918_caught(self, fake_repo, ip):
         mod = _import()

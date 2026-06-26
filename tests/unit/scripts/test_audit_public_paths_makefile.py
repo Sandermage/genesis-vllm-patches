@@ -13,9 +13,9 @@ violation, then assert non-zero exit + violation text in stdout.
 
 Contract enforced:
   1. Clean tree → exit 0
-  2. Tree with private IP (192.168.1.10) → exit 1 + line printed
+  2. Tree with private IP (192.168.1.50) → exit 1 + line printed
   3. Tree with /home/sander → exit 1 + line printed
-  4. Tree with sander@host → exit 1 + line printed
+  4. Tree with a forbidden maintainer username (sander@host) → exit 1 + line printed
   5. Files inside sndr_private/ are NOT scanned (waiver)
   6. Hits in __pycache__ are excluded
 """
@@ -73,16 +73,16 @@ def test_clean_tree_passes(tmp_path):
 
 
 def test_private_ip_in_script_fails(tmp_path):
-    """A script containing 192.168.1.10 must be flagged."""
+    """A script containing 192.168.1.50 must be flagged."""
     _build_tree(tmp_path, {
-        "scripts/connect.sh": "#!/bin/bash\nssh user@192.168.1.10\n",
+        "scripts/connect.sh": "#!/bin/bash\nssh user@192.168.1.50\n",
     })
     result = _run_gate(tmp_path)
     assert result.returncode != 0, (
         f"Expected non-zero exit on private-IP violation, got 0.\n"
         f"stdout: {result.stdout}\nstderr: {result.stderr}"
     )
-    assert "192.168.1.10" in result.stdout
+    assert "192.168.1.50" in result.stdout
     assert "scripts/connect.sh" in result.stdout
 
 
@@ -98,9 +98,12 @@ def test_home_sander_in_yaml_fails(tmp_path):
 
 
 def test_sander_at_host_in_doc_fails(tmp_path):
-    """A doc with sander@host must be flagged."""
+    """A doc with the forbidden maintainer username (sander@host) must be
+    flagged. The gate carries the maintainer's own username in its
+    forbidden-identifier list so it can catch operator leaks in public
+    files; this fixture exercises that rule."""
     _build_tree(tmp_path, {
-        "docs/RUNBOOK.md": "Run: `ssh sander@rig`\n",
+        "docs/RUNBOOK.md": "Run: `ssh sander@host`\n",
     })
     result = _run_gate(tmp_path)
     assert result.returncode != 0
@@ -112,7 +115,7 @@ def test_sndr_private_dir_excluded(tmp_path):
     paths (maintainer planning tree, gitignored)."""
     _build_tree(tmp_path, {
         "sndr_private/planning/notes.md": (
-            "Internal planning. Reach via 192.168.1.10 / /home/sander.\n"
+            "Internal planning. Reach via 192.168.1.50 / /home/sander.\n"
         ),
     })
     result = _run_gate(tmp_path)

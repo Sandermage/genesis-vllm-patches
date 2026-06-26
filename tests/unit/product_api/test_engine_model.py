@@ -103,13 +103,13 @@ def test_discover_engine_prefers_local_then_registered_host(monkeypatch):
                 "error": None}
 
     monkeypatch.setattr(engine_model, "engine_model_detail", fake_detail)
-    prof = types.SimpleNamespace(id="prod-a5000", host="192.168.1.10", engine_port=8102)
+    prof = types.SimpleNamespace(id="prod-a5000", host="192.0.2.10", engine_port=8102)
     out = engine_model.discover_engine(timeout=0.2, profiles=[prof], key_for=lambda p: "stored-key")
 
-    assert out["reachable"] is True and out["host"] == "192.168.1.10"
+    assert out["reachable"] is True and out["host"] == "192.0.2.10"
     assert out["host_id"] == "prod-a5000" and out["port"] == 8102
     assert out["models"][0]["id"] == "qwen3.6-35b-a3b"
-    assert ("192.168.1.10", 8102, "stored-key") in seen  # probed with the host's key
+    assert ("192.0.2.10", 8102, "stored-key") in seen  # probed with the host's key
 
 
 def test_discover_engine_returns_local_when_it_already_serves_models(monkeypatch):
