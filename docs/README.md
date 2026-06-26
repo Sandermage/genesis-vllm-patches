@@ -15,6 +15,7 @@ never ship publicly.
 | Get running in 5 minutes + Day 1 acceptance | [`QUICKSTART.md`](QUICKSTART.md) |
 | Browse all `sndr` commands | [`CLI_REFERENCE.md`](CLI_REFERENCE.md) |
 | Pick a model + hardware combo | [`MODELS.md`](MODELS.md) + [`HARDWARE.md`](HARDWARE.md) |
+| Run on a single 3090 / 4090 (consumer GPU) | [`SINGLE_CARD.md`](SINGLE_CARD.md) |
 | Tune an env-var flag | [`CONFIGURATION.md`](CONFIGURATION.md) |
 | Add a model recipe or contribute a community config | [`MODELS.md`](MODELS.md) |
 | Write a new patch or community plugin | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
@@ -50,6 +51,7 @@ never ship publicly.
 | [`CONFIGS.md`](CONFIGS.md) | Narrative "I want to add a model" recipe. |
 | [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md) | Auto-generated full config inventory (regenerated from `model_configs/builtin/*.yaml`). |
 | [`HARDWARE.md`](HARDWARE.md) | Tested GPU envelope (A5000, 3090, 4090, 5090, H100, ...) + cross-rig validators. |
+| [`SINGLE_CARD.md`](SINGLE_CARD.md) | Single-card (3090/4090) operator guide — honest cliff story, `sndr preflight`, and the cliff-immune escape hatches (llama.cpp MTP, ik_llama two-stage) for consumer GPUs. Credits club-3090. |
 
 ### Patches + dispatcher
 
