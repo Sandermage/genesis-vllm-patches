@@ -1,0 +1,1 @@
+import{f as e}from"./api-CSkCyv-v.js";var t=e(`ChevronRight`,[[`path`,{d:`m9 18 6-6-6-6`,key:`mthhwq`}]]);export{t};
