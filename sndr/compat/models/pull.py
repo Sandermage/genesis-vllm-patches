@@ -395,14 +395,32 @@ def pull_via_artifacts(
         print("ERROR: model_configs registry not importable", file=sys.stderr)
         return 2
     cfg = get(cfg_key)
+    # V1 registry is empty post-Phase-10 sunset; resolve V2 aliases (e.g. the
+    # llama.cpp GGUF lane `llamacpp-qwen3.6-27b-q4km-1x`) through registry_v2.
+    # compose() now carries `cfg.artifacts` onto the composed ModelConfig, so
+    # the artifacts pull path works identically for both registries.
+    if cfg is None:
+        try:
+            from sndr.model_configs.registry_v2 import load_alias
+            cfg = load_alias(cfg_key)
+        except Exception:
+            cfg = None
     if cfg is None:
         print(f"ERROR: unknown preset key {cfg_key!r}", file=sys.stderr)
+        avail: list[str] = []
         try:
             from sndr.model_configs.registry import list_keys
-            print(f"available: {', '.join(sorted(list_keys()))}",
-                  file=sys.stderr)
+            avail.extend(list_keys())
         except Exception:
             pass
+        try:
+            from sndr.model_configs.registry_v2 import list_presets
+            avail.extend(list_presets())
+        except Exception:
+            pass
+        if avail:
+            print(f"available: {', '.join(sorted(set(avail)))}",
+                  file=sys.stderr)
         return 2
     if cfg.artifacts is None or not cfg.artifacts.models:
         print(
@@ -427,11 +445,16 @@ def pull_via_artifacts(
         if models_dir:
             from pathlib import Path
             target = str(Path(models_dir) / Path(art.local_dir).name)
+        kind = getattr(art, "kind", "hf-dir")
         print(f"  [{i}/{len(cfg.artifacts.models)}] {art.hf_id}")
+        print(f"    kind:           {kind}")
+        if kind == "gguf-file":
+            print(f"    filename:       {art.filename}")
         print(f"    revision:       {art.revision}")
         print(f"    local_dir:      {target}")
         print(f"    gated:          {art.gated}")
-        print(f"    required_files: {art.required_files}")
+        if kind != "gguf-file":
+            print(f"    required_files: {art.required_files}")
 
         # Pre-pull verify (skip download if already present)
         problems = art.verify(base_path=target)
@@ -441,13 +464,48 @@ def pull_via_artifacts(
         print(f"    pre-pull problems: {problems}")
 
         if dry_run:
-            print(f"    [dry-run] would: huggingface-cli download {art.hf_id}")
+            if kind == "gguf-file":
+                print(
+                    f"    [dry-run] would: hf_hub_download("
+                    f"repo_id={art.hf_id!r}, filename={art.filename!r})"
+                )
+            else:
+                print(f"    [dry-run] would: huggingface-cli download {art.hf_id}")
             continue
 
         # Real pull
         import subprocess
         from pathlib import Path
         Path(target).expanduser().mkdir(parents=True, exist_ok=True)
+        if kind == "gguf-file":
+            # Single-file GGUF: fetch ONLY the one .gguf via hf_hub_download
+            # (snapshot_download would pull the whole repo). The file lands at
+            # local_dir/filename so the llama-server `-m` path resolves.
+            try:
+                from huggingface_hub import hf_hub_download
+            except ImportError:
+                print("    ✗ huggingface_hub not installed "
+                      "(pip install huggingface_hub)")
+                failed += 1
+                continue
+            try:
+                hf_hub_download(
+                    repo_id=art.hf_id,
+                    filename=art.filename,
+                    revision=(art.revision if art.revision else None),
+                    local_dir=str(Path(target).expanduser()),
+                )
+            except Exception as e:  # noqa: BLE001 — surface any fetch failure
+                print(f"    ✗ gguf fetch failed: {type(e).__name__}: {e}")
+                failed += 1
+                continue
+            problems = art.verify(base_path=target)
+            if problems:
+                print(f"    ⚠ post-pull verify problems: {problems}")
+                failed += 1
+            else:
+                print("    ✓ verify OK")
+            continue
         cmd = [
             "huggingface-cli", "download", art.hf_id,
             "--local-dir", str(Path(target).expanduser()),

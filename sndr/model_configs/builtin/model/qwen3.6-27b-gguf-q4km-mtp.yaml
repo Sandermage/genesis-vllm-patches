@@ -86,6 +86,23 @@ versions:
 # vLLM/Qwen3-Next-specific and do not apply here.
 patches: {}
 
+# ─── Weights pull spec (A5) ─────────────────────────────────────────────
+# Single-file GGUF (kind: gguf-file), NOT an HF checkpoint directory. The
+# pull plan resolves to hf_hub_download(repo, filename) and verify() checks the
+# single file exists + is non-empty (NOT is_dir). `local_dir` is the directory
+# the .gguf lands in; the file itself is local_dir/filename and equals
+# model_path above. Network fetch via:
+#   hf download unsloth/Qwen3.6-27B-MTP-GGUF Qwen3.6-27B-Q4_K_M.gguf \
+#     --local-dir $MODEL_DIR/qwen3.6-27b-gguf/unsloth-mtp-q4km
+artifacts:
+  models:
+    - hf_id: unsloth/Qwen3.6-27B-MTP-GGUF
+      kind: gguf-file
+      filename: Qwen3.6-27B-Q4_K_M.gguf
+      local_dir: /models/qwen3.6-27b-gguf/unsloth-mtp-q4km
+      gated: false
+      min_total_gib: 15.0                          # Q4_K_M ~17 GB resident; floor at 15 to catch a truncated/partial pull
+
 notes:
   - "llama.cpp engine lane (Phase 1, 2026-06-27). Single-card escape hatch for
     1×24GB operators — the cliff-immune fallback a 1-card user can LAUNCH.

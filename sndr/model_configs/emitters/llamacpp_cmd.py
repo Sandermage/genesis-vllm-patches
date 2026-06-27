@@ -36,6 +36,13 @@ from .shell import shell_quote
 if TYPE_CHECKING:
     from ..schema import ModelConfig
 
+#: Docker label the daemon/GUI container-ops whitelist recognises as
+#: SNDR-managed (kept in lock-step with
+#: ``product_api.legacy.container_ops._MANAGED_LABEL``). Emitting it on the
+#: llama.cpp container makes daemon ops (start/stop/restart/logs/stats) accept
+#: it via the label path in addition to the "llamacpp" name-prefix path.
+_MANAGED_LABEL = "sndr.managed"
+
 
 def build_llamacpp_cmd(cfg: "ModelConfig") -> list[str]:
     """llama-server command parts (without exec/docker prefix), shell-quoted.
@@ -97,6 +104,13 @@ def build_llamacpp_docker_cmd(
         # "llama-server" token) intact and survives any future entrypoint
         # change in the upstream image.
         "  --entrypoint /bin/sh \\",
+        # Mark the container SNDR-managed so the daemon/GUI container ops
+        # (start/stop/restart/logs/stats) accept it. Without this label the
+        # `llamacpp-...` container only passes the name-prefix whitelist; the
+        # explicit label is the belt-and-suspenders path that survives an
+        # operator SNDR_MANAGED_PREFIXES override that drops "llamacpp". Mirrors
+        # the vLLM lane, whose `vllm-` name already prefix-matches.
+        f"  --label {_MANAGED_LABEL}=true \\",
         f"  --gpus {shell_quote(d.gpus)} \\",
         f"  --shm-size={shell_quote(d.shm_size)} \\",
     ]

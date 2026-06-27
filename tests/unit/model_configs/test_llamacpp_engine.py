@@ -12,6 +12,9 @@ Covers the four load-bearing pieces of the lane:
 """
 from __future__ import annotations
 
+import shutil
+import subprocess
+
 import pytest
 
 from sndr.model_configs import kv_projector as kp
@@ -305,3 +308,121 @@ class TestLlamacppLanePreset:
         assert hatch.fallback_preset == _LANE
         lane = next(c for c in cat.candidates if c.preset_id == _LANE)
         assert lane.can_run is True
+
+
+# ─── A1. Image / digest gate ────────────────────────────────────────────────
+
+
+class TestA1ImageDigestGate:
+    """The single-card hardware def pins a vLLM image + digest for its OWN
+    vLLM presets. A llama.cpp lane reusing that hardware execs the pinned
+    llama-server image, so inheriting the vLLM image/digest aborts `sndr
+    launch`'s default --strict-image=auto digest gate with rc=1. The composer
+    must override image → LLAMACPP_SERVER_IMAGE and DROP the vLLM digest.
+    """
+
+    def test_composed_llamacpp_uses_llamacpp_image_no_vllm_digest(self):
+        cfg = load_alias(_LANE)
+        assert cfg.docker is not None
+        assert cfg.docker.image == LLAMACPP_SERVER_IMAGE
+        assert cfg.docker.image_digest is None
+        # effective_image_ref must be the llama.cpp tag, never a vLLM digest.
+        assert cfg.docker.effective_image_ref() == LLAMACPP_SERVER_IMAGE
+        assert "vllm" not in cfg.docker.effective_image_ref().lower()
+
+    def test_digest_gate_passes_for_llamacpp_lane(self):
+        # auto mode + no digest declared → the gate falls through (rc 0). This
+        # is the LIVE-BUG fix: previously the inherited vLLM digest aborted.
+        from sndr.cli.legacy.launch import _verify_image_digest
+        cfg = load_alias(_LANE)
+        assert _verify_image_digest(cfg, "auto") == 0
+
+    def test_digest_gate_unchanged_for_vllm_lane(self):
+        # The vLLM lane on the SAME single-card hardware keeps its digest pin
+        # byte-for-byte — the engine branch must not touch it.
+        cfg = load_alias("prod-qwen3.6-27b-tq-k8v4")
+        assert cfg.docker is not None
+        assert cfg.docker.image_digest is not None
+        assert "@sha256:" in cfg.docker.image_digest
+        assert cfg.docker.effective_image_ref() == cfg.docker.image_digest
+
+
+# ─── A2. Daemon/GUI container management ─────────────────────────────────────
+
+
+class TestA2ManagedContainer:
+    """The llama.cpp container must be daemon/GUI-manageable: it needs the
+    `sndr.managed=true` label in the docker-run AND "llamacpp" in the default
+    managed-name prefixes (its name is `llamacpp-<model_id>-1x`).
+    """
+
+    def test_managed_label_emitted_in_launch_script(self):
+        script = load_alias(_LANE).to_launch_script(strict_mounts=False)
+        assert "--label sndr.managed=true" in script
+
+    def test_llamacpp_prefix_is_managed(self):
+        from sndr.product_api.legacy import container_ops as co
+        name = load_alias(_LANE).docker.container_name
+        assert name.startswith("llamacpp-")
+        assert co.is_managed_name(name) is True
+        # ensure_managed must NOT raise for the lane's container.
+        co.ensure_managed(name)
+
+    def test_default_prefixes_include_llamacpp_and_keep_vllm(self):
+        from sndr.product_api.legacy import container_ops as co
+        assert "llamacpp" in co._DEFAULT_MANAGED_PREFIXES
+        assert "vllm" in co._DEFAULT_MANAGED_PREFIXES
+        # A foreign container is still rejected.
+        assert co.is_managed_name("nginx-1") is False
+
+    def test_managed_via_label_even_with_overridden_prefixes(self):
+        # If an operator overrides SNDR_MANAGED_PREFIXES and drops "llamacpp",
+        # the explicit `sndr.managed=true` label still makes the container
+        # managed (the ContainerControl._is_managed label path, checked BEFORE
+        # the name-prefix path). Call _is_managed unbound with a stub carrying
+        # only `_prefixes` (the method touches nothing else).
+        from sndr.product_api.legacy import container_ops as co
+        cont = co.ManagedContainer(
+            name="llamacpp-x-1x", id="abc", image="img", state="running",
+            status="Up", ports="", created="now",
+            labels={"sndr.managed": "true"},
+        )
+
+        class _Stub:
+            _prefixes = ("vllm",)  # deliberately WITHOUT "llamacpp"
+
+        # name does not prefix-match ("vllm" only) → only the label can save it.
+        assert co.is_managed_name(cont.name, prefixes=("vllm",)) is False
+        assert co.ContainerControl._is_managed(_Stub(), cont) is True
+
+
+# ─── A7. Dry-run rendered-script syntax lint ────────────────────────────────
+
+
+class TestLlamacppDryRunBashSyntax:
+    """The rendered llama.cpp docker-run must be valid bash (`bash -n`). This
+    is the cheap structural guard that the heredoc / quoting / line-continuation
+    of the emitter never regresses into a syntax error on the live lane.
+    """
+
+    @pytest.mark.skipif(shutil.which("bash") is None, reason="bash not on PATH")
+    def test_llamacpp_launch_script_passes_bash_n(self):
+        script = load_alias(_LANE).to_launch_script(strict_mounts=False)
+        proc = subprocess.run(
+            ["bash", "-n"], input=script, text=True,
+            capture_output=True, timeout=15,
+        )
+        assert proc.returncode == 0, (
+            f"bash -n rejected the rendered llama.cpp script:\n{proc.stderr}"
+        )
+
+    def test_llamacpp_script_renders_llama_server_and_managed_label(self):
+        # Belt-and-suspenders: the dry-run script execs llama-server (not vllm
+        # serve), carries the pinned image + the managed label, and never the
+        # vLLM apply step.
+        script = load_alias(_LANE).to_launch_script(strict_mounts=False)
+        assert "llama-server" in script
+        assert "vllm serve" not in script
+        assert LLAMACPP_SERVER_IMAGE in script
+        assert "--label sndr.managed=true" in script
+        assert "python3 -m sndr.apply" not in script

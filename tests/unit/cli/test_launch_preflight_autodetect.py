@@ -257,6 +257,90 @@ class TestA6MaxModelLen:
         assert not any(i.code == "A6" for i in r.warnings)
 
 
+# ─── A6 (llama.cpp lane): GGUF-aware checks ────────────────────────────────
+#
+# The vLLM A6 reads <model_dir>/config.json (a directory). The GGUF lane's
+# model_path is a single .gguf FILE (no config.json), so the orchestrator
+# routes engine=="llama-cpp" to _check_a6_gguf: path (.gguf file contract),
+# image (pinned b9246 build), and ctx (single-card -c ceiling).
+
+_GGUF = ("/models/qwen3.6-27b-gguf/unsloth-mtp-q4km/"
+         "Qwen3.6-27B-Q4_K_M.gguf")
+_LLAMACPP_IMG = "ghcr.io/ggml-org/llama.cpp:server-cuda-b9246"
+
+
+def _llamacpp_cfg(**kw):
+    base = dict(
+        key="lc", title="t", description="d", schema_version=1,
+        maintainer="tests", engine="llama-cpp",
+        model_path=_GGUF, served_model_name="qwen3.6-27b",
+        max_model_len=131072,
+        hardware=HardwareSpec(gpu_match_keys=["rtx 3090"], n_gpus=1,
+                              min_vram_per_gpu_mib=22000),
+        docker=DockerConfig(image=_LLAMACPP_IMG,
+                            container_name="llamacpp-qwen-1x", port=8020,
+                            mounts=["/srv/models:/models:ro"]),
+    )
+    base.update(kw)
+    return ModelConfig(**base)
+
+
+class TestA6GgufLane:
+    def test_valid_lane_no_a6_finding(self):
+        # .gguf file + b9246 image + 131072 ctx (== ceiling) → no A6 issue.
+        host = FakeHost(existing_paths=[_GGUF])
+        r = P.run_autodetect_preflight(_llamacpp_cfg(), {}, host=host)
+        assert not any(i.code == "A6" for i in r.errors)
+        assert not any(i.code == "A6" for i in r.warnings)
+
+    def test_dir_model_path_errors(self):
+        host = FakeHost(existing_paths=["/models/Qwen3.6-27B-int4-AutoRound"])
+        cfg = _llamacpp_cfg(model_path="/models/Qwen3.6-27B-int4-AutoRound")
+        r = P.run_autodetect_preflight(cfg, {}, host=host)
+        a6 = [i for i in r.errors if i.code == "A6"]
+        assert a6, "a directory model_path must be an A6 ERROR on llama.cpp"
+        assert ".gguf" in a6[0].message
+
+    def test_vllm_image_errors(self):
+        host = FakeHost(existing_paths=[_GGUF])
+        cfg = _llamacpp_cfg(docker=DockerConfig(
+            image="vllm/vllm-openai:nightly",
+            container_name="llamacpp-qwen-1x", port=8020))
+        r = P.run_autodetect_preflight(cfg, {}, host=host)
+        a6 = [i for i in r.errors if i.code == "A6"]
+        assert a6, "a vLLM image on the llama.cpp lane must be an A6 ERROR"
+        assert "vLLM image" in a6[0].message
+
+    def test_unpinned_llamacpp_image_warns(self):
+        host = FakeHost(existing_paths=[_GGUF])
+        cfg = _llamacpp_cfg(docker=DockerConfig(
+            image="ghcr.io/ggml-org/llama.cpp:server-cuda",  # rolling, unpinned
+            container_name="llamacpp-qwen-1x", port=8020))
+        r = P.run_autodetect_preflight(cfg, {}, host=host)
+        a6 = [i for i in r.warnings if i.code == "A6"]
+        assert a6, "an unpinned :server-cuda tag must warn"
+        assert "server-cuda-b9246" in a6[0].message
+
+    def test_ctx_over_ceiling_warns(self):
+        host = FakeHost(existing_paths=[_GGUF])
+        cfg = _llamacpp_cfg(max_model_len=200000)  # club-3090: walls at load
+        r = P.run_autodetect_preflight(cfg, {}, host=host)
+        a6 = [i for i in r.warnings if i.code == "A6"]
+        assert a6, "-c above the single-card ceiling must warn"
+        assert "200000" in a6[0].message
+
+    def test_vllm_lane_untouched_by_gguf_branch(self):
+        # The vLLM lane still runs the config.json A6 check, NOT the GGUF one.
+        host = FakeHost(
+            existing_paths=["/srv/models/Qwen3.6-35B-FP8"],
+            config_json={"/srv/models/Qwen3.6-35B-FP8": {
+                "max_position_embeddings": 8192}},
+        )
+        r = P.run_autodetect_preflight(_cfg(max_model_len=32768), {}, host=host)
+        a6 = [i for i in r.warnings if i.code == "A6"]
+        assert a6 and "8192" in a6[0].message  # config.json-based, not GGUF
+
+
 # ─── A7: served-model-name default ─────────────────────────────────────────
 
 

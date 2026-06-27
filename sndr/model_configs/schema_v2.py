@@ -39,6 +39,11 @@ from .schema import (
 # Phase 10 (2026-06-01): PackageVersions reused from V1 types/packages.py
 # for ModelDef.package_versions field (V1→V2 schema migration).
 from .types.packages import PackageVersions
+# A5 (2026-06-28): Artifacts reused from V1 types/artifacts.py so a V2 ModelDef
+# can declare `artifacts.models` (weights pull spec) that compose() carries
+# onto the composed ModelConfig. Same dataclass V1 ModelConfig already exposes
+# → `pull_via_artifacts` reads one shape across both paths.
+from .types.artifacts import Artifacts
 
 SCHEMA_VERSION_V2 = 2
 
@@ -448,6 +453,14 @@ class ModelDef:
     # Default {} → existing models unchanged.
     extra_vllm_flags: dict[str, str] = field(default_factory=dict)
 
+    # A5 (2026-06-28): weights pull spec. compose() copies this onto the
+    # composed ModelConfig so `sndr pull --config <preset>` (pull_via_artifacts)
+    # resolves the model's weights from the preset itself. The llama.cpp lane
+    # uses a single `kind: gguf-file` artifact (one .gguf, not an HF dir).
+    # Default None → existing vLLM models unchanged (they pull via the legacy
+    # registry path).
+    artifacts: Optional[Artifacts] = None
+
     notes: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
@@ -531,6 +544,10 @@ class ModelDef:
                     f"model.extra_vllm_flags[{k!r}] value must be str "
                     f"(got {type(v).__name__}); use '' for a bare flag"
                 )
+        # A5: weights pull spec — validate the nested Artifacts (kind/filename
+        # rules for gguf-file, hf_id shape, etc.) when declared.
+        if self.artifacts is not None:
+            self.artifacts.validate()
 
 
 # ─── HardwareDef ──────────────────────────────────────────────────────────

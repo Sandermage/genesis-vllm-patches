@@ -189,6 +189,18 @@ def container_to_host_path(
 
 _HF_CONTAINER_TARGETS = ("/root/.cache/huggingface", "/huggingface")
 
+# A6 (llama.cpp lane): safe single-card `-c` (context / KV-pool) ceiling.
+# llama-server pre-allocates the FULL KV pool at `-c`, so the ceiling is a
+# fits-on-load budget, not vLLM's clamp-at-runtime semantics. club-3090's
+# single-card CLIFFS.md: 131072 fits (~22.5/24 GB, verify-stress 7/7), 200000
+# already walls (OOM at load). 131072 is the validated ceiling; anything above
+# warns (boots-then-OOMs is the exact failure this gate makes legible).
+_LLAMACPP_SAFE_CTX_CEILING = 131072
+
+# A6 (llama.cpp lane): the pinned llama-server CUDA image build the lane runs.
+# Kept in lock-step with model_configs.runtime_command.LLAMACPP_SERVER_IMAGE.
+_LLAMACPP_IMAGE_BUILD = "server-cuda-b9246"
+
 
 def _check_a1_gpu_count(cfg, host, r) -> None:
     declared = int(getattr(getattr(cfg, "hardware", None), "n_gpus", 0) or 0)
@@ -306,6 +318,69 @@ def _check_a6_max_model_len(cfg, host, host_model_path, r) -> None:
         )
 
 
+def _check_a6_gguf(cfg, host, host_model_path, r) -> None:
+    """A6 for the llama.cpp (GGUF) lane — GGUF-aware checks.
+
+    The vLLM A6 reads `<model_dir>/config.json`, which DOES NOT EXIST for a
+    GGUF lane: `model_path` is a single `.gguf` FILE, so that check is dead
+    here. This branch replaces it with three GGUF-specific checks:
+
+      - PATH: `model_path` must name a single `.gguf` file (the llama.cpp
+        file-not-dir contract). A misconfigured dir → error (boot fails with a
+        cryptic "failed to load model").
+      - IMAGE: the docker image must be the pinned llama-server build
+        (`server-cuda-b9246`), NOT a vLLM image — a vLLM image here means the
+        compose image-override regressed (the lane would exec llama-server in a
+        vLLM container that has no such binary).
+      - CTX: `-c` (max_model_len) within the safe single-card ceiling. Above it
+        the full pre-allocated KV pool OOMs at load (club-3090 CLIFFS.md).
+    """
+    from sndr.model_configs.gguf_resolution import is_gguf_path
+
+    # PATH — the .gguf file contract (works from the typed cfg even before the
+    # weights land; the FS existence of the file is A3's job).
+    model_path = getattr(cfg, "model_path", "") or ""
+    if not is_gguf_path(model_path):
+        r.error(
+            "A6",
+            f"llama.cpp lane requires model_path to be a single .gguf FILE "
+            f"(e.g. /models/.../Qwen3.6-27B-Q4_K_M.gguf), got {model_path!r}. "
+            f"The vLLM HF-directory convention does not load on llama-server.",
+        )
+
+    # IMAGE — the pinned llama-server build, not a vLLM image.
+    docker = getattr(cfg, "docker", None)
+    if docker is not None:
+        image_ref = getattr(docker, "image", "") or ""
+        if "vllm" in image_ref.lower():
+            r.error(
+                "A6",
+                f"llama.cpp lane docker.image is a vLLM image ({image_ref!r}) "
+                f"— it has no llama-server binary. The composer must override "
+                f"it to the pinned llama.cpp image ({_LLAMACPP_IMAGE_BUILD}).",
+            )
+        elif _LLAMACPP_IMAGE_BUILD not in image_ref:
+            r.warn(
+                "A6",
+                f"llama.cpp lane docker.image {image_ref!r} is not the "
+                f"validated build ({_LLAMACPP_IMAGE_BUILD}); the rolling "
+                f":server-cuda tag has regressed before (club-3090 #187). "
+                f"Pin the validated build.",
+            )
+
+    # CTX — single-card pre-allocated KV-pool ceiling.
+    declared = int(getattr(cfg, "max_model_len", 0) or 0)
+    if declared > _LLAMACPP_SAFE_CTX_CEILING:
+        r.warn(
+            "A6",
+            f"-c (max_model_len)={declared} exceeds the safe single-card "
+            f"ceiling {_LLAMACPP_SAFE_CTX_CEILING}. llama-server pre-allocates "
+            f"the full KV pool at load, so a higher -c OOMs at boot on a "
+            f"24 GB card (club-3090 CLIFFS.md: 200K walls). Lower -c to "
+            f"<= {_LLAMACPP_SAFE_CTX_CEILING}.",
+        )
+
+
 def _check_a7_served_name(cfg) -> None:
     if getattr(cfg, "served_model_name", None):
         return
@@ -388,12 +463,21 @@ def run_autodetect_preflight(
         host_model_path = str(
             Path(host_paths["models_dir"]) / Path(model_path).name)
 
+    engine = getattr(cfg, "engine", "vllm")
+
     _check_a1_gpu_count(cfg, host, r)
     _check_a2_pin(cfg, host, r)
     _check_a3_model_path(cfg, host, host_model_path, r)
     _check_a4_drafter(cfg, host, r)
     _check_a5_hf_cache(cfg, host_paths, r)
-    _check_a6_max_model_len(cfg, host, host_model_path, r)
+    # A6 is engine-specific: vLLM compares max_model_len against the HF
+    # config.json (a directory); the llama.cpp lane has a single .gguf FILE
+    # (no config.json), so it gets a GGUF-aware variant (path + image + ctx
+    # ceiling) instead of the dead config.json read.
+    if engine == "llama-cpp":
+        _check_a6_gguf(cfg, host, host_model_path, r)
+    else:
+        _check_a6_max_model_len(cfg, host, host_model_path, r)
     _check_a7_served_name(cfg)
     _check_a8_port(cfg, host, r)
     r.resolved_repo = _resolve_a9_repo(host)
@@ -407,4 +491,5 @@ __all__ = [
     "PreflightResult",
     "container_to_host_path",
     "run_autodetect_preflight",
+    "_check_a6_gguf",
 ]

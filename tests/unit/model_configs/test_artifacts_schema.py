@@ -83,6 +83,75 @@ def test_artifact_model_verify_min_size(tmp_path):
     assert any("min_total_gib" in p for p in problems)
 
 
+# ─── A5: single-file GGUF artifact (kind='gguf-file') ──────────────────────
+
+
+def _gguf_art(local_dir, **kw):
+    base = dict(
+        hf_id="unsloth/Qwen3.6-27B-MTP-GGUF",
+        kind="gguf-file",
+        filename="Qwen3.6-27B-Q4_K_M.gguf",
+        local_dir=str(local_dir),
+    )
+    base.update(kw)
+    return ArtifactModel(**base)
+
+
+def test_gguf_artifact_validates():
+    _gguf_art("/models/x").validate()  # no raise
+
+
+def test_gguf_artifact_requires_filename():
+    with pytest.raises(SchemaError, match="filename"):
+        ArtifactModel(hf_id="o/r", local_dir="/m", kind="gguf-file").validate()
+
+
+def test_gguf_artifact_filename_must_end_gguf():
+    with pytest.raises(SchemaError, match=r"\.gguf"):
+        ArtifactModel(hf_id="o/r", local_dir="/m", kind="gguf-file",
+                      filename="model.safetensors").validate()
+
+
+def test_artifact_rejects_unknown_kind():
+    with pytest.raises(SchemaError, match="kind"):
+        ArtifactModel(hf_id="o/r", local_dir="/m", kind="zip-blob").validate()
+
+
+def test_gguf_verify_file_missing(tmp_path):
+    problems = _gguf_art(tmp_path).verify()
+    assert len(problems) == 1
+    assert "does not exist" in problems[0]
+
+
+def test_gguf_verify_file_present_nonzero(tmp_path):
+    (tmp_path / "Qwen3.6-27B-Q4_K_M.gguf").write_bytes(b"\x00" * 4096)
+    assert _gguf_art(tmp_path).verify() == []
+
+
+def test_gguf_verify_rejects_empty_file(tmp_path):
+    (tmp_path / "Qwen3.6-27B-Q4_K_M.gguf").write_bytes(b"")
+    problems = _gguf_art(tmp_path).verify()
+    assert any("empty" in p for p in problems)
+
+
+def test_gguf_verify_does_not_use_is_dir(tmp_path):
+    # The bug this fixes: hf-dir verify() hard-requires is_dir(), which always
+    # fails for a .gguf FILE. The gguf-file branch must verify the FILE itself,
+    # never treat local_dir/filename as a directory.
+    (tmp_path / "Qwen3.6-27B-Q4_K_M.gguf").write_bytes(b"\x00" * 4096)
+    art = _gguf_art(tmp_path)
+    # the gguf path is a file, not a dir — and verify still passes.
+    assert (tmp_path / art.filename).is_file()
+    assert not (tmp_path / art.filename).is_dir()
+    assert art.verify() == []
+
+
+def test_gguf_verify_min_size_floor(tmp_path):
+    (tmp_path / "Qwen3.6-27B-Q4_K_M.gguf").write_bytes(b"\x00" * 4096)
+    problems = _gguf_art(tmp_path, min_total_gib=15.0).verify()
+    assert any("min_total_gib" in p for p in problems)
+
+
 # ─── ArtifactCache
 
 def test_artifact_cache_known_kinds():

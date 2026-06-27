@@ -148,3 +148,73 @@ def test_cli_main_no_key_no_config_returns_2(capsys):
     assert rc == 2
     err = capsys.readouterr().err
     assert "model_key" in err or "--config" in err
+
+
+# ─── A5: V2 GGUF lane resolve / verify / plan (single-file) ────────────────
+
+
+_LLAMACPP_LANE = "llamacpp-qwen3.6-27b-q4km-1x"
+
+
+def test_compose_carries_gguf_artifact_onto_cfg():
+    """The V2 model YAML's `artifacts.models` block (kind=gguf-file) survives
+    compose onto the composed ModelConfig."""
+    from sndr.model_configs.registry_v2 import load_alias
+    cfg = load_alias(_LLAMACPP_LANE)
+    assert cfg.artifacts is not None
+    assert len(cfg.artifacts.models) == 1
+    art = cfg.artifacts.models[0]
+    assert art.kind == "gguf-file"
+    assert art.hf_id == "unsloth/Qwen3.6-27B-MTP-GGUF"
+    assert art.filename == "Qwen3.6-27B-Q4_K_M.gguf"
+    assert art.local_dir.endswith("/unsloth-mtp-q4km")
+
+
+def test_pull_via_artifacts_resolves_v2_alias_and_plans_gguf(capsys):
+    """`pull --config <v2-lane> --dry-run` resolves through registry_v2 (V1
+    registry is empty post-sunset) and emits the single-file GGUF plan."""
+    from sndr.compat.models.pull import pull_via_artifacts
+    rc = pull_via_artifacts(cfg_key=_LLAMACPP_LANE, dry_run=True)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Y3 artifacts" in out
+    assert "unsloth/Qwen3.6-27B-MTP-GGUF" in out
+    assert "gguf-file" in out
+    # The plan uses the single-file fetch, NOT the whole-repo snapshot path.
+    assert "hf_hub_download" in out
+    assert "Qwen3.6-27B-Q4_K_M.gguf" in out
+
+
+def test_pull_via_artifacts_skips_when_gguf_present(tmp_path, capsys):
+    """When the .gguf already exists + is non-empty, verify() passes and the
+    pull is skipped (file-exists contract, not is_dir)."""
+    from sndr.model_configs.schema import (
+        ArtifactModel, Artifacts, ModelConfig, HardwareSpec, DockerConfig,
+    )
+    gguf_dir = tmp_path / "unsloth-mtp-q4km"
+    gguf_dir.mkdir()
+    (gguf_dir / "Qwen3.6-27B-Q4_K_M.gguf").write_bytes(b"\x00" * 8192)
+
+    cfg = ModelConfig(
+        key="test-gguf-skip", title="x", description="x",
+        schema_version=1, maintainer="sandermage",
+        engine="llama-cpp",
+        model_path=str(gguf_dir / "Qwen3.6-27B-Q4_K_M.gguf"),
+        hardware=HardwareSpec(gpu_match_keys=["rtx 3090"], n_gpus=1,
+                              min_vram_per_gpu_mib=22000),
+        docker=DockerConfig(image="i", container_name="llamacpp-c", port=8020),
+        artifacts=Artifacts(models=[ArtifactModel(
+            hf_id="unsloth/Qwen3.6-27B-MTP-GGUF", kind="gguf-file",
+            filename="Qwen3.6-27B-Q4_K_M.gguf", local_dir=str(gguf_dir),
+        )]),
+    )
+    from sndr.model_configs import registry as R
+    original = R.get
+    R.get = lambda key: cfg if key == "test-gguf-skip" else original(key)
+    try:
+        from sndr.compat.models.pull import pull_via_artifacts
+        rc = pull_via_artifacts(cfg_key="test-gguf-skip")
+        assert rc == 0
+        assert "already complete" in capsys.readouterr().out
+    finally:
+        R.get = original

@@ -23,21 +23,36 @@ class ArtifactModel:
 
     Fields:
       - hf_id: HuggingFace repo ID (e.g. 'Qwen/Qwen3.6-27B-int4-AutoRound').
-      - local_dir: absolute or `${var}` path where weights land.
+      - local_dir: absolute or `${var}` path where weights land. For a
+        `gguf-file` artifact this is the DIRECTORY the single .gguf lands in;
+        the file itself is `local_dir / filename`.
+      - kind: 'hf-dir' (default — a multi-file HF checkpoint directory, the
+        vLLM convention) | 'gguf-file' (a single .gguf FILE, the llama.cpp
+        convention). Drives both verify() (file-exists vs is-dir) and the
+        pull plan (`hf_hub_download(repo, filename)` vs `snapshot_download`).
+      - filename: REQUIRED when kind=='gguf-file' — the single .gguf file
+        name inside the repo (e.g. 'Qwen3.6-27B-Q4_K_M.gguf'). Ignored for
+        'hf-dir'.
       - revision: HF revision (commit SHA or tag). Defaults to 'main'.
       - gated: True if the repo requires HF token. Drives token-prompt UX.
-      - required_files: glob patterns that MUST exist after pull
-        (e.g. ['config.json', '*.safetensors']).
+      - required_files: glob patterns that MUST exist after pull for an
+        'hf-dir' artifact (e.g. ['config.json', '*.safetensors']). Ignored
+        for 'gguf-file' (the single `filename` is the contract instead).
       - min_total_gib: minimum total local size to consider 'pulled OK'.
+        For 'gguf-file' it floors the single file's size.
       - notes: free-form operator notes.
     """
     hf_id: str
     local_dir: str
+    kind: str = "hf-dir"
+    filename: Optional[str] = None
     revision: str = "main"
     gated: bool = False
     required_files: list[str] = field(default_factory=lambda: ["config.json"])
     min_total_gib: float = 0.0
     notes: str = ""
+
+    _VALID_KINDS = ("hf-dir", "gguf-file")
 
     def validate(self) -> None:
         if not isinstance(self.hf_id, str) or "/" not in self.hf_id:
@@ -48,6 +63,22 @@ class ArtifactModel:
             raise SchemaError(
                 "ArtifactModel.local_dir must be non-empty string"
             )
+        if self.kind not in self._VALID_KINDS:
+            raise SchemaError(
+                f"ArtifactModel.kind must be one of {self._VALID_KINDS} "
+                f"(got {self.kind!r})"
+            )
+        if self.kind == "gguf-file":
+            if not isinstance(self.filename, str) or not self.filename.strip():
+                raise SchemaError(
+                    "ArtifactModel.kind='gguf-file' requires a non-empty "
+                    "`filename` (the single .gguf file inside the repo)"
+                )
+            if not self.filename.lower().endswith(".gguf"):
+                raise SchemaError(
+                    f"ArtifactModel.kind='gguf-file' filename must end in "
+                    f"'.gguf' (got {self.filename!r})"
+                )
         if not isinstance(self.revision, str) or not self.revision.strip():
             raise SchemaError(
                 "ArtifactModel.revision must be non-empty string"
@@ -70,6 +101,8 @@ class ArtifactModel:
         callers resolve via host.yaml first.
         """
         from pathlib import Path
+        if self.kind == "gguf-file":
+            return self._verify_gguf_file(base_path=base_path)
         problems: list[str] = []
         local = Path(base_path or self.local_dir).expanduser()
         if not local.is_dir():
@@ -93,6 +126,35 @@ class ArtifactModel:
             if total_gib < self.min_total_gib:
                 problems.append(
                     f"local size {total_gib:.2f} GiB < min_total_gib "
+                    f"{self.min_total_gib:.2f} GiB"
+                )
+        return problems
+
+    def _verify_gguf_file(self, *, base_path: Optional[str] = None) -> list[str]:
+        """Verify a single-file GGUF artifact (kind=='gguf-file').
+
+        Unlike the HF-directory case, the contract is a single FILE
+        (`local_dir / filename`): it must EXIST, be a regular file, and be
+        non-empty. `min_total_gib` (if set) floors its size. Never calls
+        `is_dir()` on the artifact — that always fails for a .gguf file and
+        is exactly the bug this branch fixes.
+        """
+        from pathlib import Path
+        problems: list[str] = []
+        gguf = Path(base_path or self.local_dir).expanduser() / (
+            self.filename or ""
+        )
+        if not gguf.is_file():
+            return [f"gguf file does not exist: {gguf}"]
+        size = gguf.stat().st_size
+        if size <= 0:
+            problems.append(f"gguf file is empty (0 bytes): {gguf}")
+            return problems
+        if self.min_total_gib > 0:
+            size_gib = size / (1 << 30)
+            if size_gib < self.min_total_gib:
+                problems.append(
+                    f"gguf size {size_gib:.2f} GiB < min_total_gib "
                     f"{self.min_total_gib:.2f} GiB"
                 )
         return problems
@@ -143,10 +205,14 @@ class Artifacts:
 
         artifacts:
           models:
-            - hf_id: Qwen/Qwen3.6-27B-int4-AutoRound
+            - hf_id: Qwen/Qwen3.6-27B-int4-AutoRound      # kind: hf-dir (default)
               local_dir: /models/Qwen3.6-27B-int4-AutoRound
               required_files: [config.json, "*.safetensors"]
               min_total_gib: 14.0
+            - hf_id: unsloth/Qwen3.6-27B-MTP-GGUF         # kind: gguf-file
+              kind: gguf-file
+              filename: Qwen3.6-27B-Q4_K_M.gguf
+              local_dir: /models/qwen3.6-27b-gguf/unsloth-mtp-q4km
           caches:
             - kind: huggingface_hub
               path: ~/.cache/huggingface

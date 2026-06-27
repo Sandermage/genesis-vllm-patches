@@ -101,6 +101,90 @@ def test_engine_metrics_unreachable(monkeypatch):
     assert out["reachable"] is False and "Connection refused" in out["error"]
 
 
+# ─── A4: llama-server (`llamacpp:`) metrics parse ──────────────────────────
+#
+# vLLM exposes `vllm:`-prefixed metrics; llama-server (the GGUF lane) exposes
+# `llamacpp:`. The parser must map the llama-server names to the SAME operator
+# KPIs. The fixture is the verbatim b9246 exposition (names + help/type from
+# tools/server/server-context.cpp all_metrics_def). NOTE: b9246 exposes NO
+# kv-cache gauge — `kv_cache_usage` is correctly absent on this lane.
+import pathlib
+
+_LLAMACPP_FIXTURE = (
+    pathlib.Path(__file__).resolve().parents[2]
+    / "fixtures" / "llamacpp_server_metrics_b9246.prom"
+)
+
+
+def _llamacpp_metrics_text() -> str:
+    return _LLAMACPP_FIXTURE.read_text()
+
+
+def test_llamacpp_fixture_exists_and_uses_llamacpp_prefix():
+    text = _llamacpp_metrics_text()
+    assert "llamacpp:prompt_tokens_total" in text
+    assert "llamacpp:tokens_predicted_total" in text
+    assert "llamacpp:requests_processing" in text
+    # The lane does NOT emit any vLLM-prefixed metric.
+    assert "vllm:" not in text
+
+
+def test_parse_llamacpp_metrics_maps_to_kpis():
+    parsed = ec.parse_prometheus(_llamacpp_metrics_text())
+    # token counters
+    assert ec._sum(parsed, "vllm:prompt_tokens_total",
+                   "llamacpp:prompt_tokens_total") == 12000.0
+    assert ec._sum(parsed, "vllm:generation_tokens_total",
+                   "llamacpp:tokens_predicted_total") == 8000.0
+    # running / waiting gauges map to processing / deferred
+    assert ec._sum(parsed, "vllm:num_requests_running",
+                   "llamacpp:requests_processing") == 1.0
+    assert ec._sum(parsed, "vllm:num_requests_waiting",
+                   "llamacpp:requests_deferred") == 0.0
+    # native generation-throughput gauge + decode counter
+    assert ec._first(parsed, "llamacpp:predicted_tokens_seconds") == 100.0
+    assert ec._sum(parsed, "llamacpp:n_decode_total") == 8000.0
+    # b9246 has no kv-cache gauge — must stay None (vLLM-only key).
+    assert ec._first(parsed, "vllm:kv_cache_usage_perc",
+                     "vllm:gpu_cache_usage_perc") is None
+
+
+def test_engine_metrics_llamacpp_kpis(monkeypatch):
+    monkeypatch.delenv("SNDR_METRICS_URL", raising=False)
+    text = _llamacpp_metrics_text()
+    monkeypatch.setattr(ec, "_get", lambda url, timeout=3.0: (200, text))
+    ec._LAST_SCRAPE.clear()
+    out = ec.engine_metrics("llamahost", now=2000.0)
+    assert out["reachable"] is True
+    k = out["kpis"]
+    assert k["prompt_tokens_total"] == 12000.0
+    assert k["generation_tokens_total"] == 8000.0
+    assert k["requests_running"] == 1.0
+    assert k["requests_waiting"] == 0.0
+    assert k["decode_calls_total"] == 8000.0
+    # First scrape: the native throughput gauge supplies toks/s (no delta yet).
+    assert k["generation_toks_per_s"] == 100.0
+    # No kv-cache KPI on the llama.cpp lane.
+    assert "kv_cache_usage" not in k
+
+
+def test_engine_metrics_vllm_kpis_unchanged_by_llamacpp_fallbacks(monkeypatch):
+    # The added `llamacpp:` fallbacks are first-match-LOSERS for a vLLM scrape:
+    # the vLLM names win, so every vLLM KPI is byte-identical to before.
+    monkeypatch.delenv("SNDR_METRICS_URL", raising=False)
+    monkeypatch.setattr(ec, "_get", lambda url, timeout=3.0: (200, SAMPLE_METRICS))
+    ec._LAST_SCRAPE.clear()
+    out = ec.engine_metrics("vhost", now=3000.0)
+    k = out["kpis"]
+    assert k["requests_running"] == 3.0
+    assert k["requests_waiting"] == 5.0
+    assert k["kv_cache_usage"] == 0.42
+    assert k["prompt_tokens_total"] == 12000.0
+    assert k["generation_tokens_total"] == 8000.0
+    # The llama.cpp-only KPI is absent on a vLLM scrape.
+    assert "decode_calls_total" not in k
+
+
 def test_describe_dns_failure_is_operator_friendly():
     # urllib raises URLError(reason=socket.gaierror(8, "nodename nor servname
     # provided, or not known")) when the engine host can't be resolved (e.g. an

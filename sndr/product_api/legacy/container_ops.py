@@ -37,7 +37,11 @@ from typing import Any, Callable, Optional
 # A docker container/object name: same shape ssh_client validates, so an SSH
 # target can never carry a shell metacharacter.
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
-_DEFAULT_MANAGED_PREFIXES = ("vllm", "sndr-daemon")
+# "llamacpp" covers the multi-engine llama.cpp lane, whose container is named
+# `llamacpp-<model_id>-1x` (compose re-prefixes the engine-agnostic
+# "vllm-{model_id}" template). Without it the daemon/GUI guarded ops would
+# reject the container ("not managed by SNDR") even though SNDR launched it.
+_DEFAULT_MANAGED_PREFIXES = ("vllm", "llamacpp", "sndr-daemon")
 _MANAGED_LABEL = "sndr.managed"
 _TRUTHY = {"1", "true", "yes", "on"}
 _RESTART_POLICIES = {"no", "always", "unless-stopped", "on-failure"}

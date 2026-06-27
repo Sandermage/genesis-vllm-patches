@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from .runtime_command import LLAMACPP_SERVER_IMAGE
 from .schema import (
     DockerConfig,
     ModelConfig,
@@ -354,8 +355,26 @@ def _render_docker_config(
     # byte-identical "vllm-..." name; only the llama.cpp lane is corrected.
     if engine == "llama-cpp" and container_name.startswith("vllm-"):
         container_name = "llamacpp-" + container_name[len("vllm-"):]
+    # Multi-engine (Phase 1, 2026-06-28): the single-card hardware def pins a
+    # vLLM image + digest (`image`/`image_digest`) for its OWN vLLM presets.
+    # A llama.cpp lane reusing that hardware genuinely execs the pinned
+    # llama-server image (LLAMACPP_SERVER_IMAGE), NOT the rig's vLLM image, so
+    # inheriting the vLLM image/digest here is a LIVE BUG: `sndr launch`'s
+    # default `--strict-image=auto` digest gate would compare the local
+    # llama-server image against the rig's vLLM digest and abort with "IMAGE
+    # DIGEST MISMATCH" (rc=1). Override to the llama.cpp image and drop the
+    # vLLM digest pin (the llama.cpp image carries its own immutable
+    # `:server-cuda-b9246` build tag; no second digest pin needed). vLLM lanes
+    # (engine == "vllm", the default) keep block.image + block.image_digest
+    # byte-identical — zero change for every existing preset.
+    if engine == "llama-cpp":
+        image = LLAMACPP_SERVER_IMAGE
+        image_digest = None
+    else:
+        image = block.image
+        image_digest = block.image_digest
     return DockerConfig(
-        image=block.image,
+        image=image,
         container_name=container_name,
         port=block.host_port,            # legacy fallback
         host_port=block.host_port,
@@ -364,7 +383,7 @@ def _render_docker_config(
         network=block.network,
         mounts=list(block.mounts),
         extra_run_flags=list(block.extra_run_flags),
-        image_digest=block.image_digest,
+        image_digest=image_digest,
     )
 
 
@@ -674,4 +693,10 @@ def compose(
         # same data so V2 alias resolves through compose with the
         # same `cfg.package_versions` API).
         package_versions=model.package_versions,
+
+        # A5 (2026-06-28): carry the model's weights pull spec onto the
+        # composed cfg so `sndr pull --config <preset>` (pull_via_artifacts)
+        # resolves weights from the preset. Defaults to None for every model
+        # that does not declare an `artifacts` block (zero behaviour change).
+        artifacts=model.artifacts,
     )

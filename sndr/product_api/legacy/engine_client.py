@@ -451,8 +451,17 @@ def engine_metrics(host: Optional[str] = None, *, port: Optional[int] = None, ti
     metrics = parse_prometheus(text)
     payload["reachable"] = True
 
-    prompt_tokens = _sum(metrics, "vllm:prompt_tokens_total")
-    gen_tokens = _sum(metrics, "vllm:generation_tokens_total")
+    # vLLM uses `vllm:`-prefixed names; llama-server (the GGUF lane) uses
+    # `llamacpp:`. _sum/_first are first-match-wins, so we pass the vLLM name
+    # first (zero change for the vLLM lane) then the llama-server fallback. The
+    # llama-server names are taken verbatim from the pinned b9246 source
+    # (tools/server/server-context.cpp all_metrics_def): generation tokens are
+    # `tokens_predicted_total`, the running/queued gauges are
+    # `requests_processing`/`requests_deferred`. NOTE: b9246 llama-server
+    # exposes NO kv-cache-usage metric, so `kv_cache_usage` stays vLLM-only and
+    # is simply absent on the llama.cpp lane (the dict-comp drops None values).
+    prompt_tokens = _sum(metrics, "vllm:prompt_tokens_total", "llamacpp:prompt_tokens_total")
+    gen_tokens = _sum(metrics, "vllm:generation_tokens_total", "llamacpp:tokens_predicted_total")
 
     # Token throughput from the delta since the last scrape (cumulative counters).
     moment = time.time() if now is None else now
@@ -462,13 +471,20 @@ def engine_metrics(host: Optional[str] = None, *, port: Optional[int] = None, ti
         dt = moment - prev[0]
         if dt > 0 and gen_tokens >= prev[2]:
             gen_per_s = round((gen_tokens - prev[2]) / dt, 1)
+    # llama-server publishes an instantaneous generation-throughput gauge
+    # (`llamacpp:predicted_tokens_seconds`); use it as the first-scrape fallback
+    # when the cross-scrape delta is not yet available (vLLM has no equivalent
+    # gauge, so this never alters the vLLM lane's behaviour).
+    if gen_per_s is None:
+        gen_per_s = _first(metrics, "llamacpp:predicted_tokens_seconds")
     if prompt_tokens is not None or gen_tokens is not None:
         _LAST_SCRAPE[eng["metrics_url"]] = (moment, prompt_tokens or 0.0, gen_tokens or 0.0)
 
     kpis = {
-        "requests_running": _sum(metrics, "vllm:num_requests_running"),
-        "requests_waiting": _sum(metrics, "vllm:num_requests_waiting"),
+        "requests_running": _sum(metrics, "vllm:num_requests_running", "llamacpp:requests_processing"),
+        "requests_waiting": _sum(metrics, "vllm:num_requests_waiting", "llamacpp:requests_deferred"),
         # KV-cache fraction: new name first, older fallback. Value is 0..1.
+        # vLLM-only — b9246 llama-server does not expose a kv-cache gauge.
         "kv_cache_usage": _first(metrics, "vllm:kv_cache_usage_perc", "vllm:gpu_cache_usage_perc"),
         "prompt_tokens_total": prompt_tokens,
         "generation_tokens_total": gen_tokens,
@@ -482,6 +498,10 @@ def engine_metrics(host: Optional[str] = None, *, port: Optional[int] = None, ti
         "spec_decode_acceptance_rate": _first(metrics, "vllm:spec_decode_acceptance_rate"),
         "spec_decode_accepted_total": _sum(metrics, "vllm:spec_decode_num_accepted_tokens_total"),
         "spec_decode_draft_total": _sum(metrics, "vllm:spec_decode_num_draft_tokens_total"),
+        # llama.cpp-only decode-call counter (`llamacpp:n_decode_total`). No vLLM
+        # equivalent, so it is absent on the vLLM lane and surfaces only when a
+        # llama-server is being scraped.
+        "decode_calls_total": _sum(metrics, "llamacpp:n_decode_total"),
     }
     payload["kpis"] = {key: value for key, value in kpis.items() if value is not None}
     payload["metric_families"] = len(metrics)
