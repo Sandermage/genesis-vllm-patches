@@ -465,9 +465,14 @@ class TestP21ImagePinRouting:
         never reaches its IMAGE line. This regression-tests that the
         renderer relies on compose's invariant rather than a silent
         generic-tag fallback that masked the original Q35-TQ defect."""
+        import copy
+
         from sndr.model_configs import registry_v2 as r2
         from sndr.model_configs.schema import SchemaError
-        hw = r2.load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
+        # Deep-copy before mutating: load_hardware returns a cached, shared
+        # object (read-only contract), so nulling the docker block in place
+        # would poison every later compose() in the suite.
+        hw = copy.deepcopy(r2.load_hardware("a5000-2x-24gbvram-16cpu-128gbram"))
         hw.runtime.docker = None
 
         real_load_hw = r2.load_hardware

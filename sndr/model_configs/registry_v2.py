@@ -242,28 +242,73 @@ def _community_dir(layer: str) -> Path:
     return _PKG_ROOT / "community" / layer
 
 
-def load_model(model_id: str) -> ModelDef:
-    """Load `builtin/model/<id>.yaml` into a validated ModelDef."""
-    path = _builtin_dir("model") / f"{model_id}.yaml"
+# Per-(layer, id) parse cache for model/hardware/profile defs, validated against
+# the resolved file's mtime+size. The GUI overview/catalog/observability and
+# `list_profiles(parent_model=...)` (which loads every profile to filter) parse
+# the same YAMLs repeatedly; each load costs ~10 ms (yaml.safe_load +
+# `typing.get_type_hints` dataclass materialisation). Cached objects are treated
+# as read-only by every caller (composition copies `model.patches`; the GUI uses
+# `dataclasses.asdict` for inspection and writes edits back to disk, bumping the
+# mtime), so sharing the parsed object is safe. A file edit (new mtime or size)
+# is picked up live. Bounded by catalog size (~30 layer files). Mirrors the
+# `_PRESET_DEF_CACHE` discipline.
+_LAYER_DEF_CACHE: dict[tuple[str, str], tuple[int, int, Any]] = {}
+
+
+def _file_signature(path: Path) -> tuple[int, int]:
+    """(mtime_ns, size_bytes) stamp used to invalidate the layer cache.
+
+    Both fields change on any operator edit; size guards against the rare
+    mtime-collision case (edit within the same nanosecond stamp)."""
+    try:
+        st = path.stat()
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return (-1, -1)
+
+
+def _load_layer_cached(layer: str, layer_id: str, path: Path, cls):
+    """Parse `path` into a validated `cls`, served from `_LAYER_DEF_CACHE`
+    when the file signature is unchanged. `layer` namespaces the cache key
+    so a model and a profile sharing an id never collide."""
+    key = (layer, layer_id)
+    sig = _file_signature(path)
+    cached = _LAYER_DEF_CACHE.get(key)
+    if cached is not None and cached[0] == sig[0] and cached[1] == sig[1]:
+        return cached[2]
     data = _yaml_safe_load(path)
-    obj = _dataclass_from_dict(ModelDef, data)
+    obj = _dataclass_from_dict(cls, data)
     obj.validate()
+    _LAYER_DEF_CACHE[key] = (sig[0], sig[1], obj)
     return obj
+
+
+def reset_layer_def_cache() -> None:
+    """Drop the model/hardware/profile parse cache. Test hook; production
+    code relies on mtime-based invalidation and never needs this."""
+    _LAYER_DEF_CACHE.clear()
+
+
+def load_model(model_id: str) -> ModelDef:
+    """Load `builtin/model/<id>.yaml` into a validated ModelDef.
+
+    Cached per-id, invalidated when the resolved YAML's mtime/size changes."""
+    path = _builtin_dir("model") / f"{model_id}.yaml"
+    return _load_layer_cached("model", model_id, path, ModelDef)
 
 
 def load_hardware(hw_id: str) -> HardwareDef:
     """Load `builtin/hardware/<id>.yaml` → HardwareDef. Falls back to
-    `community/hardware/<id>.yaml` if not in builtin (Q3 hybrid)."""
+    `community/hardware/<id>.yaml` if not in builtin (Q3 hybrid).
+
+    Cached per-id, invalidated when the resolved YAML's mtime/size changes."""
     candidates = [
         _builtin_dir("hardware") / f"{hw_id}.yaml",
         _community_dir("hardware") / f"{hw_id}.yaml",
     ]
     for p in candidates:
         if p.is_file():
-            data = _yaml_safe_load(p)
-            obj = _dataclass_from_dict(HardwareDef, data)
-            obj.validate()
-            return obj
+            return _load_layer_cached("hardware", hw_id, p, HardwareDef)
     raise SchemaError(
         f"hardware {hw_id!r} not found in builtin/ or community/ directories"
     )
@@ -271,17 +316,16 @@ def load_hardware(hw_id: str) -> HardwareDef:
 
 def load_profile(profile_id: str) -> ProfileDef:
     """Load `builtin/profile/<id>.yaml` → ProfileDef. Falls back to
-    `community/profile/<id>.yaml`."""
+    `community/profile/<id>.yaml`.
+
+    Cached per-id, invalidated when the resolved YAML's mtime/size changes."""
     candidates = [
         _builtin_dir("profile") / f"{profile_id}.yaml",
         _community_dir("profile") / f"{profile_id}.yaml",
     ]
     for p in candidates:
         if p.is_file():
-            data = _yaml_safe_load(p)
-            obj = _dataclass_from_dict(ProfileDef, data)
-            obj.validate()
-            return obj
+            return _load_layer_cached("profile", profile_id, p, ProfileDef)
     raise SchemaError(
         f"profile {profile_id!r} not found in builtin/ or community/"
     )
