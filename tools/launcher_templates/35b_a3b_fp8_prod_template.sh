@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # Genesis 35B A3B FP8 PROD launcher template — K.1.R.R.8.5 (2026-05-29)
 #
-# Auto-generated from qwen3.6-35b-a3b-fp8.yaml + a5000-2x-24gbvram-16cpu-128gbram.yaml.
-# Mirrors ALL 79 GENESIS env vars + 23 system_env vars + engine config.
+# Hand-maintained template based on qwen3.6-35b-a3b-fp8.yaml +
+# a5000-2x-24gbvram-16cpu-128gbram.yaml. NOT auto-generated — the patch
+# matrix is a manual grep stub (see below). For a fully-rendered launcher
+# straight from the presets use the emitter:
+#   genesis model-config render <preset-key>
+# Mirrors the system_env vars + engine config; the 79 GENESIS patch vars
+# are extracted on demand via the grep recipe below.
 #
 # Empirically validated (rig bench): 211.35 TPS / 7/7 tool-call / CV 5-7%
 # Matches YAML reference 215 TPS single-conc spec.
@@ -41,7 +46,7 @@ docker run -d \
   -v ${GENESIS_HF_CACHE_DIR}:/root/.cache/huggingface \
   -v ${GENESIS_COMPILE_CACHE_DIR}/compile-cache-35b:/root/.cache/vllm/torch_compile_cache \
   -v ${GENESIS_TRITON_CACHE_DIR}/triton-cache-35b:/root/.triton/cache \
-  -v ${GENESIS_PROJECT_ROOT}/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core \
+  -v ${GENESIS_PROJECT_ROOT}/sndr:/usr/local/lib/python3.12/dist-packages/sndr \
   -v ${GENESIS_PROJECT_ROOT}:/genesis-vllm-patches:rw \
   -e NCCL_P2P_DISABLE=1 \
   # ── system_env (23 vars from hardware YAML) ──
@@ -70,7 +75,7 @@ docker run -d \
   -e VLLM_WORKER_MULTIPROC_METHOD=spawn \
   # ── Note: 79 GENESIS_* vars omitted from template for brevity.
   # Generate via:
-  #   grep -E "^  GENESIS_.*: '" vllm/sndr_core/model_configs/builtin/model/qwen3.6-35b-a3b-fp8.yaml \
+  #   grep -E "^  GENESIS_.*: '" sndr/model_configs/builtin/model/qwen3.6-35b-a3b-fp8.yaml \
   #     | sed -E "s/^  ([A-Z_0-9]+): '([^']+)'.*/  -e \1=\2 \\\\/" \
   #     | grep -v "=0"  # exclude opt-out flags
   # See full instantiated version at /tmp/start_35b_optimal.sh on rig.
@@ -80,7 +85,7 @@ docker run -d \
       pip install --quiet --disable-pip-version-check --root-user-action=ignore \
         pandas==2.2.3 scipy==1.14.1 xxhash==3.5.0 pyyaml packaging zstandard==0.23.0 2>&1 | tail -2; \
       pip install -e /genesis-vllm-patches --no-deps --quiet --disable-pip-version-check --root-user-action=ignore 2>&1 | tail -2; \
-      python3 -m vllm.sndr_core.apply 2>&1 | tee /tmp/genesis_boot.log | tail -5; \
+      python3 -m sndr.apply 2>&1 | tee /tmp/genesis_boot.log | tail -5; \
       exec vllm serve \
         --model /models/Qwen3.6-35B-A3B-FP8 \
         --tensor-parallel-size 2 \

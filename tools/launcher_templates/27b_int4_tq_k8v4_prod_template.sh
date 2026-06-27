@@ -2,9 +2,13 @@
 # Genesis 27B Lorbus INT4 AutoRound + TQ k8v4 PROD launcher template
 # K.1.R.R.9 (2026-05-29)
 #
-# Auto-generated from qwen3.6-27b-int4-autoround-tq-k8v4.yaml +
-# a5000-2x-24gbvram-16cpu-128gbram.yaml.
-# Mirrors ALL 74 GENESIS env vars + 23 system_env vars + engine config.
+# Hand-maintained template based on qwen3.6-27b-int4-autoround-tq-k8v4.yaml
+# + a5000-2x-24gbvram-16cpu-128gbram.yaml. NOT auto-generated — the patch
+# matrix is a manual grep stub (see below). For a fully-rendered launcher
+# straight from the presets use the emitter:
+#   genesis model-config render <preset-key>
+# Mirrors the system_env vars + engine config; the 74 GENESIS patch vars
+# are extracted on demand via the grep recipe below.
 #
 # Empirically validated (rig bench, K.1.R.R.9 on 626fa9bb pin):
 #   wall_TPS: 120.32 (cold) / 120.44 (warm) — CV 3-4%
@@ -49,7 +53,7 @@ docker run -d \
   -v ${GENESIS_HF_CACHE_DIR}:/root/.cache/huggingface \
   -v ${GENESIS_COMPILE_CACHE_DIR}/compile-cache-pn95-2x:/root/.cache/vllm/torch_compile_cache \
   -v ${GENESIS_TRITON_CACHE_DIR}/triton-cache-pn95-2x:/root/.triton/cache \
-  -v ${GENESIS_PROJECT_ROOT}/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core \
+  -v ${GENESIS_PROJECT_ROOT}/sndr:/usr/local/lib/python3.12/dist-packages/sndr \
   -v ${GENESIS_PROJECT_ROOT}:/genesis-vllm-patches:rw \
   -e NCCL_P2P_DISABLE=1 \
   # ── system_env (23 vars from hardware YAML) ──
@@ -84,7 +88,7 @@ docker run -d \
   # ── 74 GENESIS patch env vars omitted from template ──
   # Generate via:
   #   grep -E "^  GENESIS_.*: '" \
-  #     vllm/sndr_core/model_configs/builtin/model/qwen3.6-27b-int4-autoround-tq-k8v4.yaml \
+  #     sndr/model_configs/builtin/model/qwen3.6-27b-int4-autoround-tq-k8v4.yaml \
   #     | sed -E "s/^  ([A-Z_0-9]+): '([^']+)'.*/  -e \1=\2 \\\\/" \
   #     | grep -v "=0$"
   --entrypoint /bin/bash \
@@ -93,7 +97,7 @@ docker run -d \
       pip install --quiet --disable-pip-version-check --root-user-action=ignore \
         pandas==2.2.3 scipy==1.14.1 xxhash==3.5.0 pyyaml packaging zstandard==0.23.0 pytest==8.3.4 2>&1 | tail -2; \
       pip install -e /genesis-vllm-patches --no-deps --quiet --disable-pip-version-check --root-user-action=ignore 2>&1 | tail -2; \
-      python3 -m vllm.sndr_core.apply 2>&1 | tee /tmp/genesis_boot.log | tail -5; \
+      python3 -m sndr.apply 2>&1 | tee /tmp/genesis_boot.log | tail -5; \
       exec vllm serve \
         --model /models/Qwen3.6-27B-int4-AutoRound \
         --tensor-parallel-size 2 \

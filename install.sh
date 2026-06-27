@@ -23,7 +23,7 @@
 #       main + every worker; see docs/INSTALL.md step 3)
 #    5. Auto-matches a preset for your (gpu × workload) and writes a
 #       runnable launch script
-#    6. Runs `sndr verify` — 60-second smoke test
+#    6. Runs `sndr.compat.cli verify --quick` — 60-second smoke test
 #    7. Prints next-step instructions
 #
 #  Goals (per Sander 2026-05-02):
@@ -780,7 +780,7 @@ generate_launch_script() {
 
   if [ -z "$GPU_CLASS_HINT" ] || [ "$N_GPUS" = "0" ]; then
     warn "no GPU detected — skipping launch script generation"
-    hint "Pick a preset manually:  sndr model-config list"
+    hint "Pick a preset manually:  sndr preset list"
     return
   fi
 
@@ -817,7 +817,7 @@ generate_launch_script() {
       ok "wrote launch script: $out_file"
     else
       warn "no preset matches your hardware combination — pick manually:"
-      hint "  sndr model-config list"
+      hint "  sndr preset list"
       rm -f "$out_file"
       return
     fi
@@ -826,7 +826,7 @@ generate_launch_script() {
   LAUNCH_SCRIPT="$out_file"
 }
 
-# ─── Verify (smoke test, optional, requires `sndr verify`) ───
+# ─── Verify (smoke test, optional, via `sndr.compat.cli verify`) ───
 
 run_verify() {
   if [ "$GENESIS_NO_VERIFY" = "1" ]; then
@@ -863,7 +863,7 @@ print_next_steps() {
   if [ "$GENESIS_BARE_METAL" = "1" ]; then
     echo "  Bare-metal mode (--bare-metal or auto-enabled by Proxmox detect):"
     echo "      $PYTHON_BIN -m pip install --user vllm==0.20.1   # if not already"
-    echo "      sndr verify                                       # full smoke test"
+    echo "      genesis verify                                    # full smoke test"
     echo "      vllm serve <model> --tensor-parallel-size <N> ...  # standard vllm CLI"
     echo
     echo "  Generated launch scripts in $GENESIS_HOME/scripts/ are docker-based"
@@ -879,17 +879,21 @@ print_next_steps() {
     echo "      bash $LAUNCH_SCRIPT"
   else
     echo "  Browse presets and pick one for your rig:"
-    echo "      sndr model-config list           # available presets"
-    echo "      sndr model-config show <alias>   # inspect a preset"
+    echo "      sndr preset list                 # available presets"
+    echo "      sndr preset show <alias>         # inspect a preset"
     echo "      sndr launch <alias>              # boot the preset"
   fi
   echo
   echo "Useful commands:"
-  echo "  sndr doctor             # full system diagnostic"
-  echo "  sndr model-config list  # browse production presets"
-  echo "  sndr verify             # re-run smoke test"
-  echo "  sndr patches doctor     # registry sanity check"
-  echo "  sndr --help             # full subcommand list"
+  echo "  sndr doctor              # full system diagnostic"
+  echo "  sndr preset list         # browse production presets"
+  echo "  sndr report bundle       # diagnostic bundle for issues"
+  # verify / model-config / patches live on the legacy 'genesis' command
+  # tree (not yet promoted to the canonical 'sndr' surface).
+  echo "  genesis verify           # re-run smoke test"
+  echo "  genesis model-config list  # vetted model launch configs"
+  echo "  genesis patches doctor   # registry sanity check"
+  echo "  sndr --help              # full subcommand list"
   echo
   echo "Docs:    https://github.com/Sandermage/genesis-vllm-patches"
   echo "Issues:  https://github.com/Sandermage/genesis-vllm-patches/issues"
