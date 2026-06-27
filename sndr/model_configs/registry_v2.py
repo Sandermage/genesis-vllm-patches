@@ -20,6 +20,7 @@ non-alias entry point used by `sndr launch --model X --hardware Y ...`.
 from __future__ import annotations
 
 import dataclasses
+import sys
 from pathlib import Path
 from typing import Any, Optional
 
@@ -156,6 +157,24 @@ def _resolve_field_type(cls, field_name: str):
     return t
 
 
+def _resolve_arg(arg, owner_cls):
+    """Resolve a `typing.get_args(...)` element to a real class.
+
+    On Python 3.10 a quoted forward reference nested inside a PEP 585
+    builtin generic (e.g. `dict[str, "PatchAttribution"]`) is left by
+    `typing.get_type_hints()` as the bare string `'PatchAttribution'`,
+    not a class. 3.12+ evaluates it. Without this resolution the nested
+    dataclass would not be materialised on 3.10 and `validate()` would
+    fail with "must be <Type> (got dict)". We look the name up in the
+    owner class's module globals (where the forward ref is in scope).
+    """
+    if isinstance(arg, str):
+        module = sys.modules.get(getattr(owner_cls, "__module__", ""))
+        resolved = getattr(module, arg, None) if module is not None else None
+        return resolved if resolved is not None else arg
+    return arg
+
+
 def _dataclass_from_dict(cls, data: dict):
     """Construct a dataclass instance from a YAML-loaded dict.
 
@@ -187,9 +206,10 @@ def _dataclass_from_dict(cls, data: dict):
             origin = typing.get_origin(ftype)
             if origin in (list, tuple):
                 args = typing.get_args(ftype)
-                if args and dataclasses.is_dataclass(args[0]):
+                elem = _resolve_arg(args[0], cls) if args else None
+                if dataclasses.is_dataclass(elem):
                     kwargs[f.name] = [
-                        _dataclass_from_dict(args[0], v) if isinstance(v, dict) else v
+                        _dataclass_from_dict(elem, v) if isinstance(v, dict) else v
                         for v in value
                     ]
                     continue
@@ -200,9 +220,10 @@ def _dataclass_from_dict(cls, data: dict):
             origin = typing.get_origin(ftype)
             if origin is dict:
                 args = typing.get_args(ftype)
-                if len(args) == 2 and dataclasses.is_dataclass(args[1]):
+                val_t = _resolve_arg(args[1], cls) if len(args) == 2 else None
+                if dataclasses.is_dataclass(val_t):
                     kwargs[f.name] = {
-                        k: (_dataclass_from_dict(args[1], v) if isinstance(v, dict) else v)
+                        k: (_dataclass_from_dict(val_t, v) if isinstance(v, dict) else v)
                         for k, v in value.items()
                     }
                     continue

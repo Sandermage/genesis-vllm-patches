@@ -57,13 +57,17 @@ jobs:
         #   - packaging (stdlib of pip; pin for safety)
         #   - tomli — backport of stdlib `tomllib` (3.11+). The 3.10 matrix
         #     leg needs it so pyproject-parsing tests (e.g.
-        #     tests/unit/model_configs/test_in_process_plugin_entrypoint.py)
-        #     import via the `tomli as tomllib` fallback instead of failing
-        #     collection with ModuleNotFoundError. On 3.12 stdlib tomllib
-        #     wins, so the extra dep is inert.
+        #     tests/unit/model_configs/test_in_process_plugin_entrypoint.py
+        #     and scripts/audit_wheel_contents.py) import via the
+        #     `tomli as tomllib` fallback instead of reporting "tomllib
+        #     unavailable". On 3.12 stdlib tomllib wins, so the dep is inert.
+        #   - pytest-timeout — per-test ceiling so a genuinely hung test
+        #     fails fast with a traceback instead of letting the ~40-min
+        #     suite drift into the GitHub job timeout. No legitimate test
+        #     approaches the ceiling (slowest subprocess tests are <60s).
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov packaging numpy PyYAML \
+          pip install pytest pytest-cov pytest-timeout packaging numpy PyYAML \
               requests cryptography build tomli
           pip install --index-url https://download.pytorch.org/whl/cpu \
               "torch>=2.0,<3.0"
@@ -82,7 +86,13 @@ jobs:
           # pristine vLLM/FLA source snapshots used as anchor-validation
           # fixtures, not pytest modules; they import einops/regex and use
           # package-relative imports, so collecting them aborts the run.
+          # --timeout=300: hang-guard. A stuck test is killed with a
+          # thread traceback after 5 min instead of stalling the whole
+          # job. --timeout-method=thread is subprocess-safe (the wheel /
+          # make-evidence tests block on subprocess.run, which the thread
+          # method interrupts cleanly).
           python -m pytest -v --tb=short \
+              --timeout=300 --timeout-method=thread \
               --cov=sndr \
               --cov-report=term-missing:skip-covered \
               $(git ls-files 'tests/**/test_*.py' 'tests/test_*.py')

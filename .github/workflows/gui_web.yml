@@ -1,13 +1,17 @@
 # SNDR Control Center web app — CI gate for the React/TypeScript GUI.
 #
-# Runs the quality gates on every change under gui/web:
-#   build job: typecheck (tsc) -> lint (eslint) -> unit tests + coverage gate
-#              (vitest) -> production build.
-#   e2e job:   hermetic Playwright run against `vite preview` of the production
-#              bundle, with every /api/** call mocked (e2e/fixtures.ts) and an
-#              axe-core accessibility scan of every navigable section.
-# The dev-box specs (smoke/host_wiring/server_switch/chat_rag) still need a live
-# daemon and are NOT run here — only the hermetic spec, which needs no backend.
+# Runs the public-tree quality gates on every change under gui/web:
+#   build job: typecheck (tsc) -> lint (eslint) -> production build (vite).
+#
+# The vitest unit suite + the hermetic Playwright e2e harness (with the
+# axe-core accessibility scan) were extracted to the operator-private
+# archive in 2026 (`chore(gui): extract tests to sndr_private (release
+# hygiene)`). Those gates — and the dev-box specs that need a live daemon
+# (smoke / host_wiring / server_switch / chat_rag) — run on the operator
+# box, not on the public CI, because their fixtures (e2e/fixtures.ts,
+# tests/**) are not part of the published source tree. The public gate
+# therefore validates exactly what ships: types compile, lint is clean,
+# the production bundle builds.
 #
 # Triggered:
 #   - push to main (only when gui/web changes)
@@ -51,32 +55,5 @@ jobs:
       - name: Lint (eslint)
         run: npm run lint
 
-      - name: Unit tests + coverage gate (vitest)
-        run: npm run coverage
-
       - name: Production build (vite)
         run: npm run build
-
-  e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: gui/web/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Install Playwright chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Production build (vite)
-        run: npm run build
-
-      - name: Hermetic E2E + axe a11y (Playwright)
-        run: npm run test:e2e:ci

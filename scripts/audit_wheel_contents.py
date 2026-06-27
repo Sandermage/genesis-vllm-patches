@@ -133,11 +133,17 @@ def check_pyproject_shape(
     try:
         import tomllib
     except ImportError:
-        results.append(PyprojectResult(
-            passed=False,
-            detail="tomllib unavailable (need Python 3.11+); cannot parse pyproject",
-        ))
-        return results
+        try:
+            import tomli as tomllib  # type: ignore[no-redef]
+        except ImportError:
+            results.append(PyprojectResult(
+                passed=False,
+                detail=(
+                    "tomllib unavailable (need Python 3.11+ or the `tomli` "
+                    "backport); cannot parse pyproject"
+                ),
+            ))
+            return results
 
     if not pyproject.is_file():
         results.append(PyprojectResult(

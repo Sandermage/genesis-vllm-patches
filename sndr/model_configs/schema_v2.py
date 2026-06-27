@@ -579,7 +579,14 @@ class PatchesDelta:
     enable: dict[str, str] = field(default_factory=dict)
     disable: list[str] = field(default_factory=list)
     override: dict[str, str] = field(default_factory=dict)
-    attribution: dict[str, "PatchAttribution"] = field(default_factory=dict)
+    # NB: unquoted on purpose. PatchAttribution is imported at module top,
+    # so the bare reference resolves like ModelDef.patches_attribution does.
+    # A quoted forward ref ("PatchAttribution") inside a PEP 585 generic
+    # (dict[...]) is left as a bare string by typing.get_type_hints() on
+    # Python 3.10 — the registry_v2 loader then fails to materialise the
+    # nested dataclass and validate() raises "must be PatchAttribution
+    # (got dict)". Resolved class form works on every supported version.
+    attribution: dict[str, PatchAttribution] = field(default_factory=dict)
 
     def validate(self) -> None:
         enabled = set(self.enable)
