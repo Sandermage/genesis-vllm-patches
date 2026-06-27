@@ -15,11 +15,17 @@ Two former lies are locked out here:
 """
 from __future__ import annotations
 
-from sndr.product_api.domain.engines_service import (
+import pytest
+
+# The modular engines schemas are pydantic models; the light CI test leg has no
+# pydantic. Skip cleanly there rather than failing collection (dir convention).
+pytest.importorskip("pydantic")
+
+from sndr.product_api.domain.engines_service import (  # noqa: E402
     get_engine_detail,
     list_engine_summaries,
 )
-from sndr.product_api.schemas.engines import EngineDetail, EngineSummary
+from sndr.product_api.schemas.engines import EngineDetail, EngineSummary  # noqa: E402
 
 
 def test_engine_summary_schema_has_no_container_count_field():

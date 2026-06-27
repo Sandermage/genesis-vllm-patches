@@ -14,11 +14,18 @@ behaviour of the two services cleaned up here:
 """
 from __future__ import annotations
 
-import sndr.product_api.domain.license_status as license_status
-from sndr.product_api.domain.license_status import get_license_status
-from sndr.product_api.domain.pins_service import list_pins
-from sndr.product_api.schemas.licensing import LicenseStatus
-from sndr.product_api.schemas.pins import PinSummary
+import pytest
+
+# The modular domain schemas (sndr.product_api.schemas.*) are pydantic models;
+# the light CI test leg installs no pydantic. Skip cleanly there instead of
+# failing collection (matches the importorskip convention used across this dir).
+pytest.importorskip("pydantic")
+
+import sndr.product_api.domain.license_status as license_status  # noqa: E402
+from sndr.product_api.domain.license_status import get_license_status  # noqa: E402
+from sndr.product_api.domain.pins_service import list_pins  # noqa: E402
+from sndr.product_api.schemas.licensing import LicenseStatus  # noqa: E402
+from sndr.product_api.schemas.pins import PinSummary  # noqa: E402
 
 
 # ── license_status ──────────────────────────────────────────────────────────
