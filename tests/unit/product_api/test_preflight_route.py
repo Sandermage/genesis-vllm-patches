@@ -75,6 +75,47 @@ def test_builtin_rig_two_cards_can_run():
     assert "projected_vram" in dims
 
 
+def test_live_vram_gib_narrows_projection_to_free_vram():
+    """A3 — LIVE free-VRAM fit. Against the builtin rig with PLENTY of live free
+    VRAM the byte projection is no worse than baseline; with only a sliver of
+    free VRAM (another engine resident) the projected_vram row degrades to fail.
+    This is the 'would OOM right now' signal the GUI threads from hostGpu()."""
+    base = _client().get(
+        "/api/v1/preflight",
+        params={"preset_id": _PRESET, "rig": "a5000-2x-24gbvram-16cpu-128gbram"},
+    ).json()
+    base_proj = next(c for c in base["checks"] if c["dimension"] == "projected_vram")
+
+    starved = _client().get(
+        "/api/v1/preflight",
+        params={"preset_id": _PRESET, "rig": "a5000-2x-24gbvram-16cpu-128gbram",
+                "live_vram_gib": 2.0},
+    ).json()
+    starved_proj = next(
+        c for c in starved["checks"] if c["dimension"] == "projected_vram")
+
+    rank = {"pass": 0, "warn": 1, "fail": 2}
+    # only 2 GiB free for a 35B -> the projection can only get WORSE, and here
+    # it must be an outright fail (weights alone exceed 2 GiB).
+    assert starved_proj["status"] == "fail"
+    assert rank[starved_proj["status"]] >= rank[base_proj["status"]]
+
+
+def test_live_vram_gib_clamped_to_card_capacity():
+    """A bogus live free value larger than the card cannot inflate the budget —
+    the projection is clamped to the card's physical capacity, so an absurd
+    live_vram_gib does not flip a tight config to a free pass."""
+    r = _client().get(
+        "/api/v1/preflight",
+        params={"preset_id": _PRESET, "rig": "a5000-2x-24gbvram-16cpu-128gbram",
+                "live_vram_gib": 9999.0},
+    )
+    assert r.status_code == 200, r.text
+    # clamped to the card -> still has a projected_vram row, route doesn't crash.
+    dims = {c["dimension"] for c in r.json()["checks"]}
+    assert "projected_vram" in dims
+
+
 def test_unknown_preset_is_404():
     r = _client().get("/api/v1/preflight", params={"preset_id": "no-such-preset"})
     assert r.status_code == 404

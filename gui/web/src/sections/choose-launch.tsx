@@ -11,7 +11,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Cpu, HardDrive, ListChecks, RefreshCw, Rocket, Search, Wand2 } from "lucide-react";
 import { tr } from "../i18n";
-import { api, type PresetRecord, type V2ConfigCatalog, type HostProfile, type PreflightFitReport } from "../api";
+import { api, type PresetRecord, type V2ConfigCatalog, type HostProfile, type PreflightFitReport, type HardwareTelemetry } from "../api";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { Step } from "../components/shell-bits";
 import { CodeBlock } from "../components/code-block";
@@ -101,14 +101,42 @@ export function ChooseLaunchSection({
   // for a modeled one. This is exactly the CLI's rig resolution.
   const preflightRig = rig.kind === "modeled" ? modeledHardwareId : undefined;
 
+  // ── A3: LIVE free-VRAM fit. On the live rig we poll the host GPU telemetry
+  // (the same /api/v1/host/gpu the Hardware view reads) and thread the SMALLEST
+  // free-VRAM across the cards into the fit projection. A model that would fit
+  // the card's TOTAL capacity but NOT what's free RIGHT NOW (another engine is
+  // resident) then shows TIGHT/FAIL instead of a false green. Only on the live
+  // rig — a modeled rig has no "right now" occupancy to honor.
+  const liveRig = rig.kind === "live";
+  const { data: gpuTelemetry } = useApiQuery<HardwareTelemetry>(
+    ["choose-launch-host-gpu"],
+    (signal) => api.hostGpu(signal),
+    { enabled: liveRig && Boolean(liveHost), staleTime: 4_000 }
+  );
+  const liveFreeVramGib = useMemo(() => {
+    if (!liveRig) return undefined;
+    const frees = (gpuTelemetry?.gpus ?? [])
+      .map((g) => g.mem_free)
+      .filter((v): v is number => typeof v === "number" && v > 0);
+    if (frees.length === 0) return undefined;
+    // Smallest free across the cards (the binding TP constraint), MiB -> GiB.
+    return Math.min(...frees) / 1024;
+  }, [liveRig, gpuTelemetry]);
+  // Bucket the live-free value into the query key so the fit re-probes as free
+  // VRAM moves, but not on every jittery MiB (whole-GiB buckets = ~stable key).
+  const liveFreeBucket = liveFreeVramGib != null ? Math.round(liveFreeVramGib) : null;
+
   // ── Per-preset fit, used both to filter (step 2) and to render (step 3).
   // We probe the SELECTED preset live; the hook surfaces loading/error/retry so
   // the fit-check step can NEVER spin forever (BUG 1) — a slow/missing route
   // resolves to an explicit "timed out — retry" state. The client request has an
   // 8s hard cap (api.preflight) over the route's 6s server-side deadline.
   const { data: selectedFit, state: fitState, error: fitError, reload: fitReload } = useApiQuery<PreflightFitReport>(
-    ["preflight", selectedPreset, preflightRig ?? "live"],
-    (signal) => api.preflight({ preset_id: selectedPreset, rig: preflightRig }, signal),
+    ["preflight", selectedPreset, preflightRig ?? "live", liveFreeBucket ?? "total"],
+    (signal) => api.preflight(
+      { preset_id: selectedPreset, rig: preflightRig, live_vram_gib: liveFreeVramGib },
+      signal
+    ),
     { enabled: Boolean(selectedPreset), staleTime: 15_000 }
   );
 
@@ -286,7 +314,12 @@ export function ChooseLaunchSection({
                 {selectedFit.can_run ? <CheckIcon /> : <AlertIcon />}
                 <div>
                   <strong>{selectedFit.verdict}</strong>
-                  <small>{tr("rig")}: {selectedFit.rig_source} · {tr("from")} {selectedFit.envelope_source}</small>
+                  <small>
+                    {tr("rig")}: {selectedFit.rig_source} · {tr("from")} {selectedFit.envelope_source}
+                    {liveFreeVramGib != null && (
+                      <> · {tr("vs live free")} <b>{formatVram(Math.round(liveFreeVramGib * 1024))}</b></>
+                    )}
+                  </small>
                 </div>
               </div>
               <ul className="cl-fit-checks">

@@ -242,6 +242,7 @@ const RU_BY_EN: Record<string, string> = {
   "check failed": "проверка не удалась",
   "rig": "сборка",
   "from": "из",
+  "vs live free": "против свободной сейчас",
   "No annotated presets in the catalog yet.": "В каталоге пока нет аннотированных пресетов.",
   "One card you checked won't fit your rig and is hidden — toggle “Show all” to keep it visible.": "Одна из проверенных карточек не подходит вашей сборке и скрыта — включите «Показать все», чтобы она оставалась видимой.",
   "Pick a model in step 2 first.": "Сначала выберите модель на шаге 2.",

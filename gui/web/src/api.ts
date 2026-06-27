@@ -1542,7 +1542,13 @@ export const api = {
   // `sndr preflight <preset>` runs. `rig` (a builtin hardware id) or `fake_gpus`
   // (synthetic "name:vram_mib:cc;…") model a rig offline; both omitted = the
   // live nvidia-smi rig on the daemon host.
-  preflight: (params: { preset_id: string; rig?: string; fake_gpus?: string }, signal?: AbortSignal) =>
+  preflight: (
+    // live_vram_gib (A3): the polled live FREE per-card VRAM. When supplied the
+    // byte-level projection budgets against free VRAM right now (not card total),
+    // so a model that would OOM on an already-occupied card shows TIGHT/FAIL.
+    params: { preset_id: string; rig?: string; fake_gpus?: string; live_vram_gib?: number },
+    signal?: AbortSignal
+  ) =>
     // 8s client cap > the route's 6s server-side deadline, so the daemon's clean
     // 504 ("fit check timed out") wins; the client timeout is the backstop for a
     // wholly unresponsive / stale daemon (the route missing entirely). Either way
@@ -1741,7 +1747,7 @@ export const api = {
   updatePlan: (target_pin?: string) => postJson<UpdatePlan>("/api/v1/update/plan", { target_pin }),
   updateApply: (confirm: boolean, target_pin?: string) => postJson<UpdateApplyResult>("/api/v1/update/apply", { confirm, target_pin }),
   hostInventory: () => request<HostInventory>("/api/v1/host/inventory"),
-  hostGpu: () => request<HardwareTelemetry>("/api/v1/host/gpu"),
+  hostGpu: (signal?: AbortSignal) => request<HardwareTelemetry>("/api/v1/host/gpu", { signal }),
   hostGpuRemote: (hostId: string) => request<HardwareTelemetry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/gpu`),
   // GPU power-cap WRITE path (double-gated server-side: SNDR_ENABLE_APPLY + confirm).
   hostPowerCap: (body: PowerCapBody) => postJson<PowerCapOutcome>("/api/v1/host/power-cap", body),

@@ -555,6 +555,13 @@ def create_app(
         preset_id: str = Query(...),
         rig: Optional[str] = None,
         fake_gpus: Optional[str] = None,
+        live_vram_gib: Optional[float] = Query(
+            None,
+            description="Live FREE per-card VRAM (GiB). When supplied, the "
+                        "byte-level projection budgets against free VRAM right "
+                        "now instead of the card's TOTAL — so a model that would "
+                        "OOM on an already-occupied card shows TIGHT/FAIL. The "
+                        "GUI threads its polled hostGpu() mem_free here (A3)."),
     ) -> dict[str, Any]:
         """Project a preset's hardware envelope against a rig — the exact same
         check ``sndr preflight <preset>`` runs (``preflight_fit.evaluate_fit``),
@@ -565,6 +572,12 @@ def create_app(
         hardware id, offline) > the live nvidia-smi rig. Returns the same dict
         shape as the CLI's JSON output (``required`` + per-dimension ``checks``
         + ``verdict``/``can_run``). Read-only.
+
+        ``live_vram_gib`` (A3): when present, the byte-level projection budgets
+        against the live FREE VRAM rather than the card's total capacity, so the
+        fit-check reflects what will OOM RIGHT NOW (e.g. another engine already
+        occupies the card). It only narrows the byte projection; the envelope
+        rows (declared min-VRAM floor) are unchanged.
 
         Non-blocking + bounded: the live-rig path shells out to ``nvidia-smi``,
         which can stall on a wedged driver or a GPU busy loading a 35B engine.
@@ -644,23 +657,38 @@ def create_app(
                     and resolved.gpus
                 ):
                     vram_mib = min(g.vram_mib for g in resolved.gpus if g.vram_mib)
-                    if vram_mib:
+                    # A3: budget against LIVE FREE VRAM when the caller supplies
+                    # it (the GUI's polled mem_free). A model that would OOM on an
+                    # already-occupied card then projects TIGHT/FAIL right now.
+                    # Clamp to the card's physical capacity (free can never exceed
+                    # total) so a bogus value can't inflate the budget.
+                    proj_vram_gib = None
+                    proj_name = resolved.source
+                    proj_measured = not str(resolved.source).startswith("rig:")
+                    if live_vram_gib is not None and live_vram_gib > 0:
+                        cap_gib = (vram_mib / 1024.0) if vram_mib else live_vram_gib
+                        proj_vram_gib = min(float(live_vram_gib), cap_gib)
+                        proj_name = f"{resolved.source} (live-free)"
+                        proj_measured = True  # live free VRAM is a real number
+                    elif vram_mib:
+                        proj_vram_gib = vram_mib / 1024.0
+                    if proj_vram_gib:
                         projection = kp.project(
                             cfg,
                             kp.ProjectorRig(
-                                vram_gib_per_card=vram_mib / 1024.0,
+                                vram_gib_per_card=proj_vram_gib,
                                 gpu_count=resolved.gpu_count,
-                                name=resolved.source,
+                                name=proj_name,
                             ),
                             shape=shape,
                             preset_id=preset_id,
                         )
                         # "rig:<id>" = declared min-VRAM floor (conservative
                         # lower bound) → a FAIL there is a WARN, not a hard
-                        # block. Live/fake = real per-card VRAM → FAIL is real.
-                        measured = not str(resolved.source).startswith("rig:")
+                        # block. Live/fake/live-free = real per-card VRAM → real.
                         add_projection_check(
-                            fit_report, projection, vram_is_measured=measured,
+                            fit_report, projection,
+                            vram_is_measured=proj_measured,
                         )
             except Exception:  # noqa: BLE001 — projection is additive, never fatal
                 pass
