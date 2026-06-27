@@ -182,3 +182,153 @@ class TestExitCodes:
         rc = tool.main(["--watchlist", str(bad)])
         capsys.readouterr()
         assert rc == 2
+
+
+# ─── PART 1a: watchlist <-> live-registry binding (--check-registry) ──────────
+#
+# A sweep row naming a CONCRETE patch (e.g. the vllm#46384 -> PN346/PN346B
+# incoming-anchor-drift row) can go STALE if the patch is renamed/retired or has
+# its required anchor demoted — the watchlist would then no longer point at a
+# live, drift-detectable patch and the next bump would miss it. These tests pin
+# the binding invariants of ``check_registry_binding`` (pure, injectable).
+
+
+class TestParseGenesisPatchIds:
+    def test_concrete_comma_separated(self, tool):
+        assert tool.parse_genesis_patch_ids("PN346, PN346B") == ["PN346",
+                                                                 "PN346B"]
+
+    def test_single_concrete(self, tool):
+        assert tool.parse_genesis_patch_ids("PN129") == ["PN129"]
+
+    def test_planned_returns_empty(self, tool):
+        assert tool.parse_genesis_patch_ids("planned: PN371") == []
+        assert tool.parse_genesis_patch_ids("planned: PN-tbd (loader)") == []
+
+    def test_watch_only_returns_empty(self, tool):
+        assert tool.parse_genesis_patch_ids("watch-only") == []
+
+
+class TestRegistryBinding:
+    def _state(self, ids, retired=(), req=()):
+        return {
+            "registry_ids": set(ids),
+            "retired_ids": set(retired),
+            "has_required_anchor": set(req),
+        }
+
+    def test_live_concrete_reanchor_with_required_anchor_is_clean(self, tool):
+        rows = [_row(pr=46384, genesis_patch="PN346, PN346B",
+                     trigger="reanchor-on-merge")]
+        errors = tool.check_registry_binding(
+            rows, **self._state(["PN346", "PN346B"],
+                                req=["PN346", "PN346B"]))
+        assert errors == []
+
+    def test_missing_id_flagged(self, tool):
+        """A renamed/removed patch id -> stale binding error (the staleness
+        class the gate exists to catch)."""
+        rows = [_row(pr=46384, genesis_patch="PN346, PN346B",
+                     trigger="reanchor-on-merge")]
+        errors = tool.check_registry_binding(
+            rows, **self._state(["PN346"], req=["PN346"]))  # PN346B gone
+        assert any("PN346B" in e and "not in PATCH_REGISTRY" in e
+                   for e in errors)
+
+    def test_retired_target_flagged(self, tool):
+        """A retire/reanchor-on-merge target that is ALREADY retired is a
+        contradiction — surfaced so the row can be retriggered/dropped."""
+        rows = [_row(pr=46446, genesis_patch="PN129",
+                     trigger="retire-on-merge")]
+        errors = tool.check_registry_binding(
+            rows, **self._state(["PN129"], retired=["PN129"]))
+        assert any("PN129" in e and "RETIRED" in e for e in errors)
+
+    def test_reanchor_without_required_anchor_flagged(self, tool):
+        """The PN340/PN341 class: a reanchor-on-merge target whose anchors are
+        all required=False would soft-skip its incoming drift (optional_absent),
+        never surfacing as genuine_anchor_drift — flagged unless detection: is
+        declared."""
+        rows = [_row(pr=44880, genesis_patch="PN340",
+                     trigger="reanchor-on-merge")]
+        errors = tool.check_registry_binding(
+            rows, **self._state(["PN340"], req=[]))  # no required anchor
+        assert any("PN340" in e and "genuine_anchor_drift" in e
+                   for e in errors)
+
+    def test_detection_test_waives_required_anchor(self, tool):
+        """detection: test documents a constant-import drift test catches it —
+        waives the required-anchor invariant (existence still enforced)."""
+        rows = [_row(pr=44880, genesis_patch="PN340",
+                     trigger="reanchor-on-merge", detection="test")]
+        errors = tool.check_registry_binding(
+            rows, **self._state(["PN340"], req=[]))
+        assert errors == []
+
+    def test_detection_manual_waives_required_anchor(self, tool):
+        rows = [_row(pr=45207, genesis_patch="G4_60E",
+                     trigger="reanchor-on-merge", detection="manual")]
+        errors = tool.check_registry_binding(
+            rows, **self._state(["G4_60E"], req=[]))
+        assert errors == []
+
+    def test_detection_test_still_enforces_existence(self, tool):
+        """detection: test waives the required-anchor check but NOT existence —
+        a renamed patch is still stale even with a detection override."""
+        rows = [_row(pr=44880, genesis_patch="PN340",
+                     trigger="reanchor-on-merge", detection="test")]
+        errors = tool.check_registry_binding(
+            rows, **self._state([], req=[]))  # PN340 renamed/removed
+        assert any("PN340" in e and "not in PATCH_REGISTRY" in e
+                   for e in errors)
+
+    def test_review_on_merge_not_registry_bound(self, tool):
+        """review-on-merge is advisory — may reference a patch that no longer
+        applies, so it is NOT registry-bound."""
+        rows = [_row(pr=44912, genesis_patch="PN77",
+                     trigger="review-on-merge")]
+        errors = tool.check_registry_binding(
+            rows, **self._state([], retired=[], req=[]))
+        assert errors == []
+
+    def test_planned_skipped(self, tool):
+        rows = [_row(pr=45199, genesis_patch="planned: PN371",
+                     trigger="retire-on-merge")]
+        errors = tool.check_registry_binding(
+            rows, **self._state([], retired=[], req=[]))
+        assert errors == []
+
+
+class TestRegistryBindingLive:
+    def test_live_watchlist_binding_clean(self, tool):
+        """The committed watchlist must bind cleanly to the live registry: every
+        concrete genesis_patch id is live + drift-detectable (or declares a
+        detection: override). This is the gate `make watchlist-check-registry`
+        runs at bump-preflight time."""
+        registry_ids, retired_ids, req = tool.load_registry_state()
+        rows = tool.load_sweep(WATCHLIST)
+        errors = tool.check_registry_binding(
+            rows, registry_ids=registry_ids, retired_ids=retired_ids,
+            has_required_anchor=req)
+        assert errors == [], "\n".join(errors)
+
+    def test_main_check_registry_exit_zero_on_live_file(self, tool, capsys):
+        rc = tool.main(["--check-registry"])
+        out = capsys.readouterr()
+        assert rc == 0, out.err
+
+    def test_main_check_registry_exit_3_on_synthetic_stale_row(
+            self, tool, tmp_path, capsys):
+        """A reanchor-on-merge row naming a nonexistent patch -> exit 3."""
+        bad = tmp_path / "stale.yaml"
+        bad.write_text(
+            "sweep:\n"
+            "  - pr: 99999\n"
+            "    genesis_patch: PN_DOES_NOT_EXIST\n"
+            "    trigger: reanchor-on-merge\n"
+            "    note: synthetic stale row\n",
+            encoding="utf-8",
+        )
+        rc = tool.main(["--watchlist", str(bad), "--check-registry"])
+        capsys.readouterr()
+        assert rc == 3

@@ -852,16 +852,22 @@ sweep:
 - pr: 45207
   genesis_patch: G4_60E
   trigger: reanchor-on-merge
+  detection: manual
   note: 'Mamba page padding — patches the SAME function (unify_kv_cache_spec_page_size) that G4_60E owns,
     with the same page_size_padded technique. W2 plan: fold the MambaSpec elif into G4_60E (standalone
     vendor would double-monkey-patch) + add Genesis-unique 3-way test (TQ + Mamba + bf16-drafter). On
-    merge re-derive G4_60E anchors and drop the duplicated branch.'
+    merge re-derive G4_60E anchors and drop the duplicated branch. detection=manual: G4_60E sub-patches
+    are required=False (independent branches), so an incoming anchor drift soft-skips rather than failing
+    genuine_anchor_drift — caught by the planned operator reconciliation pass over the shared function,
+    not the anchor-SOT manifest.'
 - pr: 45181
   genesis_patch: G4_60E
   trigger: reanchor-on-merge
+  detection: manual
   note: 'Mixed KV page sizes (DFlash) — generic AttentionSpec padding fallback supersedes G4_60E Patch
     2 (keep TQ-native Patches 1/3/4); same function as #45207, do ONE reconciliation pass over G4_60E
-    + the pr42637 overlay. Unblocks the Gemma-4-31B TQ k8v4 profile on this pin (~2.7x KV memory vs fp16).'
+    + the pr42637 overlay. Unblocks the Gemma-4-31B TQ k8v4 profile on this pin (~2.7x KV memory vs fp16).
+    detection=manual: same shared-function reconciliation as #45207 (G4_60E sub-patches required=False).'
 - pr: 45199
   genesis_patch: 'planned: PN371'
   trigger: retire-on-merge
@@ -1093,8 +1099,13 @@ sweep:
 - pr: 44880
   genesis_patch: PN340, PN341
   trigger: reanchor-on-merge
+  detection: test
   note: 'Bailing MTP + LINEAR_ATTN spec-decode — do NOT vendor the feature (the pin''s gdn_attn already
-    has the design). ANCHOR BREAKER: the PR edits PN341''s anchor neighborhood in gpu_model_runner.py
+    has the design). detection=test: PN340/PN341 sub-patches are required=False (independent), so an
+    incoming anchor drift soft-skips rather than failing genuine_anchor_drift — caught instead by the
+    PN370 chain drift tests (tests/unit/integrations/spec_decode/test_pn370_async_accepted_counts_race.py)
+    + the PN340 buffer-stability test, which import PN341/PN340 anchor constants and fail loudly on drift.
+    ANCHOR BREAKER: the PR edits PN341''s anchor neighborhood in gpu_model_runner.py
     (+10/-2 around the accepted-counts / spec-decode preprocessing region PN341 sub-patch 4 and PN370
     both anchor) — GUARANTEED PN341 anchor break on the merge pin; this row converts it into a planned
     5-min re-anchor (re-derive PN341_PREPARE_OLD/NEW, then re-run the PN370 chain tests, which import
