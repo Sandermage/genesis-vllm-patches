@@ -170,6 +170,84 @@ def _verify_download(local_path: Path, model_entry) -> tuple[bool, str]:
 # ─── Launch script generation ─────────────────────────────────────────────
 
 
+# ─── B2: pre-download fit verdict ("will model X fit my card?") ─────────────
+
+
+def _resolve_card_vram_gib(card, fake_gpus):
+    """Resolve a per-card VRAM in GiB for the fit gate: --card > --fake-gpus >
+    live nvidia-smi probe. Returns (vram_gib, source) or (None, reason).
+
+    Uses the smallest card's MiB at full precision (the binding TP constraint),
+    mirroring kv_calc._precise_vram_gib so the pre-download verdict and the
+    post-config `sndr kv-calc` verdict agree on the same VRAM basis.
+    """
+    if card is not None:
+        try:
+            return float(card), f"card:{card}GB"
+        except (TypeError, ValueError):
+            return None, "card:invalid"
+
+    def _min_gib(rig):
+        gpus = getattr(rig, "gpus", None)
+        if not gpus:
+            return None
+        mib = min(g.vram_mib for g in gpus if g.vram_mib)
+        return (mib / 1024.0) if mib else None
+
+    if fake_gpus is not None:
+        from sndr.model_configs.preflight_fit import rig_from_fake_spec
+        return _min_gib(rig_from_fake_spec(fake_gpus)), "fake"
+    try:
+        from sndr.model_configs.preflight_fit import RigProbe
+        gib = _min_gib(RigProbe().detect())
+    except Exception:  # noqa: BLE001 — no nvidia-smi / probe failed
+        gib = None
+    return (gib, "nvidia-smi") if gib else (None, "no card detected")
+
+
+def _fit_verdict_for_entry(entry, vram_gib, tp):
+    """PASS / TIGHT / FAIL whether ``entry`` fits a ``vram_gib``-per-card rig at
+    tensor-parallel size ``tp``, from the entry's declared
+    ``min_vram_gb_per_rank`` envelope floor. Returns (verdict, detail).
+
+    This is the ENVELOPE-level pre-download gate — it answers "will this even
+    fit before I spend 30 minutes downloading 38 GB?" from data every registry
+    entry already carries. The BYTE-level question (exact KV pool, OOM at full
+    ctx) is answered post-config by ``sndr kv-calc`` against a V2 preset; this
+    gate deliberately stays at the cheaper, always-available envelope tier.
+
+    Thresholds: FAIL when the card is below the declared per-rank floor (vLLM
+    won't boot); TIGHT within a 10% band above the floor (boots but little
+    headroom for KV growth / fragmentation); PASS otherwise.
+    """
+    floors = dict(entry.min_vram_gb_per_rank or {})
+    if not floors:
+        return "UNKNOWN", ("model declares no min_vram_gb_per_rank — cannot "
+                           "envelope-fit; run `sndr kv-calc` post-config")
+    # Pick the floor for the requested TP, else the smallest available TP's
+    # floor (single-card-first: the most demanding per-rank number).
+    if tp in floors:
+        floor, use_tp = floors[tp], tp
+    else:
+        use_tp = min(floors)
+        floor = floors[use_tp]
+    margin = vram_gib - floor
+    pct = (margin / floor * 100.0) if floor else 0.0
+    basis = (f"needs >={floor:.1f} GiB/rank at TP{use_tp}; "
+             f"card has {vram_gib:.1f} GiB ({margin:+.1f} GiB, {pct:+.0f}%)")
+    if margin < 0:
+        return "FAIL", (
+            f"{basis} — below the per-rank floor; vLLM will OOM at boot. "
+            f"Use a larger card, raise TP (more cards split the model), or "
+            f"pick a smaller quant.")
+    if margin < 0.10 * floor:
+        return "TIGHT", (
+            f"{basis} — clears the floor but with little headroom for KV "
+            f"growth / fragmentation. Run `sndr kv-calc` for the byte-level "
+            f"OOM check before committing a long-ctx workload.")
+    return "PASS", f"{basis} — clears the per-rank floor with headroom"
+
+
 def _select_config(model_entry, workload: str | None, tp: int | None):
     """Pick a TestedConfig based on workload preference + TP."""
     configs = list(model_entry.tested_configs)
@@ -435,7 +513,13 @@ def _parse_args(argv=None):
     p.add_argument("--no-launch", action="store_true",
                    help="Skip launch-script generation (just download)")
     p.add_argument("--dry-run", action="store_true",
-                   help="Print pre-flight + plan, do not actually download")
+                   help="Print pre-flight + plan + fit verdict, do not download")
+    p.add_argument("--card", default=None, metavar="VRAM_GB",
+                   help="Per-card VRAM in GiB for the dry-run fit verdict "
+                        "(e.g. --card 24). Default: live nvidia-smi probe.")
+    p.add_argument("--fake-gpus", default=None, metavar="SPEC",
+                   help="Synthetic rig for the fit verdict, club-3090 style "
+                        "'name:vram_mib:cc;...'. Offline; overrides the probe.")
     p.add_argument("--revision", default=None,
                    help="HF revision (commit/tag) override")
     p.add_argument("--hf-id-override", default=None,
@@ -529,6 +613,20 @@ def main(argv=None) -> int:
         cfg = _select_config(entry, args.workload, args.tp)
         if cfg:
             print(f"[dry-run] would generate launch script for: {cfg.name}")
+
+        # B2 fit gate: will this even fit my card BEFORE I download N GB?
+        fit_tp = args.tp or (cfg.tensor_parallel_size if cfg else 1)
+        vram_gib, vram_src = _resolve_card_vram_gib(args.card, args.fake_gpus)
+        print("\n[dry-run] fit verdict:")
+        if vram_gib is None:
+            print(f"    ? UNKNOWN — {vram_src}; pass --card <GB> or --fake-gpus "
+                  "to envelope-fit before download")
+        else:
+            verdict, detail = _fit_verdict_for_entry(entry, vram_gib, fit_tp)
+            glyph = {"PASS": "✓", "TIGHT": "!", "FAIL": "✗"}.get(verdict, "?")
+            print(f"    {glyph} {verdict} ({vram_src}, TP{fit_tp}) — {detail}")
+            print("    (envelope check; run `sndr kv-calc` post-config for the "
+                  "byte-level OOM verdict)")
         return 0
 
     print(f"\n[2/4] Downloading {entry.hf_id}")
