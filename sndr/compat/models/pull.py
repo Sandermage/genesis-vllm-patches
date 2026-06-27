@@ -595,7 +595,11 @@ def main(argv=None) -> int:
 
     ok_disk, msg_disk = _check_disk_space(models_dir, entry.size_gb)
     print(f"  disk:    {'✓' if ok_disk else '✗'} {msg_disk}")
-    if not ok_disk:
+    # A dry-run is a pre-download PLAN: surface the ✗ but do not abort, so the
+    # operator still reaches the fit verdict below (the whole point of --dry-run
+    # is to learn "will this fit?" BEFORE freeing disk / downloading N GB). Same
+    # leniency as the network check. A real download still hard-fails here.
+    if not ok_disk and not args.dry_run:
         return 3
 
     ok_net, msg_net = _check_hf_reachable()
@@ -605,7 +609,9 @@ def main(argv=None) -> int:
 
     ok_tok, msg_tok = _check_hf_token_for_gated(entry)
     print(f"  token:   {'✓' if ok_tok else '✗'} {msg_tok}")
-    if not ok_tok:
+    # Dry-run leniency (see disk note above): a missing gated-repo token must not
+    # hide the fit verdict — the operator can fix the token before the real pull.
+    if not ok_tok and not args.dry_run:
         return 3
 
     if args.dry_run:

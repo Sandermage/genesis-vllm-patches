@@ -95,6 +95,28 @@ def test_dry_run_fit_unknown_without_card(capsys, monkeypatch):
     assert "? UNKNOWN" in out
 
 
+def test_dry_run_proceeds_despite_insufficient_disk(capsys, monkeypatch):
+    """Regression: a dry-run on a small-disk host (or without a gated-repo
+    token) must STILL reach the fit verdict and return 0 — the disk/token
+    preflight ✗ is informational in plan mode, not an abort. Locks the CI flake
+    where a runner with 19 GB free aborted the 35B dry-run at the disk check
+    (return 3) before the operator ever saw the fit answer."""
+    monkeypatch.setattr(
+        pull, "_check_disk_space",
+        lambda target_dir, needed_gb, headroom=1.2: (
+            False, "insufficient disk: 19.1 GB free, need ~45.6 GB"))
+    monkeypatch.setattr(
+        pull, "_check_hf_token_for_gated",
+        lambda entry: (False, "no HF token for gated repo"))
+    rc = pull.main(["qwen3_6_35b_a3b_fp8", "--dry-run", "--card", "24",
+                    "--tp", "1"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "disk:    ✗" in out          # the warning is surfaced ...
+    assert "fit verdict:" in out        # ... but the verdict is still reached
+    assert "✗ FAIL" in out
+
+
 def test_dry_run_fake_gpus_fit(capsys):
     rc = pull.main(["qwen3_6_27b_int4_autoround", "--dry-run",
                     "--fake-gpus", "RTX A5000:24564:8.6"])
