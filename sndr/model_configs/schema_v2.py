@@ -165,6 +165,71 @@ ALLOWED_LICENSES = (
 
 
 @dataclass
+class ModelShape:
+    """Architecture dims needed for BYTE-LEVEL VRAM/KV projection.
+
+    Inherent to the checkpoint (changes only when the model itself changes),
+    so it lives under ``ModelCapabilities``. Consumed by
+    ``sndr.model_configs.kv_projector`` to compute per-card KV-pool bytes,
+    weight bytes, recurrent-state bytes, and activation peak — the numbers
+    the ``sndr kv-calc`` command and the preflight "projected VRAM" row need.
+
+    Before this block existed the schema declared only ``attention_arch`` and
+    no numeric dims, so Genesis had no way to answer "given THIS ctx / kv-format
+    / max-num-seqs / tp, what's my ACTUAL per-card GB and will it OOM?" — only
+    the envelope floor (min-VRAM / SM / GPU count). These fields close that gap.
+
+    All values are taken from the model's ``config.json`` (cross-checked against
+    live engine telemetry where available — e.g. the 35B-A3B pool token capacity
+    from the dev424 PN403 investigation). A field left ``None`` makes the
+    projector mark that model's projection PROVISIONAL rather than guess.
+
+    Hybrid (GDN/Mamba) split: ``num_attention_layers`` are the full-attention
+    layers that grow KV linearly with context; ``num_recurrent_layers`` are the
+    GDN/Mamba layers whose state is fixed-size per stream (shows up as recurrent
+    state, not KV). For a pure-dense model set ``num_recurrent_layers: 0`` and
+    ``num_attention_layers == num_hidden_layers``.
+    """
+    num_hidden_layers: Optional[int] = None
+    num_attention_layers: Optional[int] = None   # full-attention layers (grow KV)
+    num_recurrent_layers: Optional[int] = None    # GDN/Mamba layers (fixed state)
+    hidden_size: Optional[int] = None
+    num_attention_heads: Optional[int] = None     # query heads
+    num_kv_heads: Optional[int] = None            # KV heads (GQA); grows the KV pool
+    head_dim: Optional[int] = None
+    weight_bits: Optional[float] = None           # quant bit-width (4 / 8 / 16)
+    weights_total_gib: Optional[float] = None     # resident weight size, all ranks
+    # MoE (None for dense models)
+    num_experts: Optional[int] = None
+    num_experts_per_tok: Optional[int] = None
+    # MTP / spec-decode draft layers folded into the resident footprint
+    mtp_num_layers: Optional[int] = None
+
+    def validate(self) -> None:
+        ints = (
+            "num_hidden_layers", "num_attention_layers", "num_recurrent_layers",
+            "hidden_size", "num_attention_heads", "num_kv_heads", "head_dim",
+            "num_experts", "num_experts_per_tok", "mtp_num_layers",
+        )
+        for name in ints:
+            v = getattr(self, name)
+            if v is not None and (not isinstance(v, int) or v < 0):
+                raise SchemaError(f"shape.{name}={v!r} must be a non-negative int")
+        for name in ("weight_bits", "weights_total_gib"):
+            v = getattr(self, name)
+            if v is not None and (not isinstance(v, (int, float)) or v < 0):
+                raise SchemaError(f"shape.{name}={v!r} must be a non-negative number")
+        a = self.num_attention_layers
+        r = self.num_recurrent_layers
+        t = self.num_hidden_layers
+        if a is not None and r is not None and t is not None and a + r != t:
+            raise SchemaError(
+                f"shape: num_attention_layers ({a}) + num_recurrent_layers ({r}) "
+                f"must equal num_hidden_layers ({t})"
+            )
+
+
+@dataclass
 class ModelCapabilities:
     """Inherent model capabilities — these change only when the model itself
     changes (different checkpoint, different architecture). Operators must
@@ -184,6 +249,10 @@ class ModelCapabilities:
     enable_auto_tool_choice: bool = True
     spec_decode: Optional[SpecDecodeConfig] = None
     kv_cache_dtype: Optional[str] = None
+    # Byte-level architecture dims for VRAM/KV projection (sndr kv-calc).
+    # Declared-but-optional: a model without a `shape:` block still loads and
+    # composes; only the projector treats its projection as PROVISIONAL.
+    shape: Optional[ModelShape] = None
 
     def validate(self) -> None:
         if self.attention_arch not in ALLOWED_ATTENTION_ARCH:
@@ -208,6 +277,8 @@ class ModelCapabilities:
             )
         if self.spec_decode is not None:
             self.spec_decode.validate()
+        if self.shape is not None:
+            self.shape.validate()
 
 
 @dataclass
@@ -1216,7 +1287,8 @@ class PatchManifest:
 __all__ = [
     "SCHEMA_VERSION_V2",
     # ModelDef tree
-    "ModelDef", "ModelCapabilities", "ModelRequires", "ModelVersions",
+    "ModelDef", "ModelCapabilities", "ModelShape", "ModelRequires",
+    "ModelVersions",
     # HardwareDef tree
     "HardwareDef", "HardwareSizing", "RuntimeBlock",
     "RuntimeDockerBlock", "RuntimeBareMetalBlock",

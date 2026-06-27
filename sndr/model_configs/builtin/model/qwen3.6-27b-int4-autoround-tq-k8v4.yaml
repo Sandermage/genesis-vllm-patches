@@ -61,6 +61,27 @@ capabilities:
     num_speculative_tokens: 5                    # MTP K-value (1-7 valid). K=5 RE-TUNED 2026-06-19 (warm sweep b3aqyo1n2, CV 8.3%): 127.4 TPS / TPOT 7.54ms vs K=3 117.7/8.20 = +8.2% TPS / -8% TPOT. Lossless. Peak at K=5 (K=4=125.2, K=6 regresses to 123.5).
     model: null                                  # integrated MTP draft (DFlash uses separate /models/Qwen3.6-27B-DFlash drafter)
   kv_cache_dtype: turboquant_k8v4                # TQ k8v4: ~2× KV concurrency vs fp16, +91% TPS vs fp8_e5m2 (Wave 9 win)
+  # Byte-level architecture dims for `sndr kv-calc` VRAM/KV projection.
+  # PROVISIONAL CALIBRATION: unlike the 35B (which has live PN403 engine
+  # telemetry: kv_cache_size_tokens/num_gpu_blocks), this 27B has NO captured
+  # num_gpu_blocks anchor — only the docs/HARDWARE.md residency table (32K→~12
+  # GiB, 256K→~22 GiB, 320K→~23 GiB per card, TP=2) and the HARDWARE.md context
+  # formula. The dims below are config.json-derived (qwen3_5 dense hybrid 3:1
+  # GDN+full pattern, head_dim=128 GQA family), but the projector flags this
+  # model's projection PROVISIONAL until a live num_gpu_blocks capture lands.
+  shape:
+    num_hidden_layers: 48                         # qwen3_5 dense hybrid; 3:1 GDN:full pattern
+    num_attention_layers: 12                      # full-attention layers (grow KV) — 1 of every 4 (3:1)
+    num_recurrent_layers: 36                       # GDN layers — fixed recurrent state
+    hidden_size: 4096
+    num_attention_heads: 40                       # query heads (qwen3.6 family)
+    num_kv_heads: 4                               # KV heads (GQA) — PROVISIONAL (no live block anchor)
+    head_dim: 128
+    weight_bits: 4                                # AutoRound INT4 (w4a16)
+    weights_total_gib: 13.04                      # ~14 GB int4 on disk == 13.04 GiB resident, all ranks (÷TP)
+    num_experts: null                             # dense — no MoE experts
+    num_experts_per_tok: null
+    mtp_num_layers: 1                             # 1 MTP draft layer
 
 # ─── Hardware preconditions composer enforces ──────────────────────────
 requires:
