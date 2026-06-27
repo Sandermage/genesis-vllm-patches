@@ -214,9 +214,11 @@ def create_app(state: GatewayState | None = None):
                 interval_s=interval,
             )
         )
-        # SIGHUP -> reload artifact (POSIX only)
+        # SIGHUP -> reload artifact (POSIX only). We're inside the running
+        # startup coroutine, so `get_running_loop()` is correct — and avoids
+        # the `get_event_loop()` DeprecationWarning on 3.12+.
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             loop.add_signal_handler(
                 signal.SIGHUP,
                 lambda: log.warning(

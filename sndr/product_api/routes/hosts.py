@@ -1,7 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""HTTP routes for host inventory."""
+"""HTTP routes for host inventory.
+
+The host-service functions probe the host with blocking ``subprocess.run``
+calls (``nvidia-smi`` ×3 + ``docker --version``). Offload them with
+``await asyncio.to_thread(...)`` so a slow probe cannot stall the event
+loop and every concurrent request behind it.
+"""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -30,19 +37,22 @@ def _meta() -> ResponseMeta:
 @router.get("", response_model=Envelope[list[HostSummary]],
             summary="List hosts (local + fleet registry)")
 async def list_hosts_endpoint() -> Envelope[list[HostSummary]]:
-    return Envelope(data=list_hosts(), meta=_meta())
+    data = await asyncio.to_thread(list_hosts)
+    return Envelope(data=data, meta=_meta())
 
 
 @router.get("/local", response_model=Envelope[HostSummary],
             summary="Get the local host")
 async def get_local_host_endpoint() -> Envelope[HostSummary]:
-    return Envelope(data=get_local_host(), meta=_meta())
+    data = await asyncio.to_thread(get_local_host)
+    return Envelope(data=data, meta=_meta())
 
 
 @router.get("/{hostname}", response_model=Envelope[HostSummary],
             summary="Get one host by hostname")
 async def get_host_endpoint(hostname: str) -> Envelope[HostSummary]:
-    for h in list_hosts():
+    hosts = await asyncio.to_thread(list_hosts)
+    for h in hosts:
         if h.hostname == hostname:
             return Envelope(data=h, meta=_meta())
     raise HTTPException(status_code=404, detail=f"host not found: {hostname}")
@@ -54,7 +64,8 @@ fleet_router = APIRouter(prefix="/api/v1/fleet", tags=["fleet"])
 @fleet_router.get("", response_model=Envelope[FleetReport],
                   summary="Aggregate fleet report")
 async def get_fleet_endpoint() -> Envelope[FleetReport]:
-    return Envelope(data=fleet_report(), meta=_meta())
+    data = await asyncio.to_thread(fleet_report)
+    return Envelope(data=data, meta=_meta())
 
 
 __all__ = ["fleet_router", "router"]

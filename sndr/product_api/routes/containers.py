@@ -1,7 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
-"""HTTP routes for container inventory."""
+"""HTTP routes for container inventory.
+
+The container-service functions shell out to ``docker ps`` / ``docker
+inspect`` / ``docker logs`` via blocking ``subprocess.run`` (each up to a
+10 s timeout). Calling them directly from an ``async def`` handler would
+block the event loop for the whole subprocess, stalling every concurrent
+request on the worker. Each blocking call is therefore offloaded with
+``await asyncio.to_thread(...)`` — the same convention the legacy
+``http_app`` uses for its blocking work (preflight, log streaming, SSH).
+"""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -37,19 +47,21 @@ async def list_containers_endpoint(
     engine: str | None = Query(default=None,
                                 description="Filter by engine (e.g. vllm, sglang)"),
 ) -> Envelope[list[ContainerSummary]]:
-    return Envelope(data=list_containers(engine=engine), meta=_meta())
+    data = await asyncio.to_thread(list_containers, engine=engine)
+    return Envelope(data=data, meta=_meta())
 
 
 @router.get("/inventory", response_model=Envelope[ContainerInventoryReport],
             summary="Aggregate container inventory")
 async def inventory_endpoint() -> Envelope[ContainerInventoryReport]:
-    return Envelope(data=inventory_report(), meta=_meta())
+    data = await asyncio.to_thread(inventory_report)
+    return Envelope(data=data, meta=_meta())
 
 
 @router.get("/{name}", response_model=Envelope[ContainerDetail],
             summary="Get container detail by name")
 async def get_container_endpoint(name: str) -> Envelope[ContainerDetail]:
-    detail = get_container_detail(name)
+    detail = await asyncio.to_thread(get_container_detail, name)
     if detail is None:
         raise HTTPException(status_code=404,
                             detail=f"container not found: {name}")

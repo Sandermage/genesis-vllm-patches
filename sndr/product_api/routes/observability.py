@@ -3,9 +3,16 @@
 
 Combines bench, doctor, configs, evidence, and jobs into one module so
 the GUI's monitoring tabs all share a single set of FastAPI routers.
+
+``doctor_report`` shells out to ``nvidia-smi`` + ``docker info`` via
+blocking ``subprocess.run`` (each up to 5 s), so the doctor handler
+offloads it with ``await asyncio.to_thread(...)`` to keep the event loop
+free. The other surfaces here (bench/configs/evidence/jobs) read files /
+in-memory state and do not block, so they stay direct.
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -59,7 +66,8 @@ doctor_router = APIRouter(prefix="/api/v1/doctor", tags=["doctor"])
 @doctor_router.get("", response_model=Envelope[DoctorReport],
                     summary="Run a health-check sweep")
 async def doctor_endpoint() -> Envelope[DoctorReport]:
-    return Envelope(data=doctor_report(), meta=_meta())
+    data = await asyncio.to_thread(doctor_report)
+    return Envelope(data=data, meta=_meta())
 
 
 # ── Configs ────────────────────────────────────────────────────────────────
