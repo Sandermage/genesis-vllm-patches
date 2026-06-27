@@ -1223,4 +1223,29 @@ sweep:
     is correctly in the pin). Do: adopt the snapshot-at-construction discipline lint (rule for #44628
     and any FusedMoEConfig-adjacent patch: P24/PN352/PN96B), harden the bare get_current_vllm_config()
     at turboquant_attn.py:496 (same boot/reload AssertionError class dev134 already triggered once).'
+- pr: 45413
+  genesis_patch: P64
+  trigger: review-on-merge
+  note: 'IRON-RULE-#11 DEEP-DIFF PREP (added 2026-06-28). #45413 ("declarative state-machine streaming
+    tool-call parser for Qwen3") MERGED 2026-06-15; Gemma4 follow-up #45588. This is a ground-up REWRITE
+    of the Qwen3 streaming tool-call parser as a declarative state machine — it directly OVERLAPS the
+    Genesis qwen3coder tool-parser defense stack: P64 (MTP streaming early-return fix, vllm#39598),
+    P61c (deferred-commit-until-<function= header, club-3090#72) and PN56 (XML parse fallback, vllm#41466),
+    all consolidated in sndr/engines/vllm/patches/tool_parsing/p64_p61c_pn56_qwen3coder_consolidated.py
+    (genesis_patch=P64 is the live consolidated id; P61c/PN56 ride as env_flag_aliases on it). The shared
+    failure mode is club-3090 #178 (MTP x qwen3_coder argument corruption) — a streaming tool-call ARG gets
+    garbled when MTP speculative tokens cross a tool-call boundary; both the upstream state machine and our
+    three patches exist to keep that boundary clean. trigger=review-on-merge (NOT retire-on-merge): per
+    iron-rule #11 do NOT retire on a title/abstract match. ON THE NEXT PIN BUMP that carries #45413, deep-diff
+    the merged state machine against P64/P61c/PN56 LINE BY LINE and classify each: RETIRE (the state machine
+    subsumes the patch verbatim), PARTIAL (borrow the upstream shape, keep the Genesis-unique guard), or KEEP
+    (the patch covers a case the rewrite does not). What to compare, concretely: (1) does the new state
+    machine emit </function> exactly once per call without the P64 early-return on the MTP multi-token delta?
+    (2) does it defer the commit until the <function= header is seen, or can it still leak a partial header
+    like P61c guards against? (3) does it carry an XML parse-failure fallback equivalent to PN56, or will a
+    malformed Coder XML block now hard-fail? (4) regression-gate the merged parser against our streaming MTP
+    corpus (the #45068/#178 MTP-split tests) BEFORE retiring anything. Prep note with the full comparison
+    checklist + rationale: docs/PR45413_QWEN3_PARSER_DEEPDIFF_PREP.md.
+    review-on-merge is advisory and intentionally NOT registry-bound, so this prep row records the decision
+    inputs the mechanical drift detector cannot infer; it does NOT pre-commit any retire/keep outcome.'
 __sentinel__: complete

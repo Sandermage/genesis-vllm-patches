@@ -319,6 +319,17 @@ OOMs at 90K context but `fp8_e5m2` passes verify-stress 7/7 including
 91 070-token recall. Strong evidence for `fp8_e5m2` as a **safer
 single-card default** when VRAM < 24 GB total.
 
+> **"Quality preservation: very high" is a recall claim, not a tail claim.**
+> Needle recall stays 100% across `bf16` → TQ k8v4, but club-3090's `CLIFFS.md`
+> shows the **99.9-percentile KL divergence** of the output distribution falling
+> to ~54% of bf16 parity as the KV cache is quantised — the *tail* (JSON braces,
+> tool-call argument boundaries) is where sub-8-bit KV silently breaks, and
+> `verify-stress 7/7` cannot see it. Before trusting TQ k8v4 for code / JSON /
+> agentic workloads, run the KL-tail probe
+> (`tools/quality_gate/kl_tail_probe.py`; see
+> [`QUALITY_GATE.md`](QUALITY_GATE.md) "KL-divergence tail probe"). The 100% →
+> 54% figure is club-3090's observation, not a Genesis measurement.
+
 ### WSL2 specifics (club-3090 #32)
 
 `--gpu-memory-utilization 0.85` (vs 0.92 native) leaves ~3.6 GB / card

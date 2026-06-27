@@ -11,4 +11,4 @@ Adapted and extended from club-3090's public test harness
 
 from __future__ import annotations
 
-__all__ = ["probes", "soak"]
+__all__ = ["kl_tail_probe", "probes", "soak"]

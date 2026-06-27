@@ -415,3 +415,138 @@ def test_attribution_inconclusive_when_on_run_failed() -> None:
         _fail_verdict(), _fail_verdict(), patch="PN59", topology_tp=1
     )
     assert res.verdict == "INCONCLUSIVE"
+
+
+# ---------------------------------------------------------------------------
+# club-3090 Cliff-2b verbatim gate: silent_empty==0, growth<200, retention>=98%,
+# errors==0, on the 5 sessions x 5 turns ramp shape.
+# ---------------------------------------------------------------------------
+def _cliff2b_rows(
+    *,
+    sessions: int = 5,
+    turns: int = 5,
+    tps_first: float = 110.0,
+    tps_last: float = 110.0,
+    vram_last: int = 21100,
+    boot_vram: int = 21000,
+    silent_sessions: tuple[int, ...] = (),
+    error_sessions: tuple[int, ...] = (),
+):
+    """Build a 5x5 ramp telemetry fixture. first session keeps tps_first, last
+    keeps tps_last; the last session's VRAM is vram_last (growth = vram_last -
+    boot). `silent_sessions` / `error_sessions` inject the named failure on turn 1
+    of those sessions."""
+    rows = []
+    for s in range(1, sessions + 1):
+        for t in range(1, turns + 1):
+            tps = tps_first if s == 1 else (tps_last if s == sessions else 110.0)
+            vram = vram_last if s == sessions else boot_vram
+            comp = 300
+            status = 200
+            err = ""
+            if t == 1 and s in silent_sessions:
+                comp = 0
+            if t == 1 and s in error_sessions:
+                status = 500
+                err = "OOM"
+                comp = 0
+            rows.append(
+                _row(s, status=status, vram=vram, tps=tps, comp=comp, err=err)
+            )
+    return rows
+
+
+def test_cliff2b_pass_on_clean_5x5_ramp() -> None:
+    rows = _cliff2b_rows(vram_last=21100)  # +100 MiB, retention 100%, 0 silent
+    v = soak.compute_cliff2b_verdict(rows, boot_vram_mib=21000)
+    assert v.verdict == "PASS"
+    assert v.exit_code == 0
+    assert v.silent_empty == 0
+    assert v.growth_mib == 100
+
+
+def test_cliff2b_fails_retention_below_98pct_that_general_gate_passes() -> None:
+    # 110 -> 105 = ~95.5% retention: PASSES the general 80% gate but FAILS the
+    # strict Cliff-2b 98% gate. This is the headline tightening.
+    rows = _cliff2b_rows(tps_first=110.0, tps_last=105.0)
+    general = soak.compute_soak_verdict(rows, boot_vram_mib=21000)
+    assert general.verdict == "PASS"  # 95.5% clears the 80% floor
+    strict = soak.compute_cliff2b_verdict(rows, boot_vram_mib=21000)
+    assert strict.verdict == "FAIL"
+    assert any("98%" in f and "retention" in f for f in strict.failures)
+
+
+def test_cliff2b_fails_any_single_silent_empty() -> None:
+    # ONE silent-empty turn (1/25 = 4%) PASSES the general <50% rule but FAILS
+    # the Cliff-2b silent_empty==0 rule.
+    rows = _cliff2b_rows(silent_sessions=(3,))
+    general = soak.compute_soak_verdict(rows, boot_vram_mib=21000)
+    assert general.verdict == "PASS"
+    assert general.silent_empty == 1
+    strict = soak.compute_cliff2b_verdict(rows, boot_vram_mib=21000)
+    assert strict.verdict == "FAIL"
+    assert strict.silent_empty == 1
+    assert any("silent-empty" in f for f in strict.failures)
+
+
+def test_cliff2b_fails_vram_growth_over_200() -> None:
+    rows = _cliff2b_rows(vram_last=21300)  # +300 MiB > 200
+    v = soak.compute_cliff2b_verdict(rows, boot_vram_mib=21000)
+    assert v.verdict == "FAIL"
+    assert any("Cliff 2b" in f for f in v.failures)
+
+
+def test_cliff2b_fails_on_any_error() -> None:
+    rows = _cliff2b_rows(error_sessions=(4,))
+    v = soak.compute_cliff2b_verdict(rows, boot_vram_mib=21000)
+    assert v.verdict == "FAIL"
+    assert v.errors >= 1
+
+
+def test_cliff2b_silent_empty_counts_completion_tokens_not_decode_tps() -> None:
+    # A fast tool-call turn has decode_tps==0 but completion_tokens>0 — it must
+    # NOT be flagged silent-empty. Only genuine completion_tokens==0 counts.
+    rows = _cliff2b_rows()
+    # Turn with real output but zero decode_tps (fast tool call).
+    rows.append(_row(2, tps=0.0, comp=42))
+    v = soak.compute_cliff2b_verdict(rows, boot_vram_mib=21000, require_fixture_shape=False)
+    assert v.silent_empty == 0
+    assert v.verdict == "PASS"
+
+
+def test_cliff2b_wrong_shape_fails_even_when_metrics_green() -> None:
+    # 2 sessions x 5 turns: every metric is green, but the shape does NOT surface
+    # Cliff 2b, so a PASS would be a false certification -> downgraded to FAIL.
+    rows = _cliff2b_rows(sessions=2)
+    v = soak.compute_cliff2b_verdict(rows, boot_vram_mib=21000)
+    assert v.verdict == "FAIL"
+    assert any("fixture shape" in f for f in v.failures)
+
+
+def test_cliff2b_shape_check_can_be_disabled() -> None:
+    # With require_fixture_shape=False a clean 2-session run PASSes (for unit
+    # tests / partial smoke), so the shape gate is opt-out but ON by default.
+    rows = _cliff2b_rows(sessions=2)
+    v = soak.compute_cliff2b_verdict(
+        rows, boot_vram_mib=21000, expected_sessions=2, require_fixture_shape=False
+    )
+    assert v.verdict == "PASS"
+
+
+def test_validate_cliff2b_fixture_shape_detects_short_sessions() -> None:
+    rows = _cliff2b_rows()  # full 5x5
+    assert soak.validate_cliff2b_fixture_shape(rows) == []
+    # Drop session 5 down to 2 rows (turns) -> short-session problem. The shape
+    # validator counts rows per session_id (each turn is one row).
+    s5 = [r for r in rows if r["session_id"] == 5]
+    short = [r for r in rows if r["session_id"] != 5] + s5[:2]
+    problems = soak.validate_cliff2b_fixture_shape(short)
+    assert any("< 5 turns" in p for p in problems)
+
+
+def test_cliff2b_threshold_constants_match_club3090() -> None:
+    # Pin the verbatim thresholds so a future loosening is a visible diff.
+    assert soak.CLIFF2B_RETENTION_FLOOR == 0.98
+    assert soak.CLIFF2B_GROWTH_LIMIT_MIB == 200
+    assert soak.CLIFF2B_SESSIONS == 5
+    assert soak.CLIFF2B_TURNS_PER_SESSION == 5

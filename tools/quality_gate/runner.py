@@ -309,20 +309,33 @@ def cmd_soak_ingest(args: argparse.Namespace) -> int:
 
 
 def cmd_soak_verdict(args: argparse.Namespace) -> int:
-    """Compute the soak verdict from a turn-telemetry CSV-like JSON-lines file."""
+    """Compute the soak verdict from a turn-telemetry CSV-like JSON-lines file.
+
+    ``--cliff2b`` switches to club-3090's verbatim Cliff-2b PASS gate (silent_empty
+    == 0, growth < 200 MiB, retention >= 98%, errors == 0, plus the 5x5 ramp-shape
+    check); without it the looser general soak gate is used.
+    """
     rows = []
     with open(args.rows, encoding="utf-8") as f:
         for raw in f:
             stripped = raw.strip()
             if stripped:
                 rows.append(json.loads(stripped))
-    v = soak.compute_soak_verdict(
-        rows,
-        boot_vram_mib=args.boot_vram,
-        growth_limit_mib=args.growth_limit,
-        expected_sessions=args.expected_sessions,
-        timed_out=bool(args.timed_out),
-    )
+    if args.cliff2b:
+        v = soak.compute_cliff2b_verdict(
+            rows,
+            boot_vram_mib=args.boot_vram,
+            expected_sessions=args.expected_sessions,
+            timed_out=bool(args.timed_out),
+        )
+    else:
+        v = soak.compute_soak_verdict(
+            rows,
+            boot_vram_mib=args.boot_vram,
+            growth_limit_mib=args.growth_limit,
+            expected_sessions=args.expected_sessions,
+            timed_out=bool(args.timed_out),
+        )
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:
             json.dump(v.as_dict(), f, indent=2)
@@ -432,6 +445,12 @@ def build_parser() -> argparse.ArgumentParser:  # noqa: PLR0915 - flat subparser
     p.add_argument("--growth-limit", type=int, default=200)
     p.add_argument("--expected-sessions", type=int, default=5)
     p.add_argument("--timed-out", type=int, default=0)
+    p.add_argument(
+        "--cliff2b",
+        action="store_true",
+        help="use club-3090's verbatim Cliff-2b gate (silent_empty==0, "
+        "growth<200MiB, retention>=98%%, errors==0, 5x5 ramp-shape check)",
+    )
     p.add_argument("--out")
     p.set_defaults(func=cmd_soak_verdict)
 

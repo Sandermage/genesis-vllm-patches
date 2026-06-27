@@ -215,15 +215,34 @@ def compute_soak_verdict(
     growth_limit_mib: int = 200,
     expected_sessions: int = 5,
     timed_out: bool = False,
+    retention_floor: float = 0.80,
+    silent_empty_fail_any: bool = False,
+    retention_basis: str = "session",
 ) -> SoakVerdict:
     """Compute the soak verdict from per-turn telemetry rows.
 
     Each row needs: session_id, t_ms, vram_mib, ttft_ms, decode_tps, status,
     error, completion_tokens. PASS == no failure signal: errors==0, VRAM growth
-    within limit, TPS retention >= 80%, silent-empty < 50% of turns. The Cliff-2b
-    fingerprint is monotone VRAM growth across the ramp; the silent-empty
-    discriminator is genuine completion_tokens==0 (NOT the decode_tps==0 proxy,
-    which false-flags fast tool-call turns).
+    within limit, TPS retention >= ``retention_floor``, silent-empty under the
+    configured tolerance. The Cliff-2b fingerprint is monotone VRAM growth across
+    the ramp; the silent-empty discriminator is genuine completion_tokens==0 (NOT
+    the decode_tps==0 proxy, which false-flags fast tool-call turns).
+
+    Thresholds (the two club-3090 Cliff-2b knobs are parameterised so the strict
+    Cliff-2b gate and the general soak share one verdict core):
+      * ``retention_floor`` — minimum first-5-vs-last-5 decode-TPS retention. The
+        general soak uses 0.80; club-3090's verbatim Cliff-2b gate uses 0.98
+        (``compute_cliff2b_verdict``).
+      * ``silent_empty_fail_any`` — when True, ANY silent-empty turn FAILs (the
+        Cliff-2b ``silent_empty == 0`` rule); when False, the general soak's
+        graded rule applies (>=50% FAIL, else WARN).
+      * ``retention_basis`` — ``"session"`` (default) computes retention over the
+        first-5 vs last-5 SESSIONS (the general multi-session soak); ``"turn"``
+        computes it over the first-5 vs last-5 telemetry rows (TURNS) in arrival
+        order — club-3090's Cliff-2b semantics, the only basis that resolves the
+        within-run accretion bleed on the single 5x5 ramp (5 sessions make the
+        session-basis first/last sets identical, so retention would be a vacuous
+        100%).
 
     PASS semantics deliberately do NOT assert the overlay patches are
     load-bearing — that requires attribution_delta() against a stripped run.
@@ -263,8 +282,24 @@ def compute_soak_verdict(
             if int(r["session_id"]) in subset and float(r["ttft_ms"]) > 0
         ]
 
-    first_med = _median(tps_of(first))
-    last_med = _median(tps_of(last))
+    def realistic_tps_rows() -> list[float]:
+        """Per-turn decode-TPS in arrival order (one entry per telemetry row)."""
+        return [
+            float(r["decode_tps"])
+            for r in rows
+            if _realistic_tps(float(r["decode_tps"]))
+        ]
+
+    if retention_basis == "turn":
+        # club-3090 Cliff-2b basis: first-5 vs last-5 TURNS of the whole run, so
+        # the within-run accretion bleed is visible on a single 5x5 ramp (where
+        # the session-basis first/last-5 sets coincide and retention is vacuous).
+        turn_tps = realistic_tps_rows()
+        first_med = _median(turn_tps[:5])
+        last_med = _median(turn_tps[-5:])
+    else:
+        first_med = _median(tps_of(first))
+        last_med = _median(tps_of(last))
     retention = (last_med / first_med) if first_med > 0 else 0.0
     ttft_ratio = (
         _median(ttft_of(last)) / _median(ttft_of(first))
@@ -296,8 +331,11 @@ def compute_soak_verdict(
             f"VRAM grew {growth} MiB > {growth_limit_mib} MiB threshold "
             "(Cliff 2b accretion fingerprint — see PN59)."
         )
-    if first_med > 0 and retention < 0.80:
-        failures.append(f"Decode TPS retention {retention * 100:.1f}% < 80%.")
+    if first_med > 0 and retention < retention_floor:
+        failures.append(
+            f"Decode TPS retention {retention * 100:.1f}% < "
+            f"{retention_floor * 100:.0f}%."
+        )
     elif first_med == 0:
         warnings.append("No positive decode TPS samples; retention not evaluated.")
     if ttft_ratio > 1.5:
@@ -309,7 +347,9 @@ def compute_soak_verdict(
             f"{len(silent)}/{len(rows)} turns ({silent_pct:.1f}%) returned HTTP 200 "
             "with empty completion (silent-empty)."
         )
-        (failures if silent_pct >= 50.0 else warnings).append(msg)
+        # Cliff-2b gate: ANY silent-empty turn FAILs. General soak: graded.
+        is_fail = silent_empty_fail_any or silent_pct >= 50.0
+        (failures if is_fail else warnings).append(msg)
     if sessions and sessions[-1] < expected_sessions:
         warnings.append(
             f"Only {sessions[-1]} of {expected_sessions} sessions completed."
@@ -335,6 +375,111 @@ def compute_soak_verdict(
         warnings=warnings,
         exit_code=exit_code,
     )
+
+
+# ---------------------------------------------------------------------------
+# club-3090 Cliff-2b PASS gate — the verbatim thresholds.
+#
+# club-3090's continuous soak (issue #182 / #22 Cliff-2b recipe) gates a PASS on
+# four hard thresholds. Our general compute_soak_verdict deliberately runs looser
+# defaults (80% retention, graded silent-empty) so it does not false-FAIL a
+# noisy-but-stable run; the Cliff-2b GATE pins club-3090's exact bars:
+#
+#   silent_empty == 0     counted by completion_tokens (NOT decode_tps): a single
+#                         HTTP-200-with-0-completion turn FAILs.
+#   VRAM growth  < 200 MiB from the WARM baseline (after session 1).
+#   TPS retention >= 98%  first-5 vs last-5 turns (the 80% general floor is far
+#                         too loose to catch the slow GDN accretion bleed).
+#   errors       == 0     no non-200 / stream error.
+#
+# The ONLY workload that surfaces Cliff 2b is the 5 sessions x 5 turns
+# ramp-to-~25K-accumulated-context fixture (CONTINUOUS_TURNS). A clean run on any
+# other shape does not certify Cliff-2b safety, so the gate validates the shape.
+# ---------------------------------------------------------------------------
+CLIFF2B_RETENTION_FLOOR = 0.98
+CLIFF2B_GROWTH_LIMIT_MIB = 200
+CLIFF2B_SESSIONS = 5
+CLIFF2B_TURNS_PER_SESSION = 5
+
+
+def validate_cliff2b_fixture_shape(
+    rows: list[dict[str, Any]],
+    *,
+    expected_sessions: int = CLIFF2B_SESSIONS,
+    expected_turns_per_session: int = CLIFF2B_TURNS_PER_SESSION,
+) -> list[str]:
+    """Return shape problems for the Cliff-2b ramp fixture; [] == correct shape.
+
+    Cliff 2b is GDN multi-turn VRAM accretion — it only surfaces under the
+    5 sessions x 5 turns ramp-to-~25K-accumulated-context conversation. A soak run
+    on a different shape (too few sessions, too few turns/session) can PASS while
+    NEVER exercising the accretion path, so the gate must confirm the shape before
+    trusting a green verdict. PURE + unit-tested; the live capture is the
+    rig-follow-up.
+    """
+    problems: list[str] = []
+    by_session: dict[int, int] = {}
+    for r in rows:
+        by_session[int(r["session_id"])] = by_session.get(int(r["session_id"]), 0) + 1
+    n_sessions = len(by_session)
+    if n_sessions < expected_sessions:
+        problems.append(
+            f"only {n_sessions} sessions (need {expected_sessions}); the "
+            f"{expected_sessions}x{expected_turns_per_session} ramp is the ONLY "
+            "shape that surfaces Cliff 2b."
+        )
+    short = {s: c for s, c in by_session.items() if c < expected_turns_per_session}
+    if short:
+        problems.append(
+            f"sessions with < {expected_turns_per_session} turns: "
+            f"{sorted(short)} — the per-session ramp to ~25K accumulated context "
+            "is incomplete, so accretion is not exercised."
+        )
+    return problems
+
+
+def compute_cliff2b_verdict(
+    rows: list[dict[str, Any]],
+    *,
+    boot_vram_mib: int,
+    expected_sessions: int = CLIFF2B_SESSIONS,
+    timed_out: bool = False,
+    require_fixture_shape: bool = True,
+) -> SoakVerdict:
+    """Compute the soak verdict under club-3090's verbatim Cliff-2b PASS gate.
+
+    Pins the four hard thresholds (silent_empty==0, growth<200 MiB, retention>=98%,
+    errors==0) by delegating to compute_soak_verdict with the strict knobs, then —
+    when ``require_fixture_shape`` is set — FAILs if the telemetry was not the
+    5x5 ramp that is the only shape surfacing Cliff 2b. A clean run on the wrong
+    shape is downgraded to FAIL with a shape diagnostic, NOT silently passed.
+
+    This is the gate to use for an actual Cliff-2b certification; the looser
+    compute_soak_verdict stays the general end-to-end stability check.
+    """
+    verdict = compute_soak_verdict(
+        rows,
+        boot_vram_mib=boot_vram_mib,
+        growth_limit_mib=CLIFF2B_GROWTH_LIMIT_MIB,
+        expected_sessions=expected_sessions,
+        timed_out=timed_out,
+        retention_floor=CLIFF2B_RETENTION_FLOOR,
+        silent_empty_fail_any=True,
+        retention_basis="turn",
+    )
+    if require_fixture_shape and rows:
+        shape_problems = validate_cliff2b_fixture_shape(
+            rows, expected_sessions=expected_sessions
+        )
+        if shape_problems:
+            for p in shape_problems:
+                verdict.failures.append(f"Cliff-2b fixture shape: {p}")
+            # A wrong-shape run cannot CERTIFY Cliff-2b safety even if every
+            # metric is green — downgrade PASS to FAIL.
+            if verdict.verdict == "PASS":
+                verdict.verdict = "FAIL"
+                verdict.exit_code = 1
+    return verdict
 
 
 # ---------------------------------------------------------------------------

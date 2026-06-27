@@ -28,6 +28,13 @@
 #   - max VRAM growth from warm baseline: < SOAK_MAX_GROWTH_MIB (default 200)
 #   - decode TPS retention (first vs last sessions): >= 80%
 #
+# SOAK_CLIFF2B=1 switches to club-3090's VERBATIM Cliff-2b PASS gate (stricter):
+#   - silent-empty turns: == 0 (any single one FAILs; counted by completion_tokens)
+#   - max VRAM growth from warm baseline: < 200 MiB
+#   - decode TPS retention (first-5 vs last-5 turns): >= 98%
+#   - request errors: == 0
+#   - fixture shape: the 5 sessions x 5 turns ramp (the ONLY shape surfacing 2b)
+#
 # Usage:
 #   scripts/soak_continuous.sh                      # auto-detect endpoint + model
 #   scripts/soak_continuous.sh --strip-overlays     # ON vs OFF attribution run
@@ -41,6 +48,7 @@
 #   SOAK_SESSIONS            Sessions (default 5 — the cross-rig cadence).
 #   SOAK_TURNS               Turns/session, must be 5 (the ramp shape).
 #   SOAK_MAX_GROWTH_MIB      VRAM-growth fail threshold (default 200).
+#   SOAK_CLIFF2B             1 = club-3090 verbatim Cliff-2b gate (see above).
 #   SOAK_REQ_TIMEOUT_S       Per-request timeout (default 600).
 #   ATTR_PATCH               Patch ID under test for attribution (default PN59).
 #   ATTR_TP                  Topology TP for attribution (default 1).
@@ -58,7 +66,7 @@ export PYTHONPATH="${ROOT_DIR}/tools${PYTHONPATH:+:${PYTHONPATH}}"
 DRY_RUN=0
 STRIP_OVERLAYS=0
 print_usage() {
-  sed -n '2,55p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,58p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -80,6 +88,7 @@ SOAK_SESSIONS="${SOAK_SESSIONS:-5}"
 SOAK_TURNS="${SOAK_TURNS:-5}"
 SOAK_MAX_GROWTH_MIB="${SOAK_MAX_GROWTH_MIB:-200}"
 SOAK_REQ_TIMEOUT_S="${SOAK_REQ_TIMEOUT_S:-600}"
+SOAK_CLIFF2B="${SOAK_CLIFF2B:-0}"
 ATTR_PATCH="${ATTR_PATCH:-PN59}"
 ATTR_TP="${ATTR_TP:-1}"
 GENESIS_DISABLE_CMD="${GENESIS_DISABLE_CMD:-export GENESIS_ENABLE=0}"
@@ -220,10 +229,13 @@ run_one_soak() {
   timed_out=0
   log "  ${label}: ${elapsed}s elapsed"
 
+  local cliff2b_flag=()
+  [[ "$SOAK_CLIFF2B" == "1" ]] && cliff2b_flag=(--cliff2b)
   set +e
   "${RUNNER[@]}" soak-verdict --rows "$rows" --boot-vram "$boot_vram" \
     --growth-limit "$SOAK_MAX_GROWTH_MIB" --expected-sessions "$SOAK_SESSIONS" \
-    --timed-out "$timed_out" --out "$verdict_out" > "${workdir}/verdict.stdout"
+    --timed-out "$timed_out" "${cliff2b_flag[@]}" --out "$verdict_out" \
+    > "${workdir}/verdict.stdout"
   local rc=$?
   set -e
   local v; v="$(json_get verdict < "$verdict_out")"

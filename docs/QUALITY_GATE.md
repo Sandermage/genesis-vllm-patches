@@ -146,6 +146,30 @@ The silent-empty discriminator is **genuine `completion_tokens == 0`**, not the
 `decode_tps == 0` proxy — the proxy false-flags fast tool-call turns that
 *did* produce output.
 
+#### Strict Cliff-2b gate (`SOAK_CLIFF2B=1`)
+
+The defaults above are the **general** stability soak. To actually *certify*
+Cliff-2b safety, run club-3090's **verbatim** Cliff-2b thresholds with
+`SOAK_CLIFF2B=1` (or the runner's `--cliff2b`):
+
+- **silent-empty turns: `== 0`** — a single HTTP-200-with-0-`completion_tokens`
+  turn FAILs (not the looser `< 50%`), counted by `completion_tokens`, never
+  `decode_tps`.
+- **max VRAM growth: `< 200 MiB`** from the warm baseline.
+- **decode-TPS retention: `>= 98%`** — measured **first-5 vs last-5 turns** of
+  the run (turn-basis, not session-basis: the 5 sessions make a session-basis
+  first/last-5 coincide, so retention would read a vacuous 100%; the 80% general
+  floor is far too loose to catch the slow GDN accretion bleed).
+- **request errors: `== 0`**.
+- **fixture shape: the 5 sessions × 5 turns ramp** to ~25K accumulated context —
+  the *only* shape that surfaces Cliff 2b. A clean run on any other shape is
+  downgraded to FAIL with a shape diagnostic, never silently passed.
+
+The thresholds live as named constants in `tools/quality_gate/soak.py`
+(`CLIFF2B_RETENTION_FLOOR = 0.98`, `CLIFF2B_GROWTH_LIMIT_MIB = 200`, …) and the
+gate is `compute_cliff2b_verdict()`, unit-tested in
+`tests/unit/quality_gate/`. A live soak run is the rig-follow-up.
+
 ### What PASS does NOT mean
 
 A clean soak proves the configuration is **stable end-to-end at this depth**. It
@@ -182,6 +206,62 @@ verdicts:
 This is exactly the rigor club-3090 applies and asks contributors to apply: prove
 the patch is load-bearing, do not assume it from a green run.
 
+## KL-divergence tail probe — needle recall is not quality
+
+The boundary ladder certifies *recall* (the needle was found) and the soak
+certifies *stability* (no OOM / silent-empty / TPS collapse over many turns).
+Neither certifies the **output-distribution quality** of a sub-8-bit KV cache —
+and that is a real hole, surfaced by club-3090's `CLIFFS.md`:
+
+> On the same prompts at 32K context, **needle@32K recall stays 100% across every
+> KV cache mode** — `bf16` → `fp8` → TurboQuant k8v4 / "turbo". Yet the
+> **99.9-percentile KL divergence of the output token distribution falls from
+> 100% parity with bf16 down to ~54%** as the KV cache is quantised.
+
+The *median* token is fine; the **tail** is where sub-8-bit KV silently breaks
+the low-probability-but-structurally-critical tokens — a JSON brace, a closing
+quote, a tool-call argument boundary. Recall cannot see this, because recalling
+`crimson otter 42` never depends on the long tail of the distribution. So a green
+needle ladder gives false confidence that TQ k8v4 is tail-safe for code / JSON /
+agentic workloads. **It is not, and `verify-stress 7/7` does not certify it.**
+
+> The 100% → 54% figure is club-3090's reported observation (the motivation for
+> this probe), not a Genesis measurement. We do not fabricate measured numbers;
+> the Genesis KL-tail figures come from the rig-follow-up below.
+
+`tools/quality_gate/kl_tail_probe.py` closes the hole. Given two positionally
+aligned per-token output distributions over the **same** prompts — a `bf16`-KV
+**reference** run and a **candidate** run (e.g. TQ k8v4) — it computes the
+per-token `KL(P_ref ‖ Q_cand)` and reports the **tail** (99.9 / 99 / 95
+percentile) plus mean / median. A `TAIL REGRESSION` fires when the 99.9-pctile KL
+exceeds a threshold (default `0.10` nats, exit code 1). The **tail, not the mean,
+is the verdict** — the failure lives in the rare tokens the mean washes out.
+
+- **Offline core (unit-tested, no rig):** the KL math, the percentile tail, and
+  the threshold verdict are pure and pinned by
+  `tests/unit/quality_gate/test_kl_tail_probe.py` against synthetic distributions
+  with analytically known KL.
+- **Offline consume path:** `--from-captures ref.jsonl cand.jsonl` reads two
+  JSON-lines captures (one row per decode position, `probs` / `logits` /
+  `logprobs`) and emits the tail report host-side.
+
+  ```bash
+  python3 -m quality_gate.kl_tail_probe \
+    --from-captures ref_bf16.jsonl cand_tq_k8v4.jsonl --threshold 0.10
+  ```
+
+- **Rig-follow-up (the measurement, NOT done here):** capturing the two
+  distributions from a live engine at two KV dtypes over the same prompts needs
+  the GPU rig + served model. The repeatable recipe: greedy/temperature-0 decode
+  the **reference** (bf16 KV) run, then **teacher-force** the candidate (TQ k8v4)
+  run on the reference's emitted token ids so both distributions are over an
+  identical token sequence — the divergence is then purely the KV-dtype effect,
+  not sampling drift. Request `logprobs` with a wide `top_logprobs` (or tap the
+  pre-sample logits) at each position and write one JSON-lines row per position
+  to each file. The capture contract is documented in full in the module
+  docstring. **No measured KL numbers are claimed in this repo until that capture
+  runs on the rig.**
+
 ## Running it
 
 Both drivers auto-detect the endpoint and served model, accept a `PRESET`, and
@@ -216,9 +296,13 @@ Qwen3.6-27B on a single 3090; override for other VRAM classes.
   verdicts, and the cliff→patch `CLIFF_MAP`.
 - `tools/quality_gate/soak.py` — continuous-ramp fixtures, soak verdict, and the
   attribution delta.
+- `tools/quality_gate/kl_tail_probe.py` — KL-divergence tail quality probe
+  (per-token `KL(bf16 ‖ candidate)`, 99.9/99/95-pctile tail, threshold verdict,
+  `--from-captures` offline path).
 - `tools/quality_gate/runner.py` — the JSON CLI the bash drivers call.
-- `tests/unit/quality_gate/` — unit tests for the probe generation and verdict
-  logic (run with `python3 -m pytest tests/unit/quality_gate/`).
+- `tests/unit/quality_gate/` — unit tests for the probe generation, verdict
+  logic, and the KL-tail math (run with `python3 -m pytest
+  tests/unit/quality_gate/`).
 
 ## Testing status
 
