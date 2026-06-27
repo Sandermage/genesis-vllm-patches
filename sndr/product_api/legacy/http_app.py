@@ -1279,6 +1279,32 @@ def create_app(
             _sndr_state_cache[key] = (_time.time(), data)
         return data
 
+    # Live GPU telemetry spawns nvidia-smi + reads /proc on every call. The
+    # Hardware view polls /api/v1/host/gpu every 4 s, so a single client is
+    # always served fresh data (the entry has expired by the next poll). The
+    # cache only collapses *concurrent* polls from multiple clients (extra
+    # browser tabs, a fleet overview, the per-host panels) that would otherwise
+    # each fork nvidia-smi within the same ~2 s window. The TTL is deliberately
+    # shorter than the poll interval so the displayed telemetry never goes
+    # perceptibly stale — this de-dupes redundant subprocess work, it does not
+    # change what a steady-state poller sees. Keyed per source (local / host_id)
+    # so hosts never share a reading. Bounded by the number of registered hosts.
+    _gpu_cache: dict[str, tuple[float, Any]] = {}
+    _GPU_TTL = _env_float("SNDR_GPU_TELEMETRY_TTL_S", 2.0)
+
+    def _gpu_telemetry_cached(key: str, collect):
+        """Serve a GPU telemetry payload from a short-TTL cache, forking
+        nvidia-smi (`collect()`) only on a miss. `collect` returns the raw
+        dataclass; the dict payload is built once and shared read-only."""
+        if _GPU_TTL > 0:
+            hit = _gpu_cache.get(key)
+            if hit and (_time.time() - hit[0]) < _GPU_TTL:
+                return hit[1]
+        payload = _dataclass_payload(collect())
+        if _GPU_TTL > 0:
+            _gpu_cache[key] = (_time.time(), payload)
+        return payload
+
     def _audit(action: str, name: str, source: str, detail: dict[str, Any]) -> None:
         # Reuse the persisted, bounded event feed as the container audit log — the
         # GUI's Events panel + the /events SSE already render it. Every mutating
@@ -2389,7 +2415,7 @@ def create_app(
         """Rich live GPU + hardware telemetry for the daemon host (nvidia-smi)."""
         from . import gpu_telemetry
 
-        return _dataclass_payload(gpu_telemetry.collect_local())
+        return _gpu_telemetry_cached("local", gpu_telemetry.collect_local)
 
     @app.get("/api/v1/hosts/{host_id}/gpu")
     async def host_gpu_remote_route(host_id: str) -> dict[str, Any]:
@@ -2397,7 +2423,9 @@ def create_app(
         from . import gpu_telemetry
 
         _profile, target = _ssh_target_for(host_id)
-        return _dataclass_payload(gpu_telemetry.collect_remote(target))
+        return _gpu_telemetry_cached(
+            f"host:{host_id}", lambda: gpu_telemetry.collect_remote(target)
+        )
 
     # ── GPU power-cap WRITE path (the Hardware view's cap CONTROL) ───────────
     # The display half lives in the telemetry routes above; this is the missing
