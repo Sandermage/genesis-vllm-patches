@@ -53,7 +53,14 @@ def test_single_card_fake_rig_fails_gpu_count():
 
 
 def test_builtin_rig_two_cards_can_run():
-    """The 2× A5000 builtin rig clears the 2× preset (CAN RUN), offline."""
+    """The 2× A5000 builtin rig clears the 2× preset (boots), offline.
+
+    The byte-level projection row is additive: against the builtin rig's
+    DECLARED min-VRAM floor (22000 MiB — a conservative lower bound, not the
+    24564 MiB physical card) the 35B's fixed footprint is tight, so the
+    projection adds a WARN (downgraded from FAIL because a declared floor must
+    not hard-block a config that runs on the real card). ``can_run`` stays
+    True; the verdict may carry the warning."""
     r = _client().get(
         "/api/v1/preflight",
         params={"preset_id": _PRESET, "rig": "a5000-2x-24gbvram-16cpu-128gbram"},
@@ -61,8 +68,11 @@ def test_builtin_rig_two_cards_can_run():
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["can_run"] is True
-    assert body["verdict"] == "CAN RUN"
+    assert body["verdict"] in ("CAN RUN", "RUNNABLE (with warnings)")
     assert body["rig_source"].startswith("rig:")
+    # The new byte-level projection row is present in the route response.
+    dims = {c["dimension"] for c in body["checks"]}
+    assert "projected_vram" in dims
 
 
 def test_unknown_preset_is_404():

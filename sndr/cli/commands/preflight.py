@@ -22,7 +22,9 @@ import json
 
 from sndr.model_configs.preflight_fit import (
     RigProbe,
+    add_projection_check,
     evaluate_fit,
+    resolve_model_shape,
     resolve_required_envelope,
     rig_from_fake_spec,
     rig_from_hardware_def,
@@ -98,6 +100,13 @@ class PreflightCommand:
 
         report = evaluate_fit(preset_id, env, rig)
 
+        # Additive byte-level projection row: when the preset's model carries a
+        # shape block AND we know the rig's per-card VRAM, project the actual
+        # per-card GB so the operator sees "will it OOM?" not just "clears the
+        # declared floor?". Skipped silently for shape-less presets / unknown
+        # VRAM — the envelope verdict still stands.
+        self._maybe_add_projection(report, cfg, preset_def, rig)
+
         if args.output == "json":
             print(json.dumps(_report_to_dict(report, env), indent=2))
         else:
@@ -105,6 +114,39 @@ class PreflightCommand:
 
         # Exit code: 0 = can run (incl. warnings), 1 = cannot run.
         return 0 if report.can_run else 1
+
+    def _maybe_add_projection(self, report, cfg, preset_def, rig) -> None:
+        """Append the byte-level ``projected_vram`` row when possible.
+
+        Best-effort + non-fatal: any failure (no shape, unknown VRAM, projector
+        error) leaves the envelope report untouched."""
+        try:
+            from sndr.model_configs import kv_projector as kp
+
+            shape = resolve_model_shape(preset_def)
+            if shape is None or getattr(shape, "num_attention_layers", None) is None:
+                return
+            # Per-card VRAM at MiB precision (floored whole-GB would mis-budget).
+            if not rig.gpus:
+                return
+            mib = min(g.vram_mib for g in rig.gpus if g.vram_mib)
+            if not mib:
+                return
+            projection = kp.project(
+                cfg,
+                kp.ProjectorRig(vram_gib_per_card=mib / 1024.0,
+                                gpu_count=rig.gpu_count, name=rig.source),
+                shape=shape,
+                preset_id=getattr(report, "preset_id", "<preset>"),
+            )
+            # A builtin "rig:<id>" supplies the DECLARED min-VRAM floor (a
+            # conservative lower bound), not the card's physical size — so a
+            # FAIL there is a WARN, not a hard block. Live/fake/card give the
+            # real per-card VRAM, where a FAIL is a true byte-level OOM.
+            measured = not str(rig.source).startswith("rig:")
+            add_projection_check(report, projection, vram_is_measured=measured)
+        except Exception:  # noqa: BLE001 — projection is additive, never fatal
+            return
 
     def _emit_error(self, args, preset_id, msg) -> None:
         if args.output == "json":

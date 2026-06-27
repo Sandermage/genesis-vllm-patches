@@ -139,3 +139,64 @@ class TestParsers:
         assert _parse_compute_cap("9") == (9, 0)
         assert _parse_compute_cap("") is None
         assert _parse_compute_cap("bad") is None
+
+
+class TestProjectionRow:
+    """The additive byte-level projected_vram row (kv_projector wiring)."""
+
+    def _proj(self, verdict, provisional=False):
+        from sndr.model_configs.kv_projector import Projection
+        return Projection(
+            preset_id="p", kv_format="turboquant_k8v4", ctx=280000,
+            max_num_seqs=2, tp=2, mem_util=0.9, vram_gib=24.0,
+            weights_gib=16.8, kv_pool_requested_gib=1.0, kv_pool_actual_gib=0.7,
+            recurrent_state_gib=0.02, activation_gib=1.42,
+            cudagraph_overhead_gib=1.7, drafter_gib=1.0, fixed_gib=20.9,
+            budget_gib=21.6, total_gib=21.6, headroom_gib=0.0,
+            available_for_kv_gib=0.7, verdict=verdict, provisional=provisional,
+        )
+
+    def test_pass_maps_to_pass_and_does_not_block(self):
+        from sndr.model_configs.preflight_fit import add_projection_check
+        report = evaluate_fit("p", _env(), _rig(2, 24564, (8, 6)))
+        add_projection_check(report, self._proj("PASS"))
+        assert _check(report, "projected_vram").status == "pass"
+        assert report.can_run
+
+    def test_tight_maps_to_warn_still_runnable(self):
+        from sndr.model_configs.preflight_fit import add_projection_check
+        report = evaluate_fit("p", _env(), _rig(2, 24564, (8, 6)))
+        add_projection_check(report, self._proj("TIGHT"))
+        assert _check(report, "projected_vram").status == "warn"
+        assert report.can_run  # WARN does not block
+
+    def test_fail_on_measured_card_is_hard_block(self):
+        from sndr.model_configs.preflight_fit import add_projection_check
+        report = evaluate_fit("p", _env(), _rig(2, 24564, (8, 6)))
+        add_projection_check(report, self._proj("FAIL"), vram_is_measured=True)
+        assert _check(report, "projected_vram").status == "fail"
+        assert not report.can_run
+
+    def test_fail_against_declared_floor_is_warn_not_block(self):
+        """A FAIL projected against a conservative declared-floor VRAM must NOT
+        hard-block (the floor is a lower bound, not the physical card)."""
+        from sndr.model_configs.preflight_fit import add_projection_check
+        report = evaluate_fit("p", _env(), _rig(2, 22000, (8, 6), source="rig:x"))
+        add_projection_check(report, self._proj("FAIL"), vram_is_measured=False)
+        assert _check(report, "projected_vram").status == "warn"
+        assert report.can_run
+
+    def test_provisional_flag_surfaced_in_message(self):
+        from sndr.model_configs.preflight_fit import add_projection_check
+        report = evaluate_fit("p", _env(), _rig(2, 24564, (8, 6)))
+        add_projection_check(report, self._proj("PASS", provisional=True))
+        assert "PROVISIONAL" in _check(report, "projected_vram").message
+
+    def test_resolve_model_shape_for_real_preset(self):
+        from sndr.model_configs.preflight_fit import resolve_model_shape
+        from sndr.model_configs.registry_v2 import load_preset_def
+        pd = load_preset_def("prod-qwen3.6-35b-balanced")
+        shape = resolve_model_shape(pd)
+        assert shape is not None
+        assert shape.num_attention_layers == 10
+        assert shape.num_kv_heads == 2

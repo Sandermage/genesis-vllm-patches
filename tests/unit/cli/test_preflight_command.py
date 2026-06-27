@@ -55,8 +55,14 @@ class TestPreflightVerdicts:
     def test_2x_preset_on_2x_a5000_can_run(self):
         rc, out = _run(["preflight", "prod-qwen3.6-35b-balanced",
                         "--fake-gpus", "RTX A5000:24564:8.6;RTX A5000:24564:8.6"])
+        # rc 0 = boots. The byte-level projection row adds a TIGHT→WARN at the
+        # 35B's 280K operating point (the dev424 PN403 live-measured tight
+        # margin: kv_max_concurrency 1.388 < requested 2), so the verdict is
+        # RUNNABLE-with-warnings, not a clean CAN RUN. The envelope rows still
+        # all PASS; the projection is what makes the fit honest.
         assert rc == 0
-        assert "CAN RUN" in out
+        assert "RUNNABLE" in out or "CAN RUN" in out
+        assert "projected_vram" in out  # the new byte-level row is present
 
     def test_sub_floor_tp2_is_runnable_with_warnings(self):
         rc, out = _run(["preflight", "prod-gemma4-26b-default",

@@ -279,6 +279,14 @@ def evaluate_fit(preset_id: str, env: RequiredEnvelope, rig: Rig) -> FitReport:
             "preset declares no compute-capability floor",
         )
 
+    # ── Projected VRAM (byte-level — the Genesis kv_projector extension) ──
+    # Additive: this row is appended by ``add_projection_check`` AFTER the
+    # envelope rows when the preset's model carries a byte-level shape. The
+    # envelope checks above answer "clears the declared floor?"; this row
+    # answers "given THIS ctx/kv-format/seqs/tp, what's the per-card GB and
+    # will it OOM?". It is wired by the CLI / route, not here, so ``evaluate_fit``
+    # stays pure and shape-free (a preset without a shape simply skips the row).
+
     # ── Engine pin (the Genesis extension beyond club-3090's trailers) ──
     if env.engine_pin is not None:
         report.add(
@@ -408,9 +416,93 @@ def rig_from_fake_spec(spec: str) -> Rig:
     return Rig(gpus=gpus, source="fake")
 
 
+# ─── Projected-VRAM row (byte-level, additive over the envelope) ─────────────
+
+
+def add_projection_check(report: FitReport, projection, *, vram_is_measured: bool = True) -> None:
+    """Append a ``projected_vram`` :class:`FitCheck` row to ``report`` from a
+    :class:`kv_projector.Projection`.
+
+    Strictly additive: the envelope rows produced by :func:`evaluate_fit` are
+    untouched. The projection row's status maps the byte-level verdict onto the
+    envelope's pass/warn/fail vocabulary so ``FitReport.verdict`` stays coherent:
+
+      - PASS  → "pass"  (fits with headroom)
+      - TIGHT → "warn"  (boots, but vLLM caps the KV pool — does NOT block)
+      - FAIL  → "fail"  (fixed footprint alone overflows — won't boot)
+
+    A TIGHT projection deliberately does NOT flip ``can_run`` to False (it boots),
+    matching the sub-floor-VRAM WARN stance the envelope already takes.
+
+    ``vram_is_measured`` distinguishes a real per-card VRAM (live nvidia-smi,
+    --fake-gpus, --card — the card's PHYSICAL size) from a builtin hardware
+    definition's DECLARED ``min_vram_per_gpu_mib`` floor (intentionally
+    conservative, e.g. 22000 MiB for a 24564 MiB A5000). A FAIL projected
+    against a declared floor is downgraded to WARN — the floor is a lower bound,
+    not the card's real capacity, so it must not hard-block a config that runs
+    on the physical card. A FAIL against a measured card IS a hard block (a real
+    byte-level OOM, stronger than the declared-floor envelope).
+    """
+    verdict = projection.verdict
+    if verdict == "FAIL" and not vram_is_measured:
+        status = "warn"
+    else:
+        status = {"PASS": "pass", "TIGHT": "warn", "FAIL": "fail"}.get(verdict, "skip")
+    prov = " [PROVISIONAL calibration]" if projection.provisional else ""
+    required = f"<= {projection.budget_gib:.1f} GiB/card (util {projection.mem_util})"
+    detected = (
+        f"{projection.total_gib:.1f} GiB/card "
+        f"(weights {projection.weights_gib:.1f} + KV {projection.kv_pool_actual_gib:.1f} "
+        f"+ overhead {projection.fixed_gib - projection.weights_gib:.1f})"
+    )
+    if projection.verdict == "PASS":
+        msg = (
+            f"projected {projection.total_gib:.1f} GiB/card at ctx="
+            f"{projection.ctx:,} / seqs={projection.max_num_seqs} / "
+            f"{projection.kv_format} — {projection.headroom_gib:.1f} GiB headroom{prov}"
+        )
+    elif projection.verdict == "TIGHT":
+        msg = (
+            f"projected {projection.total_gib:.1f} GiB/card — fixed footprint "
+            f"leaves only {projection.available_for_kv_gib:.1f} GiB for KV; vLLM "
+            f"will cap the pool (effective concurrency may drop below "
+            f"{projection.max_num_seqs} at ctx={projection.ctx:,}){prov}"
+        )
+    elif projection.verdict == "FAIL":
+        msg = (
+            f"projected {projection.fixed_gib:.1f} GiB fixed footprint exceeds the "
+            f"{projection.budget_gib:.1f} GiB budget at ctx={projection.ctx:,} — "
+            f"vLLM will OOM at boot; lower max_model_len or kv-format{prov}"
+        )
+    else:  # pragma: no cover — defensive
+        msg = f"projection verdict {projection.verdict!r}{prov}"
+
+    report.add("projected_vram", status, required, detected, msg)
+
+
+def resolve_model_shape(preset_def):
+    """Resolve the byte-level ``ModelShape`` for a preset def (the I/O boundary).
+
+    Returns ``None`` when the model declares no shape block (the projection row
+    is then skipped — envelope-only, exactly as before). Kept here so both the
+    CLI command and the HTTP route share one resolver and never diverge.
+    """
+    model_id = getattr(preset_def, "model", None)
+    if not model_id:
+        return None
+    try:
+        from sndr.model_configs.registry_v2 import load_model
+        model_def = load_model(model_id)
+    except Exception:  # noqa: BLE001 — missing/broken model → skip the row
+        return None
+    caps = getattr(model_def, "capabilities", None)
+    return getattr(caps, "shape", None) if caps else None
+
+
 __all__ = [
     "DetectedGpu", "Rig", "RequiredEnvelope", "FitCheck", "FitReport",
     "resolve_required_envelope", "evaluate_fit",
     "RigProbe", "parse_nvidia_smi_csv",
     "rig_from_hardware_def", "rig_from_fake_spec",
+    "add_projection_check", "resolve_model_shape",
 ]

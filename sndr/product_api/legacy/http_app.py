@@ -579,7 +579,9 @@ def create_app(
 
         from sndr.model_configs.preflight_fit import (
             RigProbe,
+            add_projection_check,
             evaluate_fit,
+            resolve_model_shape,
             resolve_required_envelope,
             rig_from_fake_spec,
             rig_from_hardware_def,
@@ -627,7 +629,43 @@ def create_app(
             else:
                 resolved = RigProbe(timeout=probe_timeout_s).detect()
 
-            return evaluate_fit(preset_id, env_local, resolved), resolved, env_local, None
+            fit_report = evaluate_fit(preset_id, env_local, resolved)
+
+            # Additive byte-level projection row (kv_projector) so the GUI's
+            # fit-check shows REAL per-card GB, not just the envelope floor.
+            # Best-effort: any failure leaves the envelope report untouched.
+            try:
+                from sndr.model_configs import kv_projector as kp
+
+                shape = resolve_model_shape(preset_def)
+                if (
+                    shape is not None
+                    and getattr(shape, "num_attention_layers", None) is not None
+                    and resolved.gpus
+                ):
+                    vram_mib = min(g.vram_mib for g in resolved.gpus if g.vram_mib)
+                    if vram_mib:
+                        projection = kp.project(
+                            cfg,
+                            kp.ProjectorRig(
+                                vram_gib_per_card=vram_mib / 1024.0,
+                                gpu_count=resolved.gpu_count,
+                                name=resolved.source,
+                            ),
+                            shape=shape,
+                            preset_id=preset_id,
+                        )
+                        # "rig:<id>" = declared min-VRAM floor (conservative
+                        # lower bound) → a FAIL there is a WARN, not a hard
+                        # block. Live/fake = real per-card VRAM → FAIL is real.
+                        measured = not str(resolved.source).startswith("rig:")
+                        add_projection_check(
+                            fit_report, projection, vram_is_measured=measured,
+                        )
+            except Exception:  # noqa: BLE001 — projection is additive, never fatal
+                pass
+
+            return fit_report, resolved, env_local, None
 
         try:
             report, resolved_rig, env, error = await asyncio.wait_for(
