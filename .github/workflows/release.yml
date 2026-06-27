@@ -171,13 +171,22 @@ jobs:
       # Behaviour:
       #   - Runs only on git-tag push (`v*`).
       #   - Skipped automatically when `dry_run=true`.
-      #   - Skipped automatically if no Trusted Publisher is configured
-      #     yet (pypa/gh-action-pypi-publish will fail-skip rather than
-      #     block the release; check the workflow log for the actual
-      #     "OIDC token missing" diagnostic).
+      #   - GATED OFF BY DEFAULT: the step only runs when the repo variable
+      #     `ENABLE_PYPI_PUBLISH` is set to "true" (Settings → Secrets and
+      #     variables → Actions → Variables). Until the operator both
+      #     creates the PyPI project AND registers a Trusted Publisher
+      #     (see setup steps above), the variable stays unset and this
+      #     step is SKIPPED — so an unconfigured PyPI publish can never
+      #     fail the release. `continue-on-error: true` is a second belt:
+      #     even once enabled, a transient OIDC/token hiccup is reported
+      #     but does NOT block the (already-built + attached) release.
       # ───────────────────────────────────────────────────────────────
       - name: Publish to PyPI (Trusted Publisher / OIDC)
-        if: startsWith(github.ref, 'refs/tags/v') && github.event.inputs.dry_run != 'true'
+        if: >-
+          ${{ vars.ENABLE_PYPI_PUBLISH == 'true'
+              && startsWith(github.ref, 'refs/tags/v')
+              && github.event.inputs.dry_run != 'true' }}
+        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/

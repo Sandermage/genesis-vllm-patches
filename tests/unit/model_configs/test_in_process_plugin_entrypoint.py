@@ -40,7 +40,11 @@ import subprocess
 from pathlib import Path
 
 import pytest
-import tomllib
+
+try:
+    import tomllib  # py>=3.11
+except ModuleNotFoundError:  # py3.10 on CI — stdlib tomllib is 3.11+
+    import tomli as tomllib  # type: ignore[no-redef]
 
 from sndr.model_configs.emitters.docker_cmd import build_docker_cmd
 from sndr.model_configs.emitters.vllm_cmd import build_vllm_cmd
