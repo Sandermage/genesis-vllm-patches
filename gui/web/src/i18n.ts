@@ -2653,6 +2653,7 @@ const RU_BY_EN: Record<string, string> = {
   "This host (local daemon)": "Этот хост (локальный демон)",
   "This host can launch the pinned vLLM stack.": "Этот хост может запустить закреплённый стек vLLM.",
   "This is a vLLM engine.": "Это движок vLLM.",
+  "This is a llama.cpp engine.": "Это движок llama.cpp.",
   "This is where patches, presets and the patcher version come from. A GPU server runs vLLM": "Отсюда берутся патчи, пресеты и версия патчера. GPU-сервер запускает движки vLLM",
   "This model defines no canonical patch overrides.": "Эта модель не определяет канонических переопределений патчей.",
   "This panel hit a rendering error.": "В этой панели произошла ошибка отрисовки.",

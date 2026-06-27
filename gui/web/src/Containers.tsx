@@ -27,6 +27,27 @@ function srcKey(source: ContainerSource): string {
   return source.kind === "host" ? `host:${source.hostId}` : "local";
 }
 
+// ── Engine identity ───────────────────────────────────────────────────
+// The GUI keys engine identity (icon, live-metrics gate, pin-policy lock) on the
+// container name + image. Recognize every first-class engine, not just vLLM: a
+// `llamacpp-*` container on the `ghcr.io/ggml-org/llama.cpp` image is just as
+// much a GPU inference engine. `llama[-.]?cpp` matches `llamacpp`, `llama-cpp`
+// and `llama.cpp` without catching unrelated containers.
+const ENGINE_RE = /vllm|llama[-.]?cpp/i;
+type EngineKind = "vllm" | "llamacpp";
+// Resolve the concrete engine kind from a container's name + image, or null for
+// a non-engine container. vLLM wins if (improbably) both tokens appear.
+function engineKindOf(text: string): EngineKind | null {
+  if (/vllm/i.test(text)) return "vllm";
+  if (/llama[-.]?cpp/i.test(text)) return "llamacpp";
+  return null;
+}
+// Operator-facing label for an engine kind. Falls back to a neutral "engine"
+// when the kind can't be determined, so the UI never shows "unknown".
+function engineLabel(kind: EngineKind | null): string {
+  return kind === "vllm" ? "vLLM" : kind === "llamacpp" ? "llama.cpp" : tr("engine");
+}
+
 // ── Container source ⇄ hash-param helpers (deep-linking) ──────────────
 // The hash encodes the source as `local` (daemon socket) or a host id.
 // Resolve a `src` hash value to a source, or null when it can't be resolved yet
@@ -391,7 +412,7 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
       {loading && items === null && <SkeletonCards count={6} />}
       {items !== null && view.length === 0 && !err && (
         <div className="containers-empty"><Boxes size={22} /><strong>{items.length === 0 ? tr("No managed containers") : tr("Nothing matches the filter")}</strong>
-          <span>{tr("Only vLLM/engine containers")} (<code>vllm*</code> / <code>sndr-daemon</code> {tr("or label")} <code>sndr.managed=true</code>).</span></div>
+          <span>{tr("Only vLLM/engine containers")} (<code>vllm*</code> / <code>llamacpp*</code> / <code>sndr-daemon</code> {tr("or label")} <code>sndr.managed=true</code>).</span></div>
       )}
 
       {selected.size > 0 && (
@@ -496,8 +517,10 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
   const acting = busy?.startsWith(`${c.name}:`) ?? false;
   // Visual identity by container kind (like CasaOS app icons): a GPU engine, the
   // management daemon, or a generic managed container.
+  const ident = `${c.name} ${c.image}`;
+  const engineKind = engineKindOf(ident);
   const kind = /sndr[-_]?daemon/i.test(c.name) ? "daemon"
-    : /vllm/i.test(`${c.name} ${c.image}`) ? "engine" : "generic";
+    : ENGINE_RE.test(ident) ? "engine" : "generic";
   const KindIcon = kind === "engine" ? Cpu : kind === "daemon" ? ShieldCheck : Box;
   // At-a-glance update status, fetched lazily per card (cheap: local inspect +
   // image-id) so the operator sees what needs updating without opening each one.
@@ -535,7 +558,7 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
           <input type="checkbox" className="ccard-select" checked={!!selected} onChange={onToggleSelect}
             aria-label={`${tr("Select")} ${c.name}`} onClick={(e) => e.stopPropagation()} />
         )}
-        <span className={`ccard-avatar ${kind}`} title={kind === "engine" ? tr("vLLM engine") : kind === "daemon" ? tr("Management daemon") : tr("Managed container")}>
+        <span className={`ccard-avatar ${kind}`} title={kind === "engine" ? `${engineLabel(engineKind)} ${tr("engine")}` : kind === "daemon" ? tr("Management daemon") : tr("Managed container")}>
           <KindIcon size={15} />
           <span className={`ccard-avatar-dot ${st}`} />
         </span>
@@ -861,7 +884,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 // KV-cache saturation, throughput, latency, MTP spec-decode acceptance) rather
 // than a generic container view. Reuses the same proven engine_client path the
 // Engine page uses (daemon's configured SNDR_METRICS_URL = this node's engine).
-function InferenceCard({ online, ver, onMetrics }: { online: boolean; ver: HostSndrState | null; onMetrics?: (m: EngineMetrics) => void }) {
+function InferenceCard({ online, ver, engineKind, onMetrics }: { online: boolean; ver: HostSndrState | null; engineKind?: EngineKind | null; onMetrics?: (m: EngineMetrics) => void }) {
   const [m, setM] = useState<EngineMetrics | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [live, setLive] = useState(true);
@@ -943,7 +966,7 @@ function InferenceCard({ online, ver, onMetrics }: { online: boolean; ver: HostS
                 </div>
               ))}
             </div>
-            <div className="inf-tbl-foot muted">{tr("KV-cache ~100% or rising Waiting = saturated (lower concurrency / raise KV budget). Acceptance = MTP draft quality.")} {ver?.vllm_version ? `vLLM ${shortVer(ver.vllm_version)}` : ""}</div>
+            <div className="inf-tbl-foot muted">{tr("KV-cache ~100% or rising Waiting = saturated (lower concurrency / raise KV budget). Acceptance = MTP draft quality.")} {ver?.vllm_version ? `vLLM ${shortVer(ver.vllm_version)}` : engineKind && engineKind !== "vllm" ? engineLabel(engineKind) : ""}</div>
           </div>
         )
       ) : null}
@@ -963,7 +986,9 @@ function OverviewTab({ source, name, inspect, online, ver, onNavigate }: { sourc
   const networks = Object.keys(net.Networks ?? {});
   const ip = net.IPAddress || (networks.length ? net.Networks[networks[0]!]?.IPAddress : "") || "—";
   const cpu = s?.cpu_pct ?? 0, memPct = s?.mem_pct ?? 0;
-  const isEngine = /vllm/i.test(`${name} ${cfg.Image ?? ""}`) && !/daemon/i.test(name);
+  const engIdent = `${name} ${cfg.Image ?? ""}`;
+  const isEngine = ENGINE_RE.test(engIdent) && !/daemon/i.test(name);
+  const engineKind = isEngine ? engineKindOf(engIdent) : null;
   const health = state.Health?.Status as string | undefined;
   const restartPolicy = hostCfg.RestartPolicy?.Name || "no";
   const restarts = inspect.RestartCount ?? 0;
@@ -1012,7 +1037,7 @@ function OverviewTab({ source, name, inspect, online, ver, onNavigate }: { sourc
 
           {isEngine && online ? <ContainerGpu source={source} /> : null}
 
-          {isEngine ? <InferenceCard online={online} ver={ver} onMetrics={setEngineM} /> : null}
+          {isEngine ? <InferenceCard online={online} ver={ver} engineKind={engineKind} onMetrics={setEngineM} /> : null}
 
           <div className="ov-card">
             <div className="ov-card-h"><Box size={12} /> {tr("Container")}</div>
@@ -1295,7 +1320,7 @@ function ProcessesTab({ source, name, online }: { source: ContainerSource; name:
     return desc ? -cmp : cmp;
   });
   const sortBy = (i: number) => { if (sortCol === i) setDesc((d) => !d); else { setSortCol(i); setDesc(true); } };
-  const isEngine = (row: string[]) => /vllm|sndr|python3?\s+-m|run_server/i.test(row[cmdCol] ?? "");
+  const isEngine = (row: string[]) => /vllm|llama[-.]?cpp|llama-server|sndr|python3?\s+-m|run_server/i.test(row[cmdCol] ?? "");
   return (
     <div className="proc">
       <div className="proc-bar">
@@ -1783,7 +1808,7 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
           )}
           {plan.is_engine ? (
             <div className="upd">
-              <p className="upd-note"><AlertTriangle size={13} /> {tr("This is a vLLM engine.")} {plan.policy} {tr("Run these on the GPU host:")}</p>
+              <p className="upd-note"><AlertTriangle size={13} /> {engineKindOf(`${name} ${plan.image}`) === "llamacpp" ? tr("This is a llama.cpp engine.") : tr("This is a vLLM engine.")} {plan.policy} {tr("Run these on the GPU host:")}</p>
               <div className="upd-cmds">
                 {plan.commands.map((c, i) => (
                   <div key={i} className="upd-cmd"><code>{c}</code>{!c.trim().startsWith("#") && <button className="ghost-button" onClick={() => navigator.clipboard?.writeText(c)}><Copy size={12} /></button>}</div>
