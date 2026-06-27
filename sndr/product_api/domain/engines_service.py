@@ -2,9 +2,13 @@
 """Engine service — queries engine adapters for status, info, capabilities."""
 from __future__ import annotations
 
+import logging
+
 from sndr.engines import get_engine, list_engines
 from sndr.exceptions import EngineNotInstalledError, EngineUnsupportedError
 from sndr.product_api.schemas.engines import EngineDetail, EngineSummary
+
+log = logging.getLogger("sndr.product_api.engines")
 
 # Display names for known engines.
 _DISPLAY_NAMES = {
@@ -31,23 +35,51 @@ def get_engine_detail(name: str) -> EngineDetail:
     summary = _build_summary(name)
     EngineCls = get_engine(name)
 
-    # Try to instantiate; if it fails, return summary-level info only.
+    supported_pins: list[str] = []
+    install_root: str | None = None
+    community = 0
+    engine_count = 0
+
+    # Instantiate the adapter for introspection. Construction itself should
+    # not fail for a registered engine (it only stores the config), but be
+    # defensive about a not-installed engine package.
+    engine = None
     try:
         from sndr.config import SndrConfig
         # Best-effort: build a minimal config; engine may not be installed.
         config = SndrConfig.from_env() if name == "vllm" else _minimal_config(name)
         engine = EngineCls(config=config)
-        supported_pins = list(engine.list_supported_pins())
-        install_root = str(engine.install_root()) if engine.install_root() else None
-        patches = engine.list_patches()
-        # Heuristic counts by tier (community/engine).
-        community = sum(1 for _, meta in patches if isinstance(meta, dict) and meta.get("tier", "community") == "community")
-        engine_count = sum(1 for _, meta in patches if isinstance(meta, dict) and meta.get("tier") == "engine")
-    except (EngineNotInstalledError, Exception):  # noqa: BLE001
-        supported_pins = []
-        install_root = None
-        community = 0
-        engine_count = 0
+    except EngineNotInstalledError:
+        engine = None
+
+    if engine is not None:
+        # Probe each surface independently so one failing introspection
+        # (e.g. a partial install whose ``install_root`` raises) does NOT
+        # discard a sibling probe's good result. The pin list is
+        # filesystem-only and must survive an install_root failure.
+        try:
+            supported_pins = list(engine.list_supported_pins())
+        except Exception as e:  # noqa: BLE001 — best-effort introspection
+            log.warning("list_supported_pins failed for %s: %s", name, e)
+        try:
+            root = engine.install_root()
+            install_root = str(root) if root else None
+        except Exception as e:  # noqa: BLE001 — best-effort introspection
+            log.warning("install_root failed for %s: %s", name, e)
+        try:
+            patches = engine.list_patches()
+            # Heuristic counts by tier (community/engine).
+            community = sum(
+                1 for _, meta in patches
+                if isinstance(meta, dict)
+                and meta.get("tier", "community") == "community"
+            )
+            engine_count = sum(
+                1 for _, meta in patches
+                if isinstance(meta, dict) and meta.get("tier") == "engine"
+            )
+        except Exception as e:  # noqa: BLE001 — best-effort introspection
+            log.warning("list_patches failed for %s: %s", name, e)
 
     return EngineDetail(
         **summary.model_dump(),
@@ -94,7 +126,6 @@ def _build_summary(name: str) -> EngineSummary:
         active=active,
         version=version,
         pin=pin,
-        container_count=0,  # filled by container service in routes layer
         notes=notes,
     )
 

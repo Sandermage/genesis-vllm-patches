@@ -21,10 +21,6 @@ class EngineSummary(BaseModel):
         default=None,
         description="Normalized pin identifier matching a manifest directory",
     )
-    container_count: int = Field(
-        default=0,
-        description="Number of running containers managed by this engine",
-    )
     notes: list[str] = Field(
         default_factory=list,
         description="Operator-visible notes (deprecations, warnings, etc.)",

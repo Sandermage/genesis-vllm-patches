@@ -48,12 +48,20 @@ class VllmEngine(EngineAdapter):
             ) from e
 
     def install_root(self) -> Path | None:
-        """Return the directory containing the vllm package."""
+        """Return the directory containing the vllm package, or None.
+
+        A namespace / partially-installed ``vllm`` can import yet expose
+        ``__file__ is None`` (no ``__init__.py`` on disk). Guard that case so
+        introspection callers get ``None`` instead of a ``TypeError``.
+        """
         try:
             import vllm
-            return Path(vllm.__file__).parent
         except ImportError:
             return None
+        pkg_file = getattr(vllm, "__file__", None)
+        if not pkg_file:
+            return None
+        return Path(pkg_file).parent
 
     def resolve_file(self, relative_path: str) -> Path | None:
         """Resolve a path relative to the vllm install root.
@@ -84,24 +92,43 @@ class VllmEngine(EngineAdapter):
             return candidate if candidate.exists() else None
 
     def is_pin_supported(self, pin: str | None) -> bool:
-        """Return True if a manifest exists for this pin.
+        """Return True iff ``pin`` resolves to a committed per-pin anchor set.
 
-        Phase 1: always returns True (manifests not yet generated).
-        Phase 7 will check engines/vllm/pins/<pin>/manifest.yaml exists.
+        Delegates to the canonical per-pin resolver in
+        ``sndr.engines.vllm.wiring.anchor_manifest`` — the single source of
+        truth shared with ``drift_check`` / ``anchor_manifest_gen`` — which
+        checks ``engines/vllm/pins/<normalized_pin>/anchors.json`` on disk.
+        ``pin`` may be either a full vLLM version string
+        (``0.23.1rc1.dev148+gb4c80ec0f``) or an already-normalized directory
+        tag (``0.23.1_b4c80ec0f``); both are accepted.
         """
-        if pin is None:
+        if not pin:
             return False
-        # TODO Phase 7: check manifest existence
-        return True
+        from sndr.engines.vllm.wiring.anchor_manifest import (
+            is_pin_supported as _is_supported,
+            normalize_pin as _normalize,
+            pins_dir as _pins_dir,
+        )
+        # Full version string with a resolvable +g<sha> -> per-pin lookup.
+        if _is_supported(pin):
+            return True
+        # Already-normalized tag (no +g<sha> to parse): check the dir directly.
+        if _normalize(pin) is None:
+            return (_pins_dir() / pin / "anchors.json").is_file()
+        return False
 
     def list_supported_pins(self) -> tuple[str, ...]:
-        """List all pins with manifests.
+        """List every committed pin that ships a per-pin ``anchors.json``.
 
-        Phase 1: returns empty tuple (no manifests generated yet).
-        Phase 7 will enumerate engines/vllm/pins/ subdirectories.
+        Delegates to ``wiring.anchor_manifest.list_supported_pins`` so the
+        adapter, the drift tooling, and the manifest generator all agree on
+        the supported set. Returns a sorted tuple of normalized pin tags
+        (e.g. ``0.23.1_b4c80ec0f``); empty when no pins are committed.
         """
-        # TODO Phase 7: scan engines/vllm/pins/
-        return ()
+        from sndr.engines.vllm.wiring.anchor_manifest import (
+            list_supported_pins as _list,
+        )
+        return _list()
 
     def get_runtime_config(self) -> dict[str, Any] | None:
         """Return vllm's current vllm_config if available."""

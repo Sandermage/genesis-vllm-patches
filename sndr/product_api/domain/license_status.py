@@ -32,7 +32,7 @@ def get_license_status() -> LicenseStatus:
     try:
         check = license_mod.check_engine_tier_eligible  # type: ignore[attr-defined]
         result = check()
-    except (AttributeError, Exception):  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — missing attr or probe failure → unknown
         return LicenseStatus(
             status="unknown",
             message="License probe not available.",

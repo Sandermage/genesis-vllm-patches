@@ -7,8 +7,19 @@ the GUI's monitoring tabs all share a single set of FastAPI routers.
 ``doctor_report`` shells out to ``nvidia-smi`` + ``docker info`` via
 blocking ``subprocess.run`` (each up to 5 s), so the doctor handler
 offloads it with ``await asyncio.to_thread(...)`` to keep the event loop
-free. The other surfaces here (bench/configs/evidence/jobs) read files /
-in-memory state and do not block, so they stay direct.
+free. The other surfaces here (bench/configs/evidence) read files and do
+not block, so they stay direct.
+
+Migration status — jobs
+=======================
+The modular ``/api/v1/jobs`` routes are intentionally NOT wired. Their
+backing store (``observability_service._JOBS``) has no producer: the only
+writer, ``register_job()``, has zero callers. The live ``sndr gui-api``
+daemon's real job system is the separate legacy
+``sndr.product_api.legacy.jobs`` module (job persistence + service-apply).
+Rather than serve a misleading always-empty ``200``, the modular jobs
+handlers return ``501 Not Implemented`` until the legacy job system is
+migrated here (Phase 11). Do not add a fake producer — wire the real one.
 """
 from __future__ import annotations
 
@@ -22,9 +33,7 @@ from sndr.product_api.domain.observability_service import (
     config_catalog,
     doctor_report,
     evidence_report,
-    get_job,
     list_bench_runs,
-    list_jobs,
 )
 from sndr.product_api.schemas.common import Envelope, ResponseMeta
 from sndr.product_api.schemas.observability import (
@@ -93,26 +102,33 @@ async def evidence_endpoint() -> Envelope[EvidenceReport]:
 
 
 # ── Jobs ───────────────────────────────────────────────────────────────────
+#
+# Intentionally unimplemented in the modular server (see the module
+# docstring). The handlers return 501 rather than the former lying
+# 200+empty-list, because the modular jobs store has no producer and the
+# live daemon uses the separate legacy job system.
 
 jobs_router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
+_JOBS_NOT_WIRED = (
+    "modular jobs API not wired — the live server uses the legacy job "
+    "system (sndr.product_api.legacy.jobs). This surface lands in Phase 11."
+)
+
 
 @jobs_router.get("", response_model=Envelope[list[JobSummary]],
-                  summary="List async jobs")
+                  summary="List async jobs (not implemented)")
 async def list_jobs_endpoint(
     state: str | None = Query(default=None,
                               description="queued|running|succeeded|failed|canceled"),
 ) -> Envelope[list[JobSummary]]:
-    return Envelope(data=list_jobs(state=state), meta=_meta())
+    raise HTTPException(status_code=501, detail=_JOBS_NOT_WIRED)
 
 
 @jobs_router.get("/{job_id}", response_model=Envelope[JobSummary],
-                  summary="Get one job by id")
+                  summary="Get one job by id (not implemented)")
 async def get_job_endpoint(job_id: str) -> Envelope[JobSummary]:
-    job = get_job(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail=f"job not found: {job_id}")
-    return Envelope(data=job, meta=_meta())
+    raise HTTPException(status_code=501, detail=_JOBS_NOT_WIRED)
 
 
 __all__ = [

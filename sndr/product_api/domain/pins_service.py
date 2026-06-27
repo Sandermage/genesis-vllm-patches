@@ -15,14 +15,15 @@ from sndr.product_api.schemas.pins import PinManifestSummary, PinSummary
 def list_pins(engine_name: str) -> list[PinSummary]:
     """List every pin with a manifest for the given engine."""
     try:
-        EngineCls = get_engine(engine_name)
+        # Validate the engine is registered; the adapter class itself is
+        # not needed — pins are read straight from the filesystem below.
+        get_engine(engine_name)
     except EngineUnsupportedError:
         return []
 
     # Locate the pins directory for this engine adapter.
     # We do not instantiate the engine (it may not be installed) — we read
     # the manifest files directly from the filesystem.
-    module_path = Path(EngineCls.__module__.replace(".", "/")).parent
     pins_dir = (Path(__file__).parent.parent.parent / "engines" / engine_name / "pins").resolve()
     if not pins_dir.is_dir():
         return []
