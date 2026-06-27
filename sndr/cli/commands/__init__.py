@@ -7,6 +7,7 @@ from typing import Protocol
 
 from sndr.cli.commands.engines import EnginesListCommand, EnginesInfoCommand
 from sndr.cli.commands.health import HealthCommand
+from sndr.cli.commands.kv_calc import KvCalcCommand
 from sndr.cli.commands.launch import LaunchCommand
 from sndr.cli.commands.pins import PinsListCommand
 from sndr.cli.commands.preflight import PreflightCommand
@@ -19,6 +20,12 @@ class Command(Protocol):
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None: ...
     def execute(self, args: argparse.Namespace) -> int: ...
+
+
+class _FitAlias(KvCalcCommand):
+    """``sndr fit`` — alias for ``sndr kv-calc`` (same byte-level projection)."""
+    name = "fit"
+    help = "Alias for `kv-calc`: per-card VRAM/KV projection with PASS/TIGHT/FAIL."
 
 
 COMMAND_REGISTRY: dict[str, Command] = {}
@@ -36,6 +43,8 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     register(PinsListCommand())
     register(HealthCommand())
     register(PreflightCommand())
+    register(KvCalcCommand())
+    register(_FitAlias())
 
     for name, cmd in sorted(COMMAND_REGISTRY.items()):
         sub = subparsers.add_parser(name, help=cmd.help)
