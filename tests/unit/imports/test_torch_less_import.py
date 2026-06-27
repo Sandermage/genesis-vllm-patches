@@ -67,6 +67,20 @@ class TestTorchLessImport:
         assert rc.returncode == 0, rc.stderr
         assert "OK" in rc.stdout
 
+    def test_canonical_cli_entry_loads_without_torch(self):
+        # `sndr.cli` (the package) is docstring-only — it does NOT load the
+        # `sndr` console-script entry point. The real entry is
+        # `sndr.cli.main` + its eagerly-imported `sndr.cli.commands`
+        # registry. Guard that THESE import torch-less; otherwise the
+        # `sndr` console script would ImportError on a no-GPU host while
+        # this test stayed green (the v12 split-brain blind spot).
+        rc = _run_probe(
+            "import sndr.cli.main; import sndr.cli.commands; "
+            "sndr.cli.main.build_parser(); print('OK')"
+        )
+        assert rc.returncode == 0, rc.stderr
+        assert "OK" in rc.stdout
+
     def test_compat_schema_validator_loads_without_torch(self):
         rc = _run_probe(
             "from sndr.compat import schema_validator; print('OK')"

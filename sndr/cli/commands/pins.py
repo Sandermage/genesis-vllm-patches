@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 
-from sndr.product_api.domain.pins_service import list_pins
+# NOTE: `sndr.product_api.domain.pins_service` pulls pydantic (via the
+# product_api schemas) at import. Keep it lazy (inside execute) so the
+# eagerly-imported command registry stays import-light on no-GPU hosts.
 
 
 class PinsListCommand:
@@ -20,6 +22,8 @@ class PinsListCommand:
         )
 
     def execute(self, args: argparse.Namespace) -> int:
+        from sndr.product_api.domain.pins_service import list_pins
+
         pins = list_pins(args.engine)
 
         if args.output == "json":

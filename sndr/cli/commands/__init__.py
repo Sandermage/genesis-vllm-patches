@@ -11,10 +11,17 @@ from sndr.cli.commands.kv_calc import KvCalcCommand
 from sndr.cli.commands.launch import LaunchCommand
 from sndr.cli.commands.pins import PinsListCommand
 from sndr.cli.commands.preflight import PreflightCommand
+from sndr.cli.commands.promoted import PROMOTED_COMMANDS
 
 
 class Command(Protocol):
-    """Contract every CLI command implements."""
+    """Contract every CLI command implements.
+
+    A command MAY set a class attribute ``add_help = False`` to have the
+    registrar build its subparser with ``add_help=False`` — used by the
+    promoted pass-through commands so ``--help`` forwards to the legacy
+    delegate instead of being intercepted by a stub subparser.
+    """
     name: str
     help: str
 
@@ -46,8 +53,19 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     register(KvCalcCommand())
     register(_FitAlias())
 
+    # v12 CLI split-brain closure: promote the high-value legacy commands
+    # (report / doctor / preset / bench / tune / config) onto the canonical
+    # surface. Thin pass-throughs that delegate to the legacy impl, so the
+    # canonical and legacy entry points cannot drift.
+    for cmd in PROMOTED_COMMANDS:
+        register(cmd)
+
     for name, cmd in sorted(COMMAND_REGISTRY.items()):
-        sub = subparsers.add_parser(name, help=cmd.help)
+        # A command may opt out of argparse's auto-help (``add_help=False``)
+        # so ``--help`` forwards verbatim to a delegate. Default is True.
+        sub = subparsers.add_parser(
+            name, help=cmd.help, add_help=getattr(cmd, "add_help", True),
+        )
         cmd.configure_parser(sub)
 
 
