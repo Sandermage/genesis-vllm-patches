@@ -1253,26 +1253,63 @@ function sameOriginApi(): boolean {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${getApiBase()}${path}`, {
-    ...init,
-    // Same-origin (daemon-served / production): send the httpOnly session
-    // cookie so OAuth logins work. Cross-origin (Vite dev): omit credentials
-    // to satisfy CORS and rely on the bearer token instead.
-    credentials: sameOriginApi() ? "include" : "omit",
-    headers: { ...authHeaders(), ...(init?.headers ?? {}) }
-  });
-  if (!response.ok) {
-    let detail = `${response.status} ${response.statusText}`;
-    try {
-      const payload = await response.json();
-      detail = payload.detail ?? detail;
-    } catch {
-      // Keep the HTTP status fallback.
+// RequestInit plus an optional client-side hard timeout. A request that exceeds
+// `timeoutMs` is aborted and rejects with a clear, retryable error — so a slow
+// or unresponsive route (e.g. a stalled fit-check probe) can NEVER leave a panel
+// spinning forever. The timeout is composed with any caller AbortSignal: either
+// firing aborts the fetch.
+type ApiRequestInit = RequestInit & { timeoutMs?: number };
+
+async function request<T>(path: string, init?: ApiRequestInit): Promise<T> {
+  const { timeoutMs, signal: callerSignal, ...rest } = init ?? {};
+
+  // Compose the caller's signal (TanStack Query cancellation / unmount) with an
+  // optional timeout controller. Whichever aborts first wins.
+  let signal = callerSignal ?? undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  if (timeoutMs && timeoutMs > 0) {
+    const ctrl = new AbortController();
+    timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, timeoutMs);
+    if (callerSignal) {
+      if (callerSignal.aborted) ctrl.abort();
+      else callerSignal.addEventListener("abort", () => ctrl.abort(), { once: true });
     }
-    throw new Error(detail);
+    signal = ctrl.signal;
   }
-  return response.json() as Promise<T>;
+
+  try {
+    const response = await fetch(`${getApiBase()}${path}`, {
+      ...rest,
+      // Same-origin (daemon-served / production): send the httpOnly session
+      // cookie so OAuth logins work. Cross-origin (Vite dev): omit credentials
+      // to satisfy CORS and rely on the bearer token instead.
+      credentials: sameOriginApi() ? "include" : "omit",
+      headers: { ...authHeaders(), ...(init?.headers ?? {}) },
+      signal
+    });
+    if (!response.ok) {
+      let detail = `${response.status} ${response.statusText}`;
+      try {
+        const payload = await response.json();
+        detail = payload.detail ?? detail;
+      } catch {
+        // Keep the HTTP status fallback.
+      }
+      throw new Error(detail);
+    }
+    return response.json() as Promise<T>;
+  } catch (err) {
+    // Surface a self-aborting timeout as an explicit, human error rather than a
+    // bare "The operation was aborted" DOMException (caller cancellation is left
+    // to propagate untouched so TanStack Query treats it as a cancel, not error).
+    if (timedOut) {
+      throw new Error(`Request timed out after ${Math.round((timeoutMs ?? 0) / 1000)}s`);
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 async function postJson<T>(path: string, payload: Record<string, any>, opts?: { signal?: AbortSignal }): Promise<T> {
@@ -1489,7 +1526,11 @@ export const api = {
   // (synthetic "name:vram_mib:cc;…") model a rig offline; both omitted = the
   // live nvidia-smi rig on the daemon host.
   preflight: (params: { preset_id: string; rig?: string; fake_gpus?: string }, signal?: AbortSignal) =>
-    request<PreflightFitReport>(`/api/v1/preflight${query(params)}`, { signal }),
+    // 8s client cap > the route's 6s server-side deadline, so the daemon's clean
+    // 504 ("fit check timed out") wins; the client timeout is the backstop for a
+    // wholly unresponsive / stale daemon (the route missing entirely). Either way
+    // the fit-check step resolves to an error+retry, never an endless spinner.
+    request<PreflightFitReport>(`/api/v1/preflight${query(params)}`, { signal, timeoutMs: 8000 }),
   modelsCache: (signal?: AbortSignal) => request<ModelCacheReport>("/api/v1/models/cache", { signal }),
   eventsRecent: (since_seq = 0) =>
     request<{ events: BackendEvent[]; last_seq: number }>(`/api/v1/events/recent${query({ since_seq })}`),

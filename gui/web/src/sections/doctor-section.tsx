@@ -30,7 +30,7 @@ function DoctorVerdict({ report }: { report: DoctorReport | null }) {
     return (
       <div className="doctor-verdict blocked">
         <CircleAlert size={18} />
-        <strong>{blocked} {blocked === 1 ? tr("blocked — fix before launch") : tr("blocked — fix before launch")}</strong>
+        <strong>{blocked} {blocked === 1 ? tr("blocker — fix before launch") : tr("blockers — fix before launch")}</strong>
       </div>
     );
   }

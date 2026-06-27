@@ -31,7 +31,13 @@ const STATUS_META: Record<ModelCardStatus, StatusMeta> = {
  *  preflight verdict. A 2× preset on a 1-card rig that FAILs only on gpu_count
  *  is the escape-hatch case (there is a llama.cpp fallback); a FAIL on
  *  VRAM/SM with no fallback is plainly "blocked on your rig". When the rig
- *  clears it (or no preflight ran), we fall back to the card's own maturity. */
+ *  clears it (or no preflight ran), we fall back to the card's own maturity.
+ *
+ *  Maturity mapping (card.status — production_candidate | experimental | qa |
+ *  example | …). Only "production"/"production_candidate" earns the green
+ *  Production badge; "experimental" and the non-production maturities (qa,
+ *  example, bench_pending, anything unrecognised) get the honest amber
+ *  Experimental badge rather than being silently dressed up as Production. */
 export function deriveStatus(
   card: Record<string, unknown>,
   preflight: PreflightFitReport | null
@@ -39,9 +45,7 @@ export function deriveStatus(
   const declared = asText(card.status, "");
   const fromCard: ModelCardStatus = declared.startsWith("production")
     ? "production"
-    : declared === "experimental"
-      ? "experimental"
-      : "production";
+    : "experimental";
 
   if (preflight && !preflight.can_run) {
     const failures = preflight.checks.filter((c) => c.status === "fail");
