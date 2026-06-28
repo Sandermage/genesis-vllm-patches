@@ -182,12 +182,17 @@ class SndrCockpit(App):
         rig: Optional[str] = None,
         fake_gpus: Optional[str] = None,
         loader: Any = _data,
+        lean: bool = False,
     ) -> None:
         super().__init__()
         self._rig = rig
         self._fake_gpus = fake_gpus
         self._data = loader  # the facade — injectable so tests fake one surface
         self._catalog: Any = None
+        # Lean (beginner) mode hides the operator-detail panes — GPU/rig and the
+        # status log — leaving just "what can I run" (catalog) + "is it serving"
+        # (engine). Action feedback then surfaces as a toast instead of the log.
+        self._lean = lean
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -205,6 +210,12 @@ class SndrCockpit(App):
         table.add_columns("fit", "preset", "status", "metric")
         table.cursor_type = "row"
         table.focus()  # ↑/↓ navigate, Enter serves the selected preset
+        if self._lean:
+            # Hide operator detail; let the catalog + engine fill the screen.
+            self.query_one("#gpu", Static).display = False
+            self.query_one("#log", RichLog).display = False
+            # Reclaim the space the hidden panes leave so nothing looks empty.
+            self.query_one("#catalog", DataTable).styles.height = "1fr"
         self._log("sndr cockpit.  Enter serve · k stop · d doctor · c chat · ? help · q quit")
         self._load_catalog()
         self._refresh_engine()
@@ -386,9 +397,19 @@ class SndrCockpit(App):
 
     def _log(self, msg: str) -> None:
         self.query_one("#log", RichLog).write(msg)
+        if self._lean:
+            # The log pane is hidden in lean mode — surface feedback as a toast.
+            try:
+                self.notify(msg)
+            except Exception:  # pragma: no cover — notify needs a running app
+                pass
 
 
-def run_tui(rig: Optional[str] = None, fake_gpus: Optional[str] = None) -> int:
+def run_tui(
+    rig: Optional[str] = None,
+    fake_gpus: Optional[str] = None,
+    lean: bool = False,
+) -> int:
     """Launch the cockpit. Returns a process exit code."""
     # Apply any persisted Model Dir / HF token to the env first, so this
     # session's serve/pull (and the child `sndr launch`) use the saved config
@@ -397,7 +418,7 @@ def run_tui(rig: Optional[str] = None, fake_gpus: Optional[str] = None) -> int:
         _data.apply_saved_settings()
     except Exception:  # pragma: no cover — never block launch on a settings read
         pass
-    SndrCockpit(rig=rig, fake_gpus=fake_gpus).run()
+    SndrCockpit(rig=rig, fake_gpus=fake_gpus, lean=lean).run()
     return 0
 
 

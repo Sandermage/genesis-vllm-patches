@@ -477,6 +477,56 @@ def test_s_opens_settings_prefilled_and_save_persists():
     _run(body())
 
 
+def test_tui_command_parses_lean_flag():
+    """``sndr tui --lean`` opts into the beginner layout (textual-free parse)."""
+    import argparse
+
+    from sndr.cli.commands.tui import TuiCommand
+
+    parser = argparse.ArgumentParser()
+    TuiCommand().configure_parser(parser)
+    assert parser.parse_args([]).lean is False
+    assert parser.parse_args(["--lean"]).lean is True
+
+
+def test_lean_mode_hides_operator_panes():
+    pytest.importorskip("textual")
+
+    async def body():
+        from sndr.cli.tui.app import SndrCockpit
+
+        catalog = FakeCatalog(
+            rig=FakeRig(),
+            candidates=[FakeCandidate("prod-qwen3.6-27b", "production", can_run=True)],
+        )
+        loader = FakeActionLoader(catalog, _serving_snapshot())
+        app = SndrCockpit(rig="dual-a5000", loader=loader, lean=True)
+        async with app.run_test() as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            # operator detail hidden; the beginner essentials stay
+            assert app.query_one("#gpu").display is False
+            assert app.query_one("#log").display is False
+            assert app.query_one("#engine").display is True
+            assert app.query_one("#catalog").display is True
+
+    _run(body())
+
+
+def test_default_mode_shows_all_panes():
+    pytest.importorskip("textual")
+
+    async def body():
+        app, _ = _make_action_app()  # lean defaults off
+        async with app.run_test() as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            for pane in ("#engine", "#gpu", "#catalog", "#log"):
+                assert app.query_one(pane).display is True
+
+    _run(body())
+
+
 def test_settings_escape_cancels_without_saving():
     pytest.importorskip("textual")
 

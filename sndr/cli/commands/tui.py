@@ -41,6 +41,12 @@ class TuiCommand:
             help="Synthesize a rig from a GPU spec (e.g. 'RTX A5000:24564:8.6') "
             "when no GPU is present — the same flag the launch wizard accepts.",
         )
+        parser.add_argument(
+            "--lean",
+            action="store_true",
+            help="Beginner layout — hide the operator panes (GPU/rig + log), "
+            "leaving just the catalog (what can I run) and engine status.",
+        )
 
     def execute(self, args: argparse.Namespace) -> int:
         em = Emitter()
@@ -57,6 +63,7 @@ class TuiCommand:
         return run_tui(
             rig=getattr(args, "rig", None),
             fake_gpus=getattr(args, "fake_gpus", None),
+            lean=getattr(args, "lean", False),
         )
 
 
