@@ -402,6 +402,8 @@ const RU_BY_EN: Record<string, string> = {
   "Active upstream PRs": "Активные апстрим-PR",
   "Activity log": "Журнал активности",
   "Add / manage hosts": "Добавить хосты / управлять хостами",
+  "Add a remote host": "Добавить удалённый хост",
+  "Manage hosts": "Управление хостами",
   "Add a GPU host in": "Добавьте GPU-хост в разделе",
   "Add a GPU server in": "Добавьте GPU-сервер в разделе",
   "Add host": "Добавить хост",

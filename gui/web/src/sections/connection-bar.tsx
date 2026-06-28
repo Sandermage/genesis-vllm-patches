@@ -15,6 +15,7 @@ export function ServerSwitcher({
   onSwitch,
   hostProfiles,
   onManageHosts,
+  onAddRemoteHost,
   onOpenHost
 }: {
   apiBase: string;
@@ -22,6 +23,10 @@ export function ServerSwitcher({
   onSwitch: (baseUrl: string) => void;
   hostProfiles: HostProfile[];
   onManageHosts: () => void;
+  // Explicit "Add a remote host" action — opens the remote-SSH install wizard.
+  // This is the ONLY entry to the SSH fleet flow; it is never the first-run
+  // default (a beginner lands on Choose & Launch against the local daemon).
+  onAddRemoteHost: () => void;
   onOpenHost: (hostId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -98,7 +103,8 @@ export function ServerSwitcher({
               );
             })}
           </div>
-          <button className="server-add" onClick={() => { setOpen(false); onManageHosts(); }}><Plus size={14} /> {tr("Add / manage hosts")}</button>
+          <button className="server-add" onClick={() => { setOpen(false); onAddRemoteHost(); }}><Plus size={14} /> {tr("Add a remote host")}</button>
+          <button className="server-add" onClick={() => { setOpen(false); onManageHosts(); }}><Server size={14} /> {tr("Manage hosts")}</button>
           <div className="server-menu-hint">{tr("Daemons serve patches/presets/configs. A GPU box runs the")} <b>{tr("engine")}</b> {tr("— pick it to open its card and see what's running (models, GPUs, live patches).")}</div>
         </div>
       )}

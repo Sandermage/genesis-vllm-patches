@@ -5,6 +5,7 @@
 import { type ReactNode } from "react";
 import { Sun, Moon, Sparkles, Leaf } from "lucide-react";
 import { tr } from "./i18n";
+import { type RuntimeMode } from "./nav";
 
 /** Tabs on the operational console (jobs / events / logs / cli). */
 export type ConsoleTab = "jobs" | "events" | "logs" | "cli";
@@ -27,6 +28,12 @@ export type GuiSettings = {
   showConnectionMap: boolean;
   autoRefresh: boolean;
   sidebarCollapsed: boolean;
+  /** Where the GPU engine runs (launch/SSH/chat host hints). A FRESH user with
+   *  no configured remote host lands in "local" — the beginner-first path that
+   *  drives this machine's local daemon at 127.0.0.1:8765 — instead of the
+   *  remote-SSH fleet flow. The choice persists, so a returning user who picked
+   *  "remote" (configuring a GPU node) keeps it. */
+  runtimeMode: RuntimeMode;
   /** Engine host used in "Remote GPU" runtime mode (reachability probes,
    *  lifecycle planner, endpoint rows). Operator-editable so it can point at a
    *  real GPU node instead of an unresolvable placeholder. */
@@ -67,6 +74,10 @@ export const defaultGuiSettings: GuiSettings = {
   showConnectionMap: true,
   autoRefresh: false,
   sidebarCollapsed: false,
+  // A FRESH user (no configured remote host) drives the LOCAL daemon — the
+  // beginner-first "pick a model → launch → chat" path, not the remote-SSH
+  // fleet flow. Returning users keep whatever runtime mode they last chose.
+  runtimeMode: "local",
   remoteHost: DEFAULT_REMOTE_HOST
 };
 
@@ -110,6 +121,12 @@ export function loadGuiSettings(): GuiSettings {
         typeof parsed.sidebarCollapsed === "boolean"
           ? parsed.sidebarCollapsed
           : defaultGuiSettings.sidebarCollapsed,
+      // Honor a returning user's persisted runtime mode; a fresh user (no stored
+      // value) gets the local-first default.
+      runtimeMode:
+        parsed.runtimeMode === "remote" || parsed.runtimeMode === "local"
+          ? parsed.runtimeMode
+          : defaultGuiSettings.runtimeMode,
       remoteHost:
         typeof parsed.remoteHost === "string" && parsed.remoteHost.trim()
           ? parsed.remoteHost.trim()

@@ -143,7 +143,6 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [apiBase, setApiBase] = useState(api.baseUrl);
-  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>("remote");
   const [runtimeTarget, setRuntimeTarget] = useState("docker_compose");
   const [patchPolicy, setPatchPolicy] = useState("safe");
   const [applyEnabled, setApplyEnabled] = useState(false);
@@ -154,7 +153,11 @@ export default function App() {
   const [launchSshTarget, setLaunchSshTarget] = useState("");
   const [launchTab, setLaunchTab] = useState("recommend");
   const [recommendForm, setRecommendForm] = useState<RecommendForm>(defaultRecommend);
-  const [activeSection, setActiveSection] = useState<SectionId>(() => (sectionFromHash() as SectionId | null) ?? "launch-plan");
+  // First-run landing = the Choose & Launch funnel (a Simple-tier section), so a
+  // beginner opens straight into "your rig → pick a model that fits → launch →
+  // chat" rather than the Expert Launch-Plan workbench. A deep-link in the hash
+  // still wins. (Expert mode keeps every section; this is only the default.)
+  const [activeSection, setActiveSection] = useState<SectionId>(() => (sectionFromHash() as SectionId | null) ?? "choose-launch");
   // When a host is opened from the connection switcher, focus + auto-discover it.
   const [focusHostId, setFocusHostId] = useState<string | null>(null);
   // "Set up as node" from an engine card → prefill the installer (daemon target).
@@ -171,6 +174,13 @@ export default function App() {
   const gChordRef = useRef(0);
   const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
   const [settings, setSettings] = useState<GuiSettings>(() => loadGuiSettings());
+
+  // GPU-target mode is settings-backed (single source of truth) so the choice
+  // PERSISTS: a fresh user with no configured remote host defaults to LOCAL (the
+  // local daemon at 127.0.0.1:8765 — the beginner-first path), while a returning
+  // user who picked Remote (a configured GPU node) keeps it across reloads.
+  const runtimeMode = settings.runtimeMode;
+  const setRuntimeMode = (mode: RuntimeMode) => setSettings((current) => ({ ...current, runtimeMode: mode }));
 
   async function loadAll() {
     setState("loading");
@@ -906,7 +916,7 @@ export default function App() {
           <div className="topbar-actions">
             <LiveModelChip onOpen={() => setActiveSection("clients")} />
             <AlertsBell onOpenHardware={() => setActiveSection("hardware")} />
-            <ServerSwitcher apiBase={apiBase} connectionTone={connectionTone} onSwitch={(url) => void switchServerGuarded(url)} hostProfiles={hostProfiles} onManageHosts={() => setActiveSection("hosts")} onOpenHost={(id) => { setFocusHostId(id); setActiveSection("hosts"); }} />
+            <ServerSwitcher apiBase={apiBase} connectionTone={connectionTone} onSwitch={(url) => void switchServerGuarded(url)} hostProfiles={hostProfiles} onManageHosts={() => setActiveSection("hosts")} onAddRemoteHost={() => { setInstallIntent({ target: "compose" }); setActiveSection("setup"); }} onOpenHost={(id) => { setFocusHostId(id); setActiveSection("hosts"); }} />
             <button className="tool-button" onClick={() => void loadAll()}>
               <RefreshCw size={16} />
               {tr("Sync Catalog")}
