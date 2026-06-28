@@ -1,0 +1,111 @@
+# sndr — FULL PRODUCT compose (UX R3): engine + product-API/GUI daemon on one
+# network, the declarative equivalent of `sndr up`.
+#
+# `sndr up [preset]` is the ergonomic front (launch engine, start the daemon,
+# wait for both, print the URL). This file is the same bring-up as plain
+# `docker compose`, so a newcomer who prefers compose gets the WHOLE product in
+# one shot:
+#
+#   docker compose -f compose/docker-compose.full.yml up -d
+#   # then open the GUI:
+#   open http://127.0.0.1:8765      # (or `sndr open`)
+#
+# Two services share one network:
+#   - vllm-engine : the inference engine (mirror of the engine service in the
+#                   per-preset renders, e.g. compose/prod-35b.yml). Replace the
+#                   ${...} placeholders / volume paths for your preset + rig, or
+#                   render a preset directly with `sndr compose render <preset>`.
+#   - sndr-daemon : the product-API + GUI daemon — the SAME server the Makefile
+#                   `gui-api` target runs (`python -m sndr.cli gui-api`, i.e.
+#                   sndr.product_api.legacy.http_app.run_server). It serves the
+#                   bundled web UI AND the typed Product API on ONE port (8765).
+#                   It reuses the engine image (which already ships sndr_core +
+#                   uvicorn) and re-mounts the same host `sndr/` package, so no
+#                   second image is needed. A fresh container has no
+#                   GENESIS_ENABLE_* env, so no patches apply — a clean, GPU-less
+#                   management daemon.
+#
+# The daemon stays READ-ONLY by default. Set SNDR_ENABLE_APPLY=1 in the
+# environment to opt into real service-action execution (off by default).
+#
+# Secrets: VLLM_API_KEY is NOT written here. `${VLLM_API_KEY:-}` pulls it from
+# the shell env or a `.env` file next to this YAML (chmod 0600).
+
+services:
+  vllm-engine:
+    # Pin the engine image to the validated digest for your rig, or let
+    # `sndr compose render <preset>` emit the exact per-preset service. This
+    # placeholder mirrors the engine service shape of compose/prod-*.yml.
+    image: "${SNDR_ENGINE_IMAGE:-vllm/vllm-openai:latest}"
+    container_name: sndr-engine
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      VLLM_NO_USAGE_STATS: "1"
+      VLLM_LOGGING_LEVEL: WARNING
+      VLLM_API_KEY: "${VLLM_API_KEY:-}"
+    command:
+      - vllm
+      - serve
+      - "${SNDR_ENGINE_MODEL:-/models/model}"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    volumes:
+      # Replace with your host paths (or render a preset for the exact mounts).
+      - "${SNDR_MODELS_DIR:-./models}:/models:ro"
+      - "${SNDR_HF_CACHE:-./hf_cache}:/root/.cache/huggingface"
+    shm_size: 8g
+    networks:
+      - sndr-net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
+
+  sndr-daemon:
+    # Reuse the engine image: it already ships sndr_core + uvicorn. Re-mount the
+    # host `sndr/` package the engine mounts at runtime so `import sndr` resolves.
+    image: "${SNDR_ENGINE_IMAGE:-vllm/vllm-openai:latest}"
+    container_name: sndr-daemon
+    restart: unless-stopped
+    depends_on:
+      - vllm-engine
+    ports:
+      # One port serves the bundled web UI AND the Product API (8765).
+      - "8765:8765"
+    environment:
+      SNDR_BIND: "0.0.0.0"
+      SNDR_GUI_PORT: "8765"
+      # Read-only by default; set to 1 to enable real service actions.
+      SNDR_ENABLE_APPLY: "${SNDR_ENABLE_APPLY:-}"
+      # Point the daemon's engine client at the engine service on the shared net.
+      SNDR_RUNTIME_HOST: vllm-engine
+    entrypoint:
+      - python3
+      - -c
+      # Launch the Product API server directly — the SAME run_server the
+      # `gui-api` CLI path calls (sndr.product_api.legacy.http_app), so the CLI
+      # and the compose bring-up cannot drift.
+      - >-
+        import os;
+        from sndr.product_api.legacy.http_app import run_server;
+        run_server(host=os.environ.get('SNDR_BIND', '0.0.0.0'),
+        port=int(os.environ.get('SNDR_GUI_PORT') or 8765),
+        enable_apply=os.environ.get('SNDR_ENABLE_APPLY', '').strip().lower()
+        in ('1', 'true', 'yes', 'on'))
+    volumes:
+      # Re-mount the canonical sndr/ package so the daemon resolves `import sndr`.
+      - "${SNDR_SRC_DIR:-../sndr}:/usr/local/lib/python3.12/dist-packages/sndr:ro"
+    networks:
+      - sndr-net
+
+networks:
+  sndr-net:
+    driver: bridge

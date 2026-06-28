@@ -14,6 +14,7 @@ from sndr.cli.commands.pins import PinsListCommand
 from sndr.cli.commands.preflight import PreflightCommand
 from sndr.cli.commands.promoted import PROMOTED_COMMANDS
 from sndr.cli.commands.run import RunCommand
+from sndr.cli.commands.up import DownCommand, OpenCommand, UpCommand
 
 
 class Command(Protocol):
@@ -51,6 +52,10 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     register(LaunchCommand())
     register(RunCommand())
     register(ChatCommand())
+    # UX R3: Harbor-style one-command full-stack bring-up (engine + GUI daemon).
+    register(UpCommand())
+    register(OpenCommand())
+    register(DownCommand())
     register(PinsListCommand())
     register(HealthCommand())
     register(PreflightCommand())
