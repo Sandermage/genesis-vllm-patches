@@ -146,10 +146,12 @@ Changelog = "https://github.com/Sandermage/genesis-vllm-patches/blob/main/CHANGE
 #
 # Two console scripts:
 #   ``sndr``    — modular CLI (engines.list / engines.info / pins.list / health)
-#   ``genesis`` — legacy command tree, retained as alias for operators trained
-#                 on it. Removed in v13.0.
+#   ``genesis`` — legacy command tree, retained as a soft-deprecation alias for
+#                 operators trained on it. It prints a one-line stderr nudge on
+#                 use (``genesis_main``) but still works verbatim. Removed in
+#                 v13.0.
 sndr = "sndr.cli.main:main"
-genesis = "sndr.cli.legacy:cli_main"
+genesis = "sndr.cli.legacy:genesis_main"
 
 [project.entry-points."vllm.general_plugins"]
 # v12.0: the canonical plugin registration lives in ``sndr.plugin``. vLLM

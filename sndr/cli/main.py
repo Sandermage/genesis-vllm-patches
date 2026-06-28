@@ -1,23 +1,28 @@
 # SPDX-License-Identifier: Apache-2.0
 """sndr CLI dispatcher.
 
-Examples (resource commands use dotted names — ``engines.list``, not
-``engines list``)::
+Examples. Resource commands have a dotted canonical name (``engines.list``)
+and a spaced ergonomic alias (``engines list``) — BOTH resolve to the same
+command::
 
     sndr --version
-    sndr engines.list
-    sndr engines.info vllm
-    sndr pins.list --engine vllm
+    sndr engines.list            # or: sndr engines list
+    sndr engines.info vllm        # or: sndr engines info vllm
+    sndr pins.list --engine vllm  # or: sndr pins list --engine vllm
     sndr health
     sndr preflight prod-qwen3.6-35b-balanced
     sndr preflight prod-gemma4-26b-default --rig single-3090-24gbvram
 
-Promoted operator commands (v12 split-brain closure) — thin pass-throughs
-to the legacy implementation, so the canonical and ``genesis`` entry points
-cannot drift::
+Promoted operator + beginner commands (v12 split-brain closure / UX R2) —
+thin pass-throughs to the legacy/compat implementation, so the canonical and
+``genesis`` entry points cannot drift::
 
     sndr report bundle --preset a5000-2x-35b-prod
     sndr doctor --full
+    sndr verify --quick
+    sndr pull Qwen/Qwen3-32B      # or: sndr model pull Qwen/Qwen3-32B
+    sndr list-models
+    sndr model-config list
     sndr preset list
     sndr preset recommend --workload agentic-coding
     sndr bench --help
@@ -84,6 +89,39 @@ _PASSTHROUGH_COMMANDS: dict[str, object] = {
 }
 
 
+# UX R2 (v12) — spaced-verb cohesion. The canonical resource commands use
+# dotted names (``engines.list``, ``engines.info``, ``pins.list``) but a
+# beginner naturally types the spaced Docker/git-style form (``engines list``).
+# We alias the two-token spaced prefix to its canonical single token so BOTH
+# resolve to the SAME command — the dotted form stays primary in ``--help``,
+# the spaced form is a silent ergonomic alias. ``model pull`` is the spaced
+# alias of the promoted ``pull`` verb (kept for parity with the legacy
+# ``sndr model pull`` special-case). Nothing is removed; this only adds
+# resolutions that previously raised ``invalid choice``.
+_SPACED_ALIASES: dict[tuple[str, str], str] = {
+    ("engines", "list"): "engines.list",
+    ("engines", "info"): "engines.info",
+    ("pins", "list"): "pins.list",
+    ("model", "pull"): "pull",
+}
+
+
+def _normalize_spaced_verbs(argv: list[str]) -> list[str]:
+    """Rewrite a leading spaced compound verb to its canonical token.
+
+    ``["engines", "list", ...]`` -> ``["engines.list", ...]`` (dotted alias).
+    ``["model", "pull", ...]``   -> ``["pull", ...]``          (promoted verb).
+    Anything else is returned unchanged. Only the first two tokens are ever
+    rewritten, and only when they form a known spaced alias — so a real
+    positional like ``engines.info engines`` is never mangled.
+    """
+    if len(argv) >= 2:
+        canonical = _SPACED_ALIASES.get((argv[0], argv[1]))
+        if canonical is not None:
+            return [canonical, *argv[2:]]
+    return argv
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the top-level argument parser."""
     parser = argparse.ArgumentParser(
@@ -115,10 +153,17 @@ def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
 
-    # Fast-path for promoted pass-through commands (report / doctor / preset
-    # / bench / tune / config). Delegate the whole tail to the legacy impl
-    # before argparse runs, so ``sndr <cmd> --help`` and every flag forward
-    # verbatim. Mirrors the legacy ``cli_main`` bridge fast-path.
+    # UX R2: rewrite a leading spaced compound verb to its canonical token
+    # (``engines list`` -> ``engines.list``, ``model pull`` -> ``pull``) before
+    # any dispatch. A bare ``sndr`` (empty argv) is left untouched so the R1
+    # no-args wizard gate still fires.
+    argv = _normalize_spaced_verbs(argv)
+
+    # Fast-path for promoted pass-through commands (report / doctor / preset /
+    # bench / tune / config + the R2 beginner verbs verify / pull / list-models
+    # / model-config). Delegate the whole tail to the legacy/compat impl before
+    # argparse runs, so ``sndr <cmd> --help`` and every flag forward verbatim.
+    # Mirrors the legacy ``cli_main`` bridge fast-path.
     if argv and argv[0] in _PASSTHROUGH_COMMANDS:
         cmd = _PASSTHROUGH_COMMANDS[argv[0]]
         ns = argparse.Namespace(_extra_argv=list(argv[1:]))

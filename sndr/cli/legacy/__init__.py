@@ -89,7 +89,7 @@ from .trace import (
     add_support_bundle_argparser as _support_bundle_argparser,
 )  # §6.H9 support-bundle verb (top-level, sibling of `trace`)
 
-__all__ = ["cli_main"]
+__all__ = ["cli_main", "genesis_main"]
 
 
 # Map of bridged subcommand → compat.cli subcommand name.
@@ -156,6 +156,49 @@ def _add_bridged_argparser(subparsers, name: str, compat_cmd: str) -> None:
         help=argparse.SUPPRESS,
     )
     p.set_defaults(func=_make_bridge_handler(compat_cmd))
+
+
+# UX R2 (v12) — ``genesis`` is now a soft-deprecation alias of ``sndr``. The
+# command tree still works verbatim (no removal until v13), but a single
+# one-line nudge on stderr steers operators onto the canonical ``sndr`` surface.
+# Help / version / bare-genesis introspection stays quiet — only an actual
+# ``genesis <verb>`` invocation prints the note.
+_DEPRECATION_QUIET_FLAGS = frozenset({"-h", "--help", "help", "--version"})
+
+
+def _emit_genesis_deprecation_note(argv: list[str]) -> None:
+    """Print one ``genesis`` deprecation nudge on stderr (never stdout).
+
+    Fires only for a real subcommand invocation; bare ``genesis`` and the
+    help/version introspection flags are exempt so scripted help-scrapers and
+    ``genesis --version`` callers see no surprise stderr line.
+    """
+    if not argv or argv[0] in _DEPRECATION_QUIET_FLAGS:
+        return
+    verb = argv[0]
+    # Surface the spaced compound form for the two-token ``model`` subcommands
+    # so the suggested replacement is copy-pasteable.
+    if verb == "model" and len(argv) >= 2 and argv[1] in ("pull", "list"):
+        verb = f"model {argv[1]}"
+    sys.stderr.write(
+        f"note: 'genesis {verb}' is deprecated — "
+        f"use 'sndr {verb}' (removed in v13)\n"
+    )
+
+
+def genesis_main(argv: list[str] | None = None) -> int:
+    """``genesis`` console-script entry point — soft-deprecation alias of ``sndr``.
+
+    Prints the one-line deprecation nudge, then defers to :func:`cli_main`.
+    This is the ONLY caller that emits the note: the canonical ``sndr`` surface
+    reuses :func:`cli_main` internally for the promoted pass-throughs (report /
+    preset / bench / tune / config) and must stay quiet — otherwise ``sndr
+    report`` would wrongly warn about ``genesis``.
+    """
+    if argv is None:
+        argv = sys.argv[1:]
+    _emit_genesis_deprecation_note(argv)
+    return cli_main(argv)
 
 
 def cli_main(argv: list[str] | None = None) -> int:

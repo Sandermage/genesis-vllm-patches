@@ -26,7 +26,12 @@ import pytest
 from sndr.cli.commands.promoted import PROMOTED_COMMANDS
 
 
-_PROMOTED_NAMES = ("report", "doctor", "preset", "bench", "tune", "config")
+# v12 first batch (operator commands) + UX R2 beginner verbs (verify / pull /
+# list-models / model-config). ``doctor`` was promoted in the first batch.
+_PROMOTED_NAMES = (
+    "report", "doctor", "preset", "bench", "tune", "config",
+    "verify", "pull", "list-models", "model-config",
+)
 
 
 class TestPromotedRegistration:

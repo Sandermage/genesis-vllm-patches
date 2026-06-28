@@ -838,7 +838,7 @@ run_verify() {
 
   if ! PYTHONPATH="$GENESIS_HOME:${PYTHONPATH:-}" "$PYTHON_BIN" -m sndr.compat.cli verify --quick 2>&1 | sed 's/^/    /'; then
     warn "verify reported issues — check output above. Genesis is installed but may not be fully functional."
-    hint "Diagnose:  sndr doctor   (or: python3 -m sndr.compat.cli doctor)"
+    hint "Diagnose:  sndr doctor"
     return 0  # Don't fail install on verify warnings
   fi
 }
@@ -863,7 +863,7 @@ print_next_steps() {
   if [ "$GENESIS_BARE_METAL" = "1" ]; then
     echo "  Bare-metal mode (--bare-metal or auto-enabled by Proxmox detect):"
     echo "      $PYTHON_BIN -m pip install --user vllm==0.20.1   # if not already"
-    echo "      genesis verify                                    # full smoke test"
+    echo "      sndr verify                                       # full smoke test"
     echo "      vllm serve <model> --tensor-parallel-size <N> ...  # standard vllm CLI"
     echo
     echo "  Generated launch scripts in $GENESIS_HOME/scripts/ are docker-based"
@@ -886,13 +886,10 @@ print_next_steps() {
   echo
   echo "Useful commands:"
   echo "  sndr doctor              # full system diagnostic"
+  echo "  sndr verify              # re-run smoke test"
   echo "  sndr preset list         # browse production presets"
+  echo "  sndr model-config list   # vetted model launch configs"
   echo "  sndr report bundle       # diagnostic bundle for issues"
-  # verify / model-config / patches live on the legacy 'genesis' command
-  # tree (not yet promoted to the canonical 'sndr' surface).
-  echo "  genesis verify           # re-run smoke test"
-  echo "  genesis model-config list  # vetted model launch configs"
-  echo "  genesis patches doctor   # registry sanity check"
   echo "  sndr --help              # full subcommand list"
   echo
   echo "Docs:    https://github.com/Sandermage/genesis-vllm-patches"

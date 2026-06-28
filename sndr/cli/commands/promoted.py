@@ -101,6 +101,41 @@ class ConfigCommand(_PassthroughCommand):
     help = "Preset config browser — diff / explain / new (scaffold)."
 
 
+# ── UX R2 (v12) — beginner-verb cohesion ────────────────────────────────────
+#
+# These five verbs were the canonical-vs-legacy split-brain: a novice reading
+# the docs typed ``sndr verify`` / ``sndr pull`` / ``sndr list-models`` /
+# ``sndr model-config`` and hit ``invalid choice`` — the verbs lived ONLY on the
+# legacy ``genesis`` tree and the ``sndr.compat.cli`` bridge. We promote them to
+# the canonical surface as thin pass-throughs through ``_target = "compat"``,
+# i.e. the SAME bridge target the legacy tree uses, so the two entry points
+# cannot drift. (``doctor`` was already promoted in the first v12 batch above.)
+
+
+class VerifyCommand(_PassthroughCommand):
+    name = "verify"
+    help = "Post-install smoke test (--quick / --boot / --full)."
+    _target = "compat"
+
+
+class PullCommand(_PassthroughCommand):
+    name = "pull"
+    help = "HF download + tailored launch script for a curated model."
+    _target = "compat"
+
+
+class ListModelsCommand(_PassthroughCommand):
+    name = "list-models"
+    help = "Browse the curated model registry."
+    _target = "compat"
+
+
+class ModelConfigCommand(_PassthroughCommand):
+    name = "model-config"
+    help = "Vetted model launch configs — list / show / render / launch / verify."
+    _target = "compat"
+
+
 PROMOTED_COMMANDS = (
     ReportCommand(),
     DoctorCommand(),
@@ -108,6 +143,11 @@ PROMOTED_COMMANDS = (
     BenchCommand(),
     TuneCommand(),
     ConfigCommand(),
+    # UX R2 beginner verbs:
+    VerifyCommand(),
+    PullCommand(),
+    ListModelsCommand(),
+    ModelConfigCommand(),
 )
 
 
@@ -118,5 +158,9 @@ __all__ = [
     "BenchCommand",
     "TuneCommand",
     "ConfigCommand",
+    "VerifyCommand",
+    "PullCommand",
+    "ListModelsCommand",
+    "ModelConfigCommand",
     "PROMOTED_COMMANDS",
 ]
