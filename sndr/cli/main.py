@@ -106,20 +106,37 @@ _SPACED_ALIASES: dict[tuple[str, str], str] = {
     ("model", "pull"): "pull",
 }
 
+# Bare resource-group verbs default to their ``list`` ("show me") — a beginner
+# who types just ``sndr engines`` / ``sndr pins`` (no subcommand) should get the
+# obvious listing, not a raw argparse ``invalid choice`` wall. Mirrors R1's
+# bare-verb philosophy (bare ``sndr`` → wizard). Only groups that HAVE a natural
+# list default are listed here (``model`` has no list, so it is left alone).
+_BARE_GROUP_DEFAULTS: dict[str, str] = {
+    "engines": "engines.list",
+    "pins": "pins.list",
+}
+
 
 def _normalize_spaced_verbs(argv: list[str]) -> list[str]:
     """Rewrite a leading spaced compound verb to its canonical token.
 
     ``["engines", "list", ...]`` -> ``["engines.list", ...]`` (dotted alias).
     ``["model", "pull", ...]``   -> ``["pull", ...]``          (promoted verb).
-    Anything else is returned unchanged. Only the first two tokens are ever
-    rewritten, and only when they form a known spaced alias — so a real
-    positional like ``engines.info engines`` is never mangled.
+    ``["pins"]`` / ``["engines", "--flag"]`` -> the group's ``list`` default
+    (bare group verb, or group + only flags, → "show me").
+    Anything else is returned unchanged. Only a leading known spaced alias OR a
+    bare group verb is ever rewritten — a real positional like
+    ``engines.info engines`` is never mangled.
     """
     if len(argv) >= 2:
         canonical = _SPACED_ALIASES.get((argv[0], argv[1]))
         if canonical is not None:
             return [canonical, *argv[2:]]
+    # Bare group verb (or group followed only by flags) → its list default.
+    if argv:
+        default = _BARE_GROUP_DEFAULTS.get(argv[0])
+        if default is not None and (len(argv) == 1 or argv[1].startswith("-")):
+            return [default, *argv[1:]]
     return argv
 
 

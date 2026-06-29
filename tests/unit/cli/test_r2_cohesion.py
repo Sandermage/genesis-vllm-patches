@@ -134,6 +134,53 @@ class TestDottedAndSpacedResolve:
         assert rc == 0
         assert calls.get("hit"), f"`sndr {' '.join(spaced)}` must reach {dotted} execute()"
 
+    @pytest.mark.parametrize(
+        "bare,dotted",
+        [
+            (["engines"], "engines.list"),
+            (["pins"], "pins.list"),
+        ],
+    )
+    def test_bare_group_verb_defaults_to_list(self, bare, dotted, monkeypatch):
+        # A beginner who types just ``sndr engines`` / ``sndr pins`` (no
+        # subcommand) should get the obvious "show me" — the group's ``list`` —
+        # not a raw argparse ``invalid choice`` wall. Mirrors R1's bare-verb
+        # philosophy (bare ``sndr`` → wizard).
+        from sndr.cli.commands import COMMAND_REGISTRY
+        from sndr.cli.main import build_parser, main
+
+        build_parser()
+        calls: dict[str, int] = {}
+
+        def fake_execute(self, args):  # noqa: ANN001
+            calls["hit"] = calls.get("hit", 0) + 1
+            return 0
+
+        monkeypatch.setattr(type(COMMAND_REGISTRY[dotted]), "execute", fake_execute)
+        rc = main(list(bare))
+        assert rc == 0
+        assert calls.get("hit"), f"bare `sndr {bare[0]}` must default to {dotted}"
+
+    def test_bare_group_normalization_is_surgical(self):
+        # The bare-group default rewrites ONLY a bare group verb (or group +
+        # leading flags) — never a real spaced subcommand or a positional.
+        from sndr.cli.main import _normalize_spaced_verbs
+
+        # bare → list
+        assert _normalize_spaced_verbs(["engines"]) == ["engines.list"]
+        assert _normalize_spaced_verbs(["pins"]) == ["pins.list"]
+        # group + leading flag → list (flag rides through)
+        assert _normalize_spaced_verbs(["pins", "--output", "json"]) == [
+            "pins.list", "--output", "json",
+        ]
+        # real spaced subcommands untouched (resolve via the existing aliases)
+        assert _normalize_spaced_verbs(["engines", "list"]) == ["engines.list"]
+        assert _normalize_spaced_verbs(["engines", "info", "vllm"]) == [
+            "engines.info", "vllm",
+        ]
+        # a non-group verb is never touched
+        assert _normalize_spaced_verbs(["doctor"]) == ["doctor"]
+
     def test_spaced_engines_list_help_does_not_error(self):
         # ``sndr engines list`` must not raise ``invalid choice``.
         # ``engines list`` reaches the modular engines schemas (pydantic
