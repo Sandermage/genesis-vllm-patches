@@ -369,6 +369,31 @@ def create_app(
     async def overview() -> dict[str, Any]:
         return _dataclass_payload(collect_product_overview())
 
+    @app.get("/api/v1/external/overview")
+    async def external_overview() -> dict[str, Any]:
+        # Read-only snapshot of the adjacent proxy + aggregator (separate external
+        # projects — SNDR only CONNECTS). Gated by the operator key; off by
+        # default returns {enabled: False} and never touches the network. Each
+        # sub-call is defensive so one service being down doesn't sink the rest.
+        from . import external_clients as ext
+
+        if not ext.external_services_enabled():
+            return {"enabled": False}
+        out: dict[str, Any] = {"enabled": True, "proxy": {}, "aggregator": {}}
+        for key, fn in (("health", ext.proxy_health), ("cost", ext.proxy_cost),
+                        ("routing", ext.proxy_routing)):
+            try:
+                out["proxy"][key] = fn()
+            except ext.ServiceError as exc:
+                out["proxy"][key] = {"error": str(exc)}
+        for key, fn in (("signals", ext.recent_signals), ("anomalies", ext.recent_anomalies),
+                        ("patterns", ext.market_patterns)):
+            try:
+                out["aggregator"][key] = fn()
+            except ext.ServiceError as exc:
+                out["aggregator"][key] = {"error": str(exc)}
+        return out
+
     @app.get("/api/v1/configs/v2/catalog")
     async def configs_v2_catalog() -> dict[str, Any]:
         return _dataclass_payload(collect_v2_config_catalog())

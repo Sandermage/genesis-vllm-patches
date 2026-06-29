@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, ArrowRight, Ban, Check, Cpu, Route, Workflow, Info, ChevronDown, Activity, Database, Zap, Clock, Layers } from "lucide-react";
-import { api, type RoutingActive, type RoutingArtifact, type RoutingArtifacts, type RoutingClassify, type RoutingSignals, type EngineMetrics } from "./api";
+import { AlertTriangle, ArrowRight, Ban, Check, Cpu, Route, Workflow, Info, ChevronDown, Activity, Database, Zap, Clock, Layers, Server } from "lucide-react";
+import { api, type RoutingActive, type RoutingArtifact, type RoutingArtifacts, type RoutingClassify, type RoutingSignals, type EngineMetrics, type ExternalOverview } from "./api";
 import { useLang, t, tr, type Lang } from "./i18n";
 import { onKeyActivate } from "./dialog";
 
@@ -49,6 +49,54 @@ function RoutingLive({ lang }: { lang: Lang }) {
       <div className="rt-section-t"><Activity size={13} /> {t(lang, "rt.live")} <span className="muted">· {t(lang, "rt.liveHelp")}</span></div>
       <div className="rt-live-grid">
         {cells.map((c) => <div key={c.l} className="rt-live-cell"><span className="rt-live-l">{c.icon} {c.l}</span><b className={`rt-live-v tone-${c.tone || "n"}`}>{c.v}</b></div>)}
+      </div>
+    </div>
+  );
+}
+
+// Live status of the adjacent proxy + aggregator (separate external projects;
+// SNDR only connects). Self-gating: the endpoint returns enabled=false without
+// the SNDR_ENABLE_EXTERNAL_SERVICES key, and we render an enable hint instead of
+// data — so the GUI only surfaces this functionality when the operator opts in.
+function RoutingExternal() {
+  const [data, setData] = useState<ExternalOverview | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    api.externalOverview()
+      .then((r) => { if (alive) { setData(r); setLoaded(true); } })
+      .catch(() => { if (alive) setLoaded(true); });
+    return () => { alive = false; };
+  }, []);
+  if (!loaded) return null;
+  if (!data?.enabled) {
+    return (
+      <div className="rt-section rt-external">
+        <div className="rt-section-t"><Server size={13} /> {tr("Adjacent services")} <span className="muted">· {tr("proxy + aggregator")}</span></div>
+        <p className="muted"><Ban size={13} /> {tr("Disabled — set SNDR_ENABLE_EXTERNAL_SERVICES=1 to connect to the Genesis proxy + aggregator.")}</p>
+      </div>
+    );
+  }
+  const cell = (label: string, sec: Record<string, unknown> | undefined, key: string) => {
+    const v = sec?.[key];
+    const err = v && typeof v === "object" && "error" in (v as object) ? String((v as Record<string, unknown>).error) : null;
+    return (
+      <div key={key} className="rt-live-cell" title={err || tr("connected")}>
+        <span className="rt-live-l"><Server size={13} /> {label}</span>
+        <b className={`rt-live-v tone-${err ? "hot" : "ok"}`}>{err ? tr("down") : tr("connected")}</b>
+      </div>
+    );
+  };
+  return (
+    <div className="rt-section rt-external">
+      <div className="rt-section-t"><Server size={13} /> {tr("Adjacent services")} <span className="muted">· {tr("live proxy + aggregator status")}</span></div>
+      <div className="rt-live-grid">
+        {cell(tr("Proxy health"), data.proxy, "health")}
+        {cell(tr("Proxy cost"), data.proxy, "cost")}
+        {cell(tr("Proxy routing"), data.proxy, "routing")}
+        {cell(tr("Agg signals"), data.aggregator, "signals")}
+        {cell(tr("Agg anomalies"), data.aggregator, "anomalies")}
+        {cell(tr("Agg patterns"), data.aggregator, "patterns")}
       </div>
     </div>
   );
@@ -194,6 +242,8 @@ export function RoutingPanel() {
       </div>
 
       <RoutingLive lang={lang} />
+
+      <RoutingExternal />
 
       {art && (
         <div className="rt-profile">

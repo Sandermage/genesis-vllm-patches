@@ -463,6 +463,14 @@ export type RoutingArtifact = {
 export type RoutingArtifacts = { available: boolean; reason?: string; artifacts: RoutingArtifact[] };
 export type RoutingActive = { available: boolean; reason?: string; ok?: boolean; error?: string; profile?: string | null; source?: string; artifact?: RoutingArtifact | null; candidates?: string[] };
 export type RoutingSignals = { response_format?: unknown; tool_choice?: unknown; workload_class?: string };
+// Read-only snapshot of the adjacent proxy + aggregator (external projects).
+// `enabled` mirrors the SNDR_ENABLE_EXTERNAL_SERVICES key; sub-sections may carry
+// an inline `{ error }` when one service is unreachable.
+export type ExternalOverview = {
+  enabled: boolean;
+  proxy?: Record<string, unknown>;
+  aggregator?: Record<string, unknown>;
+};
 export type LicenseEngine = { installed: boolean; module: string | null; version: string | null };
 export type LicenseInfo = { subject: string | null; expires: string | null; signature_valid: boolean | null; path: string | null };
 export type LicenseStatus = {
@@ -1774,6 +1782,7 @@ export const api = {
   routingActive: () => request<RoutingActive>("/api/v1/routing/active"),
   routingSetActive: (profile: string | null) => postJson<RoutingActive>("/api/v1/routing/active", { profile }),
   routingClassify: (signals: RoutingSignals, profile?: string) => postJson<RoutingClassify>("/api/v1/routing/classify", { signals, profile }),
+  externalOverview: () => request<ExternalOverview>("/api/v1/external/overview"),
 
   // Container management — one shape over both transports (local socket / host SSH).
   containers: (src: ContainerSource) =>

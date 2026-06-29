@@ -1123,3 +1123,49 @@ def test_container_endpoints_registered():
     assert "/api/v1/containers/{name}/exec" in paths
     assert "/api/v1/hosts/{host_id}/containers" in paths
     assert "/api/v1/hosts/{host_id}/containers/{name}/exec" in paths
+
+
+def test_external_overview_gated_off_by_default(monkeypatch):
+    """/api/v1/external/overview reports enabled=False without the key (the GUI
+    panel then shows the enable hint instead of data; no network is touched)."""
+    monkeypatch.delenv("SNDR_ENABLE_EXTERNAL_SERVICES", raising=False)
+    body = _client().get("/api/v1/external/overview").json()
+    assert body["enabled"] is False
+
+
+def test_external_overview_aggregates_connector_data_with_key(monkeypatch):
+    """With the key, the route aggregates proxy + aggregator data via the
+    connector; each sub-call is defensive (one service down != all down)."""
+    monkeypatch.setenv("SNDR_ENABLE_EXTERNAL_SERVICES", "1")
+    import sndr.product_api.legacy.external_clients as ext
+    monkeypatch.setattr(ext, "proxy_health", lambda **k: {"providers": ["x"]})
+    monkeypatch.setattr(ext, "proxy_cost", lambda **k: {"total_usd": 1})
+    monkeypatch.setattr(ext, "proxy_routing", lambda **k: {"models": []})
+    monkeypatch.setattr(ext, "recent_signals", lambda **k: {"signals": []})
+    monkeypatch.setattr(ext, "recent_anomalies", lambda **k: {"anomalies": []})
+    monkeypatch.setattr(ext, "market_patterns", lambda **k: {"patterns": []})
+    body = _client().get("/api/v1/external/overview").json()
+    assert body["enabled"] is True
+    assert body["proxy"]["health"] == {"providers": ["x"]}
+    assert "signals" in body["aggregator"]
+
+
+def test_external_overview_one_service_down_does_not_sink_the_rest(monkeypatch):
+    """A proxy ServiceError surfaces as an inline error without failing the
+    whole response — the aggregator section still resolves."""
+    monkeypatch.setenv("SNDR_ENABLE_EXTERNAL_SERVICES", "1")
+    import sndr.product_api.legacy.external_clients as ext
+
+    def _down(**k):
+        raise ext.ServiceError("proxy unreachable")
+
+    monkeypatch.setattr(ext, "proxy_health", _down)
+    monkeypatch.setattr(ext, "proxy_cost", _down)
+    monkeypatch.setattr(ext, "proxy_routing", _down)
+    monkeypatch.setattr(ext, "recent_signals", lambda **k: {"signals": [1]})
+    monkeypatch.setattr(ext, "recent_anomalies", lambda **k: {"anomalies": []})
+    monkeypatch.setattr(ext, "market_patterns", lambda **k: {"patterns": []})
+    body = _client().get("/api/v1/external/overview").json()
+    assert body["enabled"] is True
+    assert "error" in body["proxy"]["health"]
+    assert body["aggregator"]["signals"] == {"signals": [1]}
