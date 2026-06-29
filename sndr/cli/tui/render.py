@@ -9,7 +9,7 @@ imports them rather than re-deriving the same wording.
 
 Every helper is defensive in the same spirit as the data facade: a down engine,
 a GPU-less box, or a partial candidate yields calm placeholder text, never a
-crash (Phase 1 is read-only).
+crash. The helpers stay pure (render-only); all side effects live in the app.
 """
 from __future__ import annotations
 

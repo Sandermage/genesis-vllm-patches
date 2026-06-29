@@ -599,3 +599,34 @@ def test_settings_escape_cancels_without_saving():
             assert loader.saved_settings == []
 
     _run(body())
+
+
+def test_slash_filter_narrows_catalog_to_matching_presets():
+    """`/` opens a filter input; typing narrows the catalog table to presets
+    whose id matches (case-insensitive); clearing restores every row. The
+    binding + help advertise a working filter — this proves it actually filters
+    instead of just focusing the table."""
+    pytest.importorskip("textual")
+    from textual.widgets import DataTable
+
+    async def body():
+        app, _ = _make_action_app()  # prod-qwen3.6-27b (✓) + big-fp8-35b (✗)
+        async with app.run_test() as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            table = app.query_one("#catalog", DataTable)
+            assert table.row_count == 2  # both presets shown initially
+            await pilot.press("slash")  # open the filter input
+            await pilot.pause()
+            await pilot.press("2")
+            await pilot.press("7")
+            await pilot.press("b")
+            await pilot.pause()
+            assert table.row_count == 1, "filter should narrow to the matching preset"
+            await pilot.press("backspace")
+            await pilot.press("backspace")
+            await pilot.press("backspace")
+            await pilot.pause()
+            assert table.row_count == 2, "clearing the filter restores all rows"
+
+    _run(body())

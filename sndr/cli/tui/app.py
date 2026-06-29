@@ -189,6 +189,7 @@ class SndrCockpit(App):
         self._fake_gpus = fake_gpus
         self._data = loader  # the facade — injectable so tests fake one surface
         self._catalog: Any = None
+        self._filter = ""  # active catalog filter substring (`/` to edit)
         # Lean (beginner) mode hides the operator-detail panes — GPU/rig and the
         # status log — leaving just "what can I run" (catalog) + "is it serving"
         # (engine). Action feedback then surfaces as a toast instead of the log.
@@ -201,11 +202,13 @@ class SndrCockpit(App):
                 yield Static("loading…", id="engine")
                 yield Static("", id="gpu")
             with Vertical(id="right"):
+                yield Input(placeholder="filter presets — type to narrow, Esc to clear", id="filter")
                 yield DataTable(id="catalog")
                 yield RichLog(id="log", max_lines=200, wrap=True, markup=False)
         yield Footer()
 
     def on_mount(self) -> None:
+        self.query_one("#filter", Input).display = False  # hidden until `/`
         table = self.query_one("#catalog", DataTable)
         table.add_columns("fit", "preset", "status", "metric")
         table.cursor_type = "row"
@@ -252,20 +255,29 @@ class SndrCockpit(App):
 
     def _apply_catalog(self, catalog: Any) -> None:
         self._catalog = catalog
-        table = self.query_one("#catalog", DataTable)
-        table.clear()
-        rows = catalog_rows(catalog)
-        fitting = 0
-        for fit, preset_id, status, metric in rows:
-            fitting += 1 if fit == "✓" else 0
-            table.add_row(fit, preset_id, status, metric)
         rig = getattr(catalog, "rig", None)
         self.query_one("#gpu", Static).update(render_gpu(rig))
         try:
             self.sub_title = self._data.rig_summary(rig) if rig is not None else ""
         except Exception:  # pragma: no cover — cosmetic only
             self.sub_title = ""
+        rows = self._render_catalog()
+        fitting = sum(1 for r in rows if r[0] == GLYPH_FIT)
         self._log(f"catalog: {len(rows)} presets · {fitting} fit this rig")
+
+    def _render_catalog(self) -> list[tuple[str, str, str, str]]:
+        """Paint the catalog table from the cached catalog, narrowed by the
+        active ``/`` filter (case-insensitive substring on the preset id).
+        Returns the rows actually painted so the caller can summarize."""
+        table = self.query_one("#catalog", DataTable)
+        table.clear()
+        rows = catalog_rows(self._catalog) if self._catalog is not None else []
+        needle = self._filter.strip().lower()
+        if needle:
+            rows = [r for r in rows if needle in r[1].lower()]
+        for fit, preset_id, status, metric in rows:
+            table.add_row(fit, preset_id, status, metric)
+        return rows
 
     def _apply_engine(self, snap: dict[str, Any]) -> None:
         self.query_one("#engine", Static).update(render_engine(snap))
@@ -398,9 +410,30 @@ class SndrCockpit(App):
         self.push_screen(HelpScreen())
 
     def action_filter(self) -> None:
-        # Phase 1: a focused-row jump hint; full filter input lands with actions.
-        self._log("filter: type a preset name then ↑/↓ (full filter in Phase 2)")
-        self.query_one("#catalog", DataTable).focus()
+        # Reveal + focus the filter box; typing narrows the catalog live, Enter
+        # applies and returns to the rows, Esc clears and dismisses.
+        flt = self.query_one("#filter", Input)
+        flt.display = True
+        flt.focus()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "filter":
+            self._filter = event.value
+            self._render_catalog()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "filter":
+            self.query_one("#filter", Input).display = False
+            self.query_one("#catalog", DataTable).focus()
+
+    def on_key(self, event: Any) -> None:
+        # Esc inside the filter box clears + dismisses it (restoring all rows).
+        if event.key == "escape" and self.query_one("#filter", Input).has_focus:
+            flt = self.query_one("#filter", Input)
+            flt.value = ""  # fires on_input_changed → re-render with empty filter
+            flt.display = False
+            self.query_one("#catalog", DataTable).focus()
+            event.stop()
 
     # ── helpers ──────────────────────────────────────────────────────────────
 
