@@ -51,7 +51,9 @@ export function JobsTable({ onMonitor }: { onMonitor?: (id: string) => void }) {
       }
     };
     void load();
-    const timer = setInterval(load, 5000);
+    // Skip the poll while the tab is backgrounded (matches the other live
+    // sections) — no point hitting /api/v1/jobs every 5s in a hidden tab.
+    const timer = setInterval(() => { if (!document.hidden) void load(); }, 5000);
     return () => { cancelled = true; clearInterval(timer); };
   }, []);
 

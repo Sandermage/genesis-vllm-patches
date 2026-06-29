@@ -6,7 +6,7 @@
 // editing is always correct regardless of highlighting, and we add zero deps
 // (no Monaco/CodeMirror) — in keeping with the lean bundle. Plus Tab→2-spaces
 // and a light "tabs in YAML" validation hint.
-import { useRef, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import { tr } from "../i18n";
 
 type Token = { text: string; cls: string };
@@ -74,7 +74,13 @@ export function CodeEditor({
   ariaLabel?: string;
 }) {
   const preRef = useRef<HTMLPreElement>(null);
-  const tabLines = value.split("\n").filter((l) => /^\t| \t/.test(l)).length;
+  // Memoize the per-keystroke hot path: re-tokenizing the whole document and
+  // re-scanning for tab lines on every render is O(document) per keypress.
+  const highlighted = useMemo(() => highlight(value), [value]);
+  const tabLines = useMemo(
+    () => value.split("\n").filter((l) => /^\t| \t/.test(l)).length,
+    [value],
+  );
 
   const onScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     if (preRef.current) {
@@ -102,7 +108,7 @@ export function CodeEditor({
 
   return (
     <div className={`code-editor${expanded ? " ce-expanded" : ""}`}>
-      <pre ref={preRef} className="code-editor-hl" aria-hidden="true">{highlight(value)}</pre>
+      <pre ref={preRef} className="code-editor-hl" aria-hidden="true">{highlighted}</pre>
       <textarea
         className="code-editor-ta"
         value={value}

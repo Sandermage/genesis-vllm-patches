@@ -5,6 +5,10 @@ import { tr } from "./i18n";
 
 type Msg = { role: "user" | "assistant"; content: string; steps?: CopilotStep[]; proposed?: CopilotProposedAction[]; stopped?: string };
 
+// Cap retained + sent conversation so a long session can't grow memory or the
+// per-request payload without bound (the ChatConsole caps its API payload too).
+const MAX_HISTORY = 40;
+
 const SUGGESTIONS = [
   "How many presets are there, and which are production?",
   "Run the doctor — is anything wrong with this host?",
@@ -41,14 +45,14 @@ export function CopilotPanel({ onNavigate }: { onNavigate: (section: string, par
   async function send(text?: string) {
     const q = (text ?? input).trim();
     if (!q || busy) return;
-    const history: Msg[] = [...msgs, { role: "user", content: q }];
+    const history: Msg[] = [...msgs, { role: "user" as const, content: q }].slice(-MAX_HISTORY);
     setMsgs(history); setInput(""); setBusy(true); setErr(null);
     try {
       const res = await api.copilotChat(
         history.map((m) => ({ role: m.role, content: m.content })),
         { host: target.host, port: target.port, host_id: target.hostId || undefined },
       );
-      setMsgs((m) => [...m, { role: "assistant", content: res.reply, steps: res.steps, proposed: res.proposed_actions, stopped: res.stopped }]);
+      setMsgs((m) => [...m, { role: "assistant" as const, content: res.reply, steps: res.steps, proposed: res.proposed_actions, stopped: res.stopped }].slice(-MAX_HISTORY));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally { setBusy(false); }
