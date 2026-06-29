@@ -236,7 +236,10 @@ class SndrCockpit(App):
             return
         self._post(self._apply_catalog, catalog)
 
-    @work(thread=True, exclusive=False, group="engine")
+    # exclusive=True so a slow probe (engine_status + engine_metrics, up to ~6s)
+    # can't pile up workers on the 3s interval — a new tick supersedes the
+    # in-flight one instead of accumulating threads.
+    @work(thread=True, exclusive=True, group="engine")
     def _refresh_engine(self) -> None:
         try:
             snap = self._data.engine_snapshot()

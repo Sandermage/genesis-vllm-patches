@@ -111,3 +111,55 @@ def test_download_executes_when_apply_on(home, monkeypatch):
     resp = client.post("/api/v1/models/download", json={"model_id": "known-model"})
     assert resp.status_code == 200 and resp.json()["status"] == "running"
     assert "model pull known-model" in captured["command"]
+
+
+def test_background_command_reaps_child_when_update_job_raises(home, monkeypatch):
+    """If update_job raises mid-stream (e.g. disk full), the child must STILL be
+    reaped (proc.wait) and its stdout closed — no zombie process, no leaked fd,
+    and the exception must not escape the worker."""
+    import sndr.product_api.legacy.background_exec as bx
+
+    reaped = {"wait": 0, "closed": False}
+
+    class _FakeStdout:
+        closed = False
+
+        def __iter__(self):
+            return iter(["line1\n", "line2\n"])
+
+        def close(self):
+            reaped["closed"] = True
+            self.closed = True
+
+    class _FakeProc:
+        def __init__(self):
+            self.stdout = _FakeStdout()
+
+        def wait(self, timeout=None):
+            reaped["wait"] += 1
+            return 0
+
+        def poll(self):
+            return 0 if reaped["wait"] else None
+
+        def kill(self):
+            pass
+
+    monkeypatch.setattr(bx.subprocess, "Popen", lambda *a, **k: _FakeProc())
+
+    real_update = bx.update_job
+    state = {"n": 0}
+
+    def _boom(*a, **k):
+        state["n"] += 1
+        if state["n"] == 1:  # first flush (mid-loop, flush_interval=0) → blow up
+            raise OSError("disk full")
+        return real_update(*a, **k)
+
+    monkeypatch.setattr(bx, "update_job", _boom)
+
+    # Must not raise out of the worker, and must reap the child.
+    bx.run_background_command(kind="x", title="t", summary={}, command="echo hi",
+                             _spawn=False, flush_interval=0.0)
+    assert reaped["wait"] >= 1, "child must be reaped (proc.wait) even when update_job raises"
+    assert reaped["closed"], "child stdout must be closed"

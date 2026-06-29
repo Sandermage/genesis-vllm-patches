@@ -64,30 +64,55 @@ def run_background_command(
         last_progress: Optional[float] = None
         latest_progress: Optional[float] = None
         assert proc.stdout is not None
-        for raw in proc.stdout:
-            line = raw.rstrip("\n")
-            if not line:
-                continue
-            buffer.append(line)
-            pct = progress(line)
-            if pct is not None:
-                latest_progress = pct
-            now = time.monotonic()
-            if (latest_progress is not None and latest_progress != last_progress) or (now - last_flush >= flush_interval):
-                update_job(job.job_id, append_log="\n".join(buffer), progress=latest_progress)
-                buffer = []
-                last_flush = now
-                last_progress = latest_progress
-        if buffer:
-            update_job(job.job_id, append_log="\n".join(buffer))
-        code = proc.wait()
-        update_job(
-            job.job_id,
-            status="succeeded" if code == 0 else "failed",
-            append_log=f"[exit {code}]",
-            progress=100.0 if code == 0 else None,
-            note="Completed." if code == 0 else f"Failed (exit {code}).",
-        )
+        try:
+            for raw in proc.stdout:
+                line = raw.rstrip("\n")
+                if not line:
+                    continue
+                buffer.append(line)
+                pct = progress(line)
+                if pct is not None:
+                    latest_progress = pct
+                now = time.monotonic()
+                if (latest_progress is not None and latest_progress != last_progress) or (now - last_flush >= flush_interval):
+                    update_job(job.job_id, append_log="\n".join(buffer), progress=latest_progress)
+                    buffer = []
+                    last_flush = now
+                    last_progress = latest_progress
+            if buffer:
+                update_job(job.job_id, append_log="\n".join(buffer))
+            code = proc.wait()
+            update_job(
+                job.job_id,
+                status="succeeded" if code == 0 else "failed",
+                append_log=f"[exit {code}]",
+                progress=100.0 if code == 0 else None,
+                note="Completed." if code == 0 else f"Failed (exit {code}).",
+            )
+        except Exception as exc:  # noqa: BLE001 — daemon thread: log to the job, never escape
+            # e.g. update_job's atomic write fails on a full disk mid-stream. Mark
+            # the job failed but DON'T let the exception kill the worker silently.
+            try:
+                update_job(job.job_id, status="failed", append_log=f"[error] {type(exc).__name__}: {exc}")
+            except Exception:  # noqa: BLE001 — best-effort; the finally still reaps
+                pass
+        finally:
+            # Always reap the child + close its pipe — otherwise a mid-stream
+            # failure leaves a zombie process and leaks the stdout fd.
+            try:
+                if proc.stdout is not None and not getattr(proc.stdout, "closed", False):
+                    proc.stdout.close()
+            except Exception:  # noqa: BLE001
+                pass
+            if proc.poll() is None:
+                try:
+                    proc.kill()
+                except Exception:  # noqa: BLE001
+                    pass
+            try:
+                proc.wait(timeout=5)
+            except Exception:  # noqa: BLE001
+                pass
 
     if _spawn:
         threading.Thread(target=worker, daemon=True, name=f"sndr-job-{job.job_id}").start()

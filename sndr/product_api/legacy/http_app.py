@@ -192,6 +192,33 @@ def _dataclass_payload(value: Any) -> Any:
     return value
 
 
+def _collect_external_overview() -> dict[str, Any]:
+    """Read-only snapshot of the adjacent proxy + aggregator (separate external
+    projects — SNDR only CONNECTS). Gated by the operator key; off by default
+    returns {enabled: False} and never touches the network. Each sub-call is
+    defensive so one service being down doesn't sink the rest. Runs in a thread
+    (see the route) — its 6 blocking connector calls must not stall the loop.
+    """
+    from . import external_clients as ext
+
+    if not ext.external_services_enabled():
+        return {"enabled": False}
+    out: dict[str, Any] = {"enabled": True, "proxy": {}, "aggregator": {}}
+    for key, fn in (("health", ext.proxy_health), ("cost", ext.proxy_cost),
+                    ("routing", ext.proxy_routing)):
+        try:
+            out["proxy"][key] = fn()
+        except ext.ServiceError as exc:
+            out["proxy"][key] = {"error": str(exc)}
+    for key, fn in (("signals", ext.recent_signals), ("anomalies", ext.recent_anomalies),
+                    ("patterns", ext.market_patterns)):
+        try:
+            out["aggregator"][key] = fn()
+        except ext.ServiceError as exc:
+            out["aggregator"][key] = {"error": str(exc)}
+    return out
+
+
 def _count_by(rows: list[dict[str, Any]], field: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for row in rows:
@@ -371,28 +398,12 @@ def create_app(
 
     @app.get("/api/v1/external/overview")
     async def external_overview() -> dict[str, Any]:
-        # Read-only snapshot of the adjacent proxy + aggregator (separate external
-        # projects — SNDR only CONNECTS). Gated by the operator key; off by
-        # default returns {enabled: False} and never touches the network. Each
-        # sub-call is defensive so one service being down doesn't sink the rest.
-        from . import external_clients as ext
+        # The 6 connector calls are blocking urllib (8–10s timeouts each); run the
+        # whole body off the event loop so a slow/hung proxy/aggregator never
+        # stalls the daemon (same offload contract as the V2 routes).
+        import asyncio  # noqa: PLC0415
 
-        if not ext.external_services_enabled():
-            return {"enabled": False}
-        out: dict[str, Any] = {"enabled": True, "proxy": {}, "aggregator": {}}
-        for key, fn in (("health", ext.proxy_health), ("cost", ext.proxy_cost),
-                        ("routing", ext.proxy_routing)):
-            try:
-                out["proxy"][key] = fn()
-            except ext.ServiceError as exc:
-                out["proxy"][key] = {"error": str(exc)}
-        for key, fn in (("signals", ext.recent_signals), ("anomalies", ext.recent_anomalies),
-                        ("patterns", ext.market_patterns)):
-            try:
-                out["aggregator"][key] = fn()
-            except ext.ServiceError as exc:
-                out["aggregator"][key] = {"error": str(exc)}
-        return out
+        return await asyncio.to_thread(_collect_external_overview)
 
     @app.get("/api/v1/configs/v2/catalog")
     async def configs_v2_catalog() -> dict[str, Any]:
