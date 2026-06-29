@@ -1773,82 +1773,82 @@ def create_app(
 
     # Host family (a registered host, via SSH) ----------------------------
     @app.get("/api/v1/hosts/{host_id}/containers")
-    async def host_containers_list(host_id: str) -> dict[str, Any]:
+    def host_containers_list(host_id: str) -> dict[str, Any]:
         control = _host_control(host_id)
         items = _container_op(control.list_managed)
         return {"containers": [c.to_dict() for c in items], "source": "ssh"}
 
     @app.get("/api/v1/hosts/{host_id}/containers/stats")
-    async def host_containers_stats_all(host_id: str) -> dict[str, Any]:
+    def host_containers_stats_all(host_id: str) -> dict[str, Any]:
         return {"stats": _container_op(lambda: _host_control(host_id).list_stats())}
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}")
-    async def host_container_inspect(host_id: str, name: str) -> dict[str, Any]:
+    def host_container_inspect(host_id: str, name: str) -> dict[str, Any]:
         return _container_op(lambda: _host_control(host_id).inspect(name))
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/logs")
-    async def host_container_logs(host_id: str, name: str, tail: int = Query(default=200, ge=1, le=5000)) -> dict[str, Any]:
+    def host_container_logs(host_id: str, name: str, tail: int = Query(default=200, ge=1, le=5000)) -> dict[str, Any]:
         return {"container": name, "logs": _container_op(lambda: _host_control(host_id).logs(name, tail=tail))}
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/stats")
-    async def host_container_stats(host_id: str, name: str) -> dict[str, Any]:
+    def host_container_stats(host_id: str, name: str) -> dict[str, Any]:
         return {"container": name, "stats": _container_op(lambda: _host_control(host_id).stats(name))}
 
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/action")
-    async def host_container_action(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def host_container_action(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_action(_host_control(host_id), name, payload, source=host_id)
 
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/exec")
-    async def host_container_exec(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def host_container_exec(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_exec(_host_control(host_id), name, payload, source=host_id)
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/top")
-    async def host_container_top(host_id: str, name: str) -> dict[str, Any]:
+    def host_container_top(host_id: str, name: str) -> dict[str, Any]:
         return {"container": name, **_container_op(lambda: _host_control(host_id).top(name))}
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/changes")
-    async def host_container_changes(host_id: str, name: str) -> dict[str, Any]:
+    def host_container_changes(host_id: str, name: str) -> dict[str, Any]:
         return {"container": name, "changes": _container_op(lambda: _host_control(host_id).changes(name))}
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/fs")
-    async def host_container_fs(host_id: str, name: str, path: str = Query(default="/")) -> dict[str, Any]:
+    def host_container_fs(host_id: str, name: str, path: str = Query(default="/")) -> dict[str, Any]:
         return _do_fs(_host_control(host_id), name, path)
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/file")
-    async def host_container_file(host_id: str, name: str, path: str = Query(...),
+    def host_container_file(host_id: str, name: str, path: str = Query(...),
                                   max_bytes: int = Query(default=65536, ge=1, le=5_000_000)) -> dict[str, Any]:
         return _do_file(_host_control(host_id), name, path, max_bytes)
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/update-plan")
-    async def host_container_update_plan(host_id: str, name: str) -> dict[str, Any]:
+    def host_container_update_plan(host_id: str, name: str) -> dict[str, Any]:
         return _do_update_plan(_host_control(host_id), name, host_id)
 
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/update-mode")
-    async def host_container_set_update_mode(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def host_container_set_update_mode(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_set_update_mode(_host_control(host_id), name, host_id, payload)
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/sndr-state")
-    async def host_container_sndr_state(host_id: str, name: str) -> dict[str, Any]:
+    def host_container_sndr_state(host_id: str, name: str) -> dict[str, Any]:
         return _sndr_state_cached(_host_control(host_id), name, f"host:{host_id}/{name}")
 
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/pull")
-    async def host_container_pull(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def host_container_pull(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_pull(_host_control(host_id), name, payload, source=host_id)
 
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/recreate")
-    async def host_container_recreate(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def host_container_recreate(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_recreate(_host_control(host_id), name, host_id, payload)
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/scan")
-    async def host_container_scan(host_id: str, name: str) -> dict[str, Any]:
+    def host_container_scan(host_id: str, name: str) -> dict[str, Any]:
         return _container_op(lambda: _host_control(host_id).scan_image(name))
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/source")
-    async def host_container_source(host_id: str, name: str) -> dict[str, Any]:
+    def host_container_source(host_id: str, name: str) -> dict[str, Any]:
         return _do_source(_host_control(host_id), name)
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/engine")
-    async def host_container_engine(host_id: str, name: str) -> dict[str, Any]:
+    def host_container_engine(host_id: str, name: str) -> dict[str, Any]:
         return _container_op(lambda: _host_control(host_id).engine_health(name))
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/logs/stream")
@@ -1856,19 +1856,19 @@ def create_app(
         return _stream_logs_response(_host_control(host_id), name, tail)
 
     @app.get("/api/v1/hosts/{host_id}/system/df")
-    async def host_system_df(host_id: str) -> dict[str, Any]:
+    def host_system_df(host_id: str) -> dict[str, Any]:
         return _system_df_cached(_host_control(host_id), f"host:{host_id}")
 
     @app.get("/api/v1/hosts/{host_id}/system/networks")
-    async def host_system_networks(host_id: str) -> dict[str, Any]:
+    def host_system_networks(host_id: str) -> dict[str, Any]:
         return {"networks": _container_op(lambda: _host_control(host_id).list_networks())}
 
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/settings")
-    async def host_container_settings(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def host_container_settings(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_settings(_host_control(host_id), name, payload, source=host_id)
 
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/network")
-    async def host_container_network(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def host_container_network(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_network(_host_control(host_id), name, payload, source=host_id)
 
     # ─── Alerts (engine health → Telegram) ───────────────────────────────
@@ -2478,21 +2478,21 @@ def create_app(
         return reliability.TRACKER.snapshot_all(now=_t.time())
 
     @app.get("/api/v1/host/inventory")
-    async def host_inventory_route() -> dict[str, Any]:
+    def host_inventory_route() -> dict[str, Any]:
         """Full inventory of the daemon host — OS / Python / Docker / NVIDIA / vLLM."""
         from . import deployment
 
         return deployment.host_inventory()
 
     @app.get("/api/v1/host/gpu")
-    async def host_gpu_route() -> dict[str, Any]:
+    def host_gpu_route() -> dict[str, Any]:
         """Rich live GPU + hardware telemetry for the daemon host (nvidia-smi)."""
         from . import gpu_telemetry
 
         return _gpu_telemetry_cached("local", gpu_telemetry.collect_local)
 
     @app.get("/api/v1/hosts/{host_id}/gpu")
-    async def host_gpu_remote_route(host_id: str) -> dict[str, Any]:
+    def host_gpu_remote_route(host_id: str) -> dict[str, Any]:
         """Rich live GPU + hardware telemetry for a registered host (over SSH)."""
         from . import gpu_telemetry
 
@@ -2538,7 +2538,7 @@ def create_app(
         return _pc, gpu_index, watts, reset
 
     @app.post("/api/v1/host/power-cap")
-    async def host_power_cap_route(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def host_power_cap_route(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         """Set (or reset) a GPU power limit on the daemon host — MUTATING,
         double-gated (apply_on + confirm:true). Validates watts against the live
         per-GPU [min,max] and returns the limits read back after applying."""
@@ -2550,7 +2550,7 @@ def create_app(
         return outcome.to_dict()
 
     @app.post("/api/v1/hosts/{host_id}/power-cap")
-    async def host_power_cap_remote_route(host_id: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def host_power_cap_remote_route(host_id: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         """Set (or reset) a GPU power limit on a registered host over SSH —
         MUTATING, double-gated (apply_on + confirm:true)."""
         _pc, gpu_index, watts, reset = _power_cap_request(payload)

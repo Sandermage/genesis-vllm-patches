@@ -16,23 +16,32 @@ probe outcomes and may consult :meth:`allow` to decide whether to back off.
 """
 from __future__ import annotations
 
+from collections import OrderedDict
 from typing import Any, Optional
 
 _MAX_SAMPLES = 60
 _SPARK = 30
+# Cap distinct host keys: `/api/v1/hosts/probe` takes an arbitrary client-supplied
+# `host` string, so without an LRU bound a caller could grow this dict forever.
+_MAX_KEYS = 512
 
 
 class ReliabilityTracker:
     def __init__(self, *, fail_threshold: int = 3, recovery: float = 60.0) -> None:
-        self._hist: dict[str, list[tuple[float, bool]]] = {}
+        self._hist: "OrderedDict[str, list[tuple[float, bool]]]" = OrderedDict()
         self._fail_threshold = fail_threshold
         self._recovery = recovery
 
     def record(self, key: str, ok: bool, *, now: float) -> None:
-        hist = self._hist.setdefault(key, [])
+        hist = self._hist.get(key)
+        if hist is None:
+            hist = self._hist[key] = []
         hist.append((now, bool(ok)))
         if len(hist) > _MAX_SAMPLES:
             del hist[: len(hist) - _MAX_SAMPLES]
+        self._hist.move_to_end(key)  # mark most-recently-used
+        while len(self._hist) > _MAX_KEYS:  # evict the least-recently-used key(s)
+            self._hist.popitem(last=False)
 
     def _consecutive_fails(self, hist: list[tuple[float, bool]]) -> int:
         cf = 0

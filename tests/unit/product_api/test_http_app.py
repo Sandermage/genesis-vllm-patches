@@ -1169,3 +1169,29 @@ def test_external_overview_one_service_down_does_not_sink_the_rest(monkeypatch):
     assert body["enabled"] is True
     assert "error" in body["proxy"]["health"]
     assert body["aggregator"]["signals"] == {"signals": [1]}
+
+
+def test_blocking_host_routes_do_not_block_the_event_loop():
+    """Host routes that do blocking SSH/HTTP must not run on the event loop:
+    either a plain `def` (FastAPI auto-threadpools it) or `await asyncio.to_thread`.
+    An `async def` that calls blocking work directly freezes the whole daemon for
+    the request's duration (worst case: a 300s container scan over SSH)."""
+    import inspect
+    app = create_app(allowed_origins=())
+    # A representative blocking set (remote SSH docker ops + remote gpu/power).
+    blocking = {
+        "host_container_scan", "host_container_logs", "host_system_df",
+        "host_containers_list", "host_container_action", "host_container_recreate",
+        "host_gpu_remote_route", "host_power_cap_remote_route", "host_inventory_route",
+    }
+    seen = {}
+    for r in app.routes:
+        ep = getattr(r, "endpoint", None)
+        if ep is not None and getattr(ep, "__name__", "") in blocking:
+            seen[ep.__name__] = ep
+    assert seen, "blocking host routes not found in the app"
+    offenders = []
+    for name, ep in seen.items():
+        if inspect.iscoroutinefunction(ep) and "to_thread" not in inspect.getsource(ep):
+            offenders.append(name)
+    assert not offenders, f"these async host handlers block the event loop (make them sync def or to_thread): {offenders}"

@@ -38,3 +38,16 @@ def test_unknown_key():
     assert t.snapshot("nope", now=1.0) is None
     assert t.allow("nope", now=1.0) is True
     assert t.snapshot_all(now=1.0) == {}
+
+
+def test_history_keys_are_capped_no_unbounded_growth():
+    """`/api/v1/hosts/probe` accepts an arbitrary client-supplied host string, so
+    the per-key history dict must NOT grow without bound — old keys are evicted
+    once the cap is hit (otherwise a client probing many distinct strings leaks)."""
+    t = ReliabilityTracker()
+    for i in range(5000):
+        t.record(f"host-{i}", True, now=float(i))
+    # bounded well under the number of distinct keys recorded
+    assert len(t._hist) <= 512, f"history dict grew unbounded: {len(t._hist)} keys"
+    # the most-recent key is retained
+    assert "host-4999" in t._hist
