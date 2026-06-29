@@ -212,3 +212,49 @@ class TestRegistered:
         build_parser()
         assert "run" in COMMAND_REGISTRY
         assert "chat" in COMMAND_REGISTRY
+
+
+# ── _launch_detached quiet mode (TUI path must not inherit the terminal) ─────
+
+
+def test_launch_detached_quiet_suppresses_child_output(monkeypatch):
+    """``quiet=True`` (the cockpit path) routes the child ``sndr launch``
+    stdout/stderr to DEVNULL so it never corrupts Textual's alt-screen."""
+    import subprocess
+
+    captured: dict[str, object] = {}
+
+    def _fake_run(argv, **kw):
+        captured["kw"] = kw
+
+        class _R:
+            returncode = 0
+
+        return _R()
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    rc = run_mod._launch_detached("p", quiet=True)
+    assert rc == 0
+    assert captured["kw"].get("stdout") is subprocess.DEVNULL
+    assert captured["kw"].get("stderr") is subprocess.DEVNULL
+
+
+def test_launch_detached_default_inherits_terminal(monkeypatch):
+    """Default (``sndr run`` on a real terminal) keeps inheriting stdout/stderr
+    so the operator sees the launch output — no DEVNULL."""
+    import subprocess
+
+    captured: dict[str, object] = {}
+
+    def _fake_run(argv, **kw):
+        captured["kw"] = kw
+
+        class _R:
+            returncode = 0
+
+        return _R()
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    run_mod._launch_detached("p")
+    assert "stdout" not in captured["kw"]
+    assert "stderr" not in captured["kw"]

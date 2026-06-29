@@ -104,7 +104,9 @@ def serve(preset_id: str, *, port: Optional[int] = None) -> dict[str, Any]:
         if rc not in (0, None):
             return {"ok": False, "preset_id": preset_id, "rc": rc,
                     "error": f"weights not ready (pull rc={rc})"}
-        rc = _launch_detached(preset_id, port=port, dry_run=False)
+        # quiet=True: the cockpit owns the alt-screen; the child launch must not
+        # inherit/corrupt the terminal. The live engine refresh shows progress.
+        rc = _launch_detached(preset_id, port=port, dry_run=False, quiet=True)
         if rc not in (0, None):
             return {"ok": False, "preset_id": preset_id, "rc": rc,
                     "error": f"launch failed (rc={rc})"}
@@ -166,6 +168,20 @@ def _settings_path():
     return base / "tui_settings.json"
 
 
+def _load_saved_file() -> dict[str, Any]:
+    """The persisted ``tui_settings.json`` contents ONLY (no env fallback).
+
+    Used by ``save_settings`` to decide what may be re-persisted — env-sourced
+    secrets must never be written to disk (that is the caller's whole point).
+    """
+    import json
+
+    try:
+        return json.loads(_settings_path().read_text(encoding="utf-8"))
+    except Exception:  # pragma: no cover — no/garbled state file is fine
+        return {}
+
+
 def load_settings() -> dict[str, str]:
     """Current Model Dir + HF token for the Settings modal to pre-fill.
 
@@ -173,14 +189,9 @@ def load_settings() -> dict[str, str]:
     (``SNDR_MODELS_DIR`` / ``HF_TOKEN``) — what the engine actually uses today —
     so the modal opens showing the real state, not blanks.
     """
-    import json
     import os
 
-    saved: dict[str, Any] = {}
-    try:
-        saved = json.loads(_settings_path().read_text(encoding="utf-8"))
-    except Exception:  # pragma: no cover — no/garbled state file is fine
-        saved = {}
+    saved = _load_saved_file()
     return {
         "model_dir": saved.get("model_dir") or os.environ.get("SNDR_MODELS_DIR", ""),
         "hf_token": saved.get("hf_token") or os.environ.get("HF_TOKEN", ""),
@@ -190,29 +201,44 @@ def load_settings() -> dict[str, str]:
 def save_settings(*, model_dir: str = "", hf_token: str = "") -> dict[str, Any]:
     """Persist + apply Model Dir / HF token.
 
-    Applies to the LIVE process env (``SNDR_MODELS_DIR`` / ``HF_TOKEN``) so this
-    session's serve/pull — and the child ``sndr launch`` that inherits the env —
-    use them immediately, and writes them under SNDR_HOME so the next launch
-    loads them. A blank field is a no-op for that key (editing the dir never
+    Applies the values to the LIVE process env (``SNDR_MODELS_DIR`` / ``HF_TOKEN``)
+    so this session's serve/pull — and the child ``sndr launch`` that inherits the
+    env — use them immediately, and writes the non-secret-leaking subset under
+    SNDR_HOME (mode 0600) so the next launch loads them.
+
+    Secret hygiene: the HF token is persisted to disk ONLY when the operator
+    typed one this session OR it was already in the file — an env-sourced token
+    (the common case) is applied/kept in the env but NEVER written to disk on a
+    blank field. A blank field is a no-op for that key (editing the dir never
     wipes a configured token). Never raises.
     """
     import json
     import os
 
     try:
-        current = load_settings()
-        model_dir = (model_dir or "").strip() or current["model_dir"]
-        hf_token = (hf_token or "").strip() or current["hf_token"]
-        if model_dir:
-            os.environ["SNDR_MODELS_DIR"] = model_dir
-        if hf_token:
-            os.environ["HF_TOKEN"] = hf_token
-        _settings_path().write_text(
-            json.dumps({"model_dir": model_dir, "hf_token": hf_token},
+        saved = _load_saved_file()  # file ONLY — env tokens must not reach disk
+        typed_dir = (model_dir or "").strip()
+        typed_tok = (hf_token or "").strip()
+
+        # model_dir is not a secret — persisting the effective value is fine.
+        eff_dir = typed_dir or saved.get("model_dir") or os.environ.get("SNDR_MODELS_DIR", "")
+        # token: persist a typed token, or one ALREADY on disk — never the env's.
+        persist_tok = typed_tok or saved.get("hf_token", "")
+
+        # Apply to the live env (typed values win; blanks leave the env as-is).
+        if eff_dir:
+            os.environ["SNDR_MODELS_DIR"] = eff_dir
+        if typed_tok:
+            os.environ["HF_TOKEN"] = typed_tok
+
+        path = _settings_path()
+        path.write_text(
+            json.dumps({"model_dir": eff_dir, "hf_token": persist_tok},
                        indent=2, sort_keys=True),
             encoding="utf-8",
         )
-        return {"ok": True, "model_dir": model_dir, "error": None}
+        os.chmod(path, 0o600)  # owner-only — the file may hold a typed token
+        return {"ok": True, "model_dir": eff_dir, "error": None}
     except Exception as exc:  # pragma: no cover — defensive
         return {"ok": False, "model_dir": model_dir, "error": str(exc)}
 

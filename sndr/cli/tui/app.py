@@ -33,7 +33,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from textual import work
-from textual.app import App, ComposeResult
+from textual.app import App, ComposeResult, SuspendNotSupported
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, RichLog, Static
@@ -224,23 +224,26 @@ class SndrCockpit(App):
 
     # ── workers (blocking probes off the UI thread) ──────────────────────────
 
-    @work(thread=True, exclusive=True)
+    # Each worker family has its OWN group so a refresh (the `r` key / the 3s
+    # interval) never cancels an in-flight serve/stop — Textual's default group
+    # + exclusive=True would otherwise cross-cancel them.
+    @work(thread=True, exclusive=True, group="catalog")
     def _load_catalog(self) -> None:
         try:
             catalog = self._data.load_catalog(rig=self._rig, fake_gpus=self._fake_gpus)
         except Exception as exc:  # pragma: no cover — defensive
-            self.call_from_thread(self._log, f"catalog error: {exc}")
+            self._post(self._log, f"catalog error: {exc}")
             return
-        self.call_from_thread(self._apply_catalog, catalog)
+        self._post(self._apply_catalog, catalog)
 
-    @work(thread=True, exclusive=False)
+    @work(thread=True, exclusive=False, group="engine")
     def _refresh_engine(self) -> None:
         try:
             snap = self._data.engine_snapshot()
         except Exception as exc:  # pragma: no cover — defensive
-            self.call_from_thread(self._log, f"engine probe error: {exc}")
+            self._post(self._log, f"engine probe error: {exc}")
             return
-        self.call_from_thread(self._apply_engine, snap)
+        self._post(self._apply_engine, snap)
 
     # ── apply (UI thread) ────────────────────────────────────────────────────
 
@@ -266,27 +269,28 @@ class SndrCockpit(App):
 
     # ── serve / stop workers (blocking pipeline off the UI thread) ────────────
 
-    @work(thread=True, exclusive=True)
+    # serve + stop share the "lifecycle" group (mutually exclusive — you don't
+    # serve and stop the same engine at once) but are isolated from catalog /
+    # engine refresh so pressing `r` can't cancel a launch in flight.
+    @work(thread=True, exclusive=True, group="lifecycle")
     def _serve_worker(self, preset_id: str) -> None:
         result = self._data.serve(preset_id)
         if result.get("ok"):
-            self.call_from_thread(
-                self._log, f"launch started for {preset_id} — engine coming up"
-            )
+            self._post(self._log, f"launch started for {preset_id} — engine coming up")
         else:
-            self.call_from_thread(self._log, f"serve failed: {result.get('error')}")
-        self.call_from_thread(self._refresh_engine)
+            self._post(self._log, f"serve failed: {result.get('error')}")
+        self._post(self._refresh_engine)
 
-    @work(thread=True, exclusive=True)
+    @work(thread=True, exclusive=True, group="lifecycle")
     def _stop_worker(self, preset_id: str) -> None:
         result = self._data.stop(preset_id)
         if not result.get("ok"):
-            self.call_from_thread(self._log, f"stop error: {result.get('error')}")
+            self._post(self._log, f"stop error: {result.get('error')}")
         elif result.get("stopped"):
-            self.call_from_thread(self._log, f"stopped {preset_id}")
+            self._post(self._log, f"stopped {preset_id}")
         else:
-            self.call_from_thread(self._log, f"{preset_id}: nothing was running")
-        self.call_from_thread(self._refresh_engine)
+            self._post(self._log, f"{preset_id}: nothing was running")
+        self._post(self._refresh_engine)
 
     # ── actions ──────────────────────────────────────────────────────────────
 
@@ -337,22 +341,34 @@ class SndrCockpit(App):
         self._log("running doctor … (cockpit resumes after)")
         try:
             with self.suspend():
-                self._data.run_doctor()
-        except Exception as exc:  # SuspendNotSupported on a non-tty / headless
-            self._log(f"doctor unavailable here: {exc}")
+                rc = self._data.run_doctor()
+        except SuspendNotSupported:
+            self._log("doctor needs a real terminal here (can't suspend)")
             return
-        self._log("doctor done — back in the cockpit")
+        except Exception as exc:  # the doctor command itself errored
+            self._log(f"doctor failed: {exc}")
+            return
+        self._log(
+            "doctor done — back in the cockpit" if not rc
+            else f"doctor finished with issues (rc={rc}) — back in the cockpit"
+        )
 
     def action_chat(self) -> None:
         preset_id = self._focused_preset()
         self._log(f"chat → {preset_id or 'default engine'} (cockpit resumes after)")
         try:
             with self.suspend():
-                self._data.run_chat(preset_id)
-        except Exception as exc:  # SuspendNotSupported on a non-tty / headless
-            self._log(f"chat unavailable here: {exc}")
+                rc = self._data.run_chat(preset_id)
+        except SuspendNotSupported:
+            self._log("chat needs a real terminal here (can't suspend)")
             return
-        self._log("chat closed — back in the cockpit")
+        except Exception as exc:  # the chat command itself errored
+            self._log(f"chat failed: {exc}")
+            return
+        self._log(
+            "chat closed — back in the cockpit" if not rc
+            else "no engine reachable — start one with Enter (serve) — back in the cockpit"
+        )
 
     def action_settings(self) -> None:
         def _go(result: Optional[dict]) -> None:
@@ -384,6 +400,19 @@ class SndrCockpit(App):
         self.query_one("#catalog", DataTable).focus()
 
     # ── helpers ──────────────────────────────────────────────────────────────
+
+    def _post(self, fn: Any, *args: Any) -> None:
+        """``call_from_thread`` guarded against a torn-down app.
+
+        A worker thread (serve/stop/refresh) may still be running ``docker`` when
+        the user quits; its trailing UI callbacks would then hit a dead loop and
+        raise ``RuntimeError('App is not running')`` in the thread. Swallow that
+        one teardown race — there is no UI left to update anyway.
+        """
+        try:
+            self.call_from_thread(fn, *args)
+        except Exception:  # pragma: no cover — app loop gone (quit mid-worker)
+            pass
 
     def _focused_preset(self) -> Optional[str]:
         """The preset id of the currently-highlighted catalog row, if any."""

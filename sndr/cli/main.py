@@ -117,6 +117,30 @@ _BARE_GROUP_DEFAULTS: dict[str, str] = {
 }
 
 
+def _leading_verb_index(argv: list[str]) -> int:
+    """Index of the leading subcommand token, skipping any global options that
+    precede it (``--output VALUE`` / ``--output=VALUE``). Returns ``-1`` when
+    there is no verb to interpret — an introspection flag (``--version`` /
+    ``-h`` / ``--help``) or only globals — so those fall through to argparse
+    untouched. Without this, a global flag before the verb (``sndr --output json
+    engines``) defeats both the spaced-verb normalization and the friendly
+    unknown-command handler, dropping the user back onto the raw argparse wall.
+    """
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if tok == "--output":          # global opt that consumes the next token
+            i += 2
+            continue
+        if tok.startswith("--output="):  # --output=json form (self-contained)
+            i += 1
+            continue
+        if tok.startswith("-"):          # --version / -h / --help / other flag
+            return -1
+        return i                          # first positional → the verb
+    return -1
+
+
 def _normalize_spaced_verbs(argv: list[str]) -> list[str]:
     """Rewrite a leading spaced compound verb to its canonical token.
 
@@ -255,7 +279,12 @@ def main(argv: list[str] | None = None) -> int:
     # (``engines list`` -> ``engines.list``, ``model pull`` -> ``pull``) before
     # any dispatch. A bare ``sndr`` (empty argv) is left untouched so the R1
     # no-args wizard gate still fires.
-    argv = _normalize_spaced_verbs(argv)
+    # Locate the verb (skipping any leading global options) and normalize the
+    # spaced/bare-group form there — so a global flag before the verb doesn't
+    # defeat the alias/bare-group handling or the friendly unknown-command path.
+    _vi = _leading_verb_index(argv)
+    if _vi >= 0:
+        argv = argv[:_vi] + _normalize_spaced_verbs(argv[_vi:])
 
     # Fast-path for promoted pass-through commands (report / doctor / preset /
     # bench / tune / config + the R2 beginner verbs verify / pull / list-models
@@ -276,8 +305,8 @@ def main(argv: list[str] | None = None) -> int:
     # instead of the raw ``invalid choice`` wall. Exit code stays non-zero (2,
     # matching argparse's usage-error convention). Flags and valid/aliased
     # verbs fall through untouched.
-    if argv and not argv[0].startswith("-") and argv[0] not in _known_verbs():
-        sys.stderr.write(_friendly_unknown_command(argv[0]) + "\n")
+    if _vi >= 0 and not argv[_vi].startswith("-") and argv[_vi] not in _known_verbs():
+        sys.stderr.write(_friendly_unknown_command(argv[_vi]) + "\n")
         return 2
 
     parser = build_parser()

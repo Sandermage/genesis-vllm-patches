@@ -293,6 +293,7 @@ def _pull_if_missing(preset_id: str, *, dry_run: bool = False) -> int:
 
 def _launch_detached(
     preset_id: str, *, port: Optional[int] = None, dry_run: bool = False,
+    quiet: bool = False,
 ) -> int:
     """Launch the preset as a CHILD process so this orchestrator survives.
 
@@ -301,6 +302,11 @@ def _launch_detached(
     ``sndr launch <preset>`` in a subprocess keeps us alive: the rendered
     script does ``docker run -d`` (detached), so the child returns once the
     container is up. Returns the child's exit code.
+
+    ``quiet=True`` routes the child's stdout/stderr to ``DEVNULL`` — used by the
+    TUI cockpit, where the child would otherwise inherit and corrupt Textual's
+    alt-screen terminal. The default (``sndr run`` on a real terminal) inherits
+    stdout/stderr so the operator sees the launch output.
     """
     import subprocess
 
@@ -309,8 +315,9 @@ def _launch_detached(
         argv += ["--port", str(port)]
     if dry_run:
         argv.append("--dry-run")
+    redirect = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL} if quiet else {}
     try:
-        completed = subprocess.run(argv)
+        completed = subprocess.run(argv, **redirect)
         return completed.returncode
     except FileNotFoundError:
         # `python -m sndr` unavailable (no console entry on PATH) — fall back to

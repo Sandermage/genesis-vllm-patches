@@ -161,6 +161,22 @@ class TestDottedAndSpacedResolve:
         assert rc == 0
         assert calls.get("hit"), f"bare `sndr {bare[0]}` must default to {dotted}"
 
+    def test_global_flag_before_bare_group_still_defaults_to_list(self, monkeypatch):
+        # `sndr --output json engines` — a leading global flag must not defeat the
+        # bare-group default; it should still resolve to engines.list.
+        from sndr.cli.commands import COMMAND_REGISTRY
+        from sndr.cli.main import build_parser, main
+
+        build_parser()
+        calls: dict[str, int] = {}
+        monkeypatch.setattr(
+            type(COMMAND_REGISTRY["engines.list"]), "execute",
+            lambda self, args: calls.__setitem__("hit", 1) or 0,
+        )
+        rc = main(["--output", "json", "engines"])
+        assert rc == 0
+        assert calls.get("hit"), "`sndr --output json engines` must reach engines.list"
+
     def test_bare_group_normalization_is_surgical(self):
         # The bare-group default rewrites ONLY a bare group verb (or group +
         # leading flags) — never a real spaced subcommand or a positional.

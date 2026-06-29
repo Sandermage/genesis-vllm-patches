@@ -133,6 +133,19 @@ class TestSynonymHints:
 # ── 2. no close match → next-step pointer, no bogus suggestion ──────────────
 
 
+class TestGlobalFlagBeforeVerb:
+    def test_global_output_flag_before_unknown_verb_stays_friendly(self):
+        # `sndr --output json bogusverb` — a global flag before the verb must NOT
+        # bypass the R5 friendly handler back into the raw argparse wall.
+        rc, _out, err = _run(["--output", "json", "bogusverb"])
+        assert rc != 0
+        assert "bogusverb" in err
+        assert "invalid choice" not in err.lower(), (
+            f"global flag must not bypass the friendly handler: {err!r}"
+        )
+        assert "unknown command" in err.lower()
+
+
 class TestNoCloseMatch:
     def test_nonsense_token_still_helps(self):
         rc, _out, err = _run(["zzqqxx"])

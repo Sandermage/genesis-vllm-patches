@@ -44,6 +44,12 @@ resolve_config_kv() {
   grep -E "^[[:space:]]+GENESIS_[A-Z0-9_]+:" "$yaml" 2>/dev/null \
     | sed -E "s/^[[:space:]]+//; s/:[[:space:]]*/=/; s/[[:space:]]*#.*$//; s/[[:space:]]+$//; s/['\"]//g" \
     | sort -u > "$out" || true
+  # Any inline GENESIS_ flags → treat as a legacy monolithic config and STOP.
+  # NOTE (latent): if a preset ever mixes inline `genesis_env:` flags AND a
+  # model/hardware/profile composition, this short-circuits before the dry-run
+  # below and the COMPOSED flags are silently dropped from the audit. No preset
+  # mixes the two today (every V2 preset is a pure thin resolver). If a hybrid
+  # is ever authored, switch this to MERGE inline + composed instead of return.
   if [ -s "$out" ]; then return 0; fi
   # V2 composed preset → resolve the effective launcher env.
   local key

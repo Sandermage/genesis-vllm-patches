@@ -53,7 +53,7 @@ def test_serve_runs_pull_then_launch_and_reports_ok(monkeypatch):
         calls.append(("pull", preset_id, dry_run))
         return 0
 
-    def _fake_launch(preset_id, *, port=None, dry_run=False):
+    def _fake_launch(preset_id, *, port=None, dry_run=False, quiet=False):
         calls.append(("launch", preset_id, port, dry_run))
         return 0
 
@@ -81,13 +81,32 @@ def test_serve_reports_failure_when_launch_fails(monkeypatch):
     monkeypatch.setattr("sndr.cli.commands.run._pull_if_missing",
                         lambda preset_id, *, dry_run=False: 0)
     monkeypatch.setattr("sndr.cli.commands.run._launch_detached",
-                        lambda preset_id, *, port=None, dry_run=False: 125)
+                        lambda preset_id, *, port=None, dry_run=False, quiet=False: 125)
 
     result = data.serve("big-fp8-35b")
 
     assert result["ok"] is False
     assert result["rc"] == 125
     assert "launch failed" in result["error"]
+
+
+def test_serve_launches_quietly_from_tui(monkeypatch):
+    """``data.serve`` runs inside a live cockpit worker (Textual owns the
+    alt-screen), so the detached child launch must NOT inherit the terminal —
+    serve passes ``quiet=True`` to suppress the child's stdout/stderr."""
+    from sndr.cli.tui import data
+
+    seen: dict[str, object] = {}
+    monkeypatch.setattr("sndr.cli.commands.run._pull_if_missing",
+                        lambda preset_id, *, dry_run=False: 0)
+
+    def _fake_launch(preset_id, *, port=None, dry_run=False, quiet=False):
+        seen["quiet"] = quiet
+        return 0
+
+    monkeypatch.setattr("sndr.cli.commands.run._launch_detached", _fake_launch)
+    data.serve("p")
+    assert seen.get("quiet") is True, "TUI serve must launch quietly (no tty inherit)"
 
 
 def test_stop_calls_stop_engine_and_reports(monkeypatch):
@@ -212,6 +231,44 @@ def test_save_settings_blank_token_does_not_clobber_existing(monkeypatch, tmp_pa
 
     assert os.environ["HF_TOKEN"] == "hf_existing"  # untouched
     assert os.environ["SNDR_MODELS_DIR"] == "/data/models"
+
+
+def test_save_settings_does_not_persist_env_sourced_token_to_disk(monkeypatch, tmp_path):
+    """A token that lives ONLY in the env must NOT be written to the settings
+    file when the operator leaves the token field blank (e.g. editing just the
+    model dir). Persisting an env secret to a plaintext file is a leak."""
+    import json
+    import os
+
+    monkeypatch.setenv("SNDR_HOME", str(tmp_path))
+    monkeypatch.setenv("HF_TOKEN", "hf_env_only_secret")
+    monkeypatch.delenv("SNDR_MODELS_DIR", raising=False)
+    from sndr.cli.tui import data
+
+    data.save_settings(model_dir="/data/models", hf_token="")  # blank token field
+
+    saved = json.loads((tmp_path / "state" / "tui_settings.json").read_text())
+    assert saved.get("hf_token", "") == "", (
+        "env-sourced token must NOT be persisted to disk on a blank field"
+    )
+    # The live env is untouched (the operator's token still works this session).
+    assert os.environ["HF_TOKEN"] == "hf_env_only_secret"
+
+
+def test_settings_file_is_chmod_0600(monkeypatch, tmp_path):
+    """The settings file may hold a token the operator typed — it must be
+    owner-only (0600), never world/group-readable."""
+    import os
+    import stat
+
+    monkeypatch.setenv("SNDR_HOME", str(tmp_path))
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    from sndr.cli.tui import data
+
+    data.save_settings(model_dir="/data/models", hf_token="hf_typed_secret")
+
+    mode = stat.S_IMODE(os.stat(tmp_path / "state" / "tui_settings.json").st_mode)
+    assert mode == 0o600, f"settings file must be 0600, got {oct(mode)}"
 
 
 def test_load_settings_falls_back_to_env_when_no_state(monkeypatch, tmp_path):
