@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use SNDR Core Engine (Genesis vLLM Patches), please cite it."
+type: software
+title: "SNDR Core Engine — Genesis vLLM Patches"
+abstract: >-
+  Runtime patch-overlay for vLLM enabling Qwen3.6 / Gemma4 inference on consumer
+  NVIDIA GPUs (RTX 3090 / 4090 / 5090 / A5000): TurboQuant k8v4 KV-cache quant,
+  MTP speculative decoding, hybrid Gated-DeltaNet linear attention, tool-calling,
+  and 256K-class context. An in-memory overlay applied at boot — not a fork of
+  vLLM. Patches retire automatically once upstream merges the underlying fix.
+authors:
+  - family-names: Barzov
+    given-names: Aleksandr
+    alias: Sandermage
+repository-code: "https://github.com/Sandermage/sndr_core_engine"
+url: "https://github.com/Sandermage/sndr_core_engine"
+license: Apache-2.0
+version: "12.0.0"
+date-released: "2026-06-29"
+keywords:
+  - vLLM
+  - LLM inference
+  - consumer GPU
+  - quantization
+  - speculative decoding
+  - KV cache
+  - Qwen3.6
+  - Gemma4
+  - mixture of experts
+  - long context
