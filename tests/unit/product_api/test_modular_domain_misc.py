@@ -93,16 +93,42 @@ def test_license_module_absent_returns_unknown(monkeypatch):
 
 
 def test_list_pins_resolves_real_manifest_pins():
-    """The manifest-backed listing still works after the dead-code cleanup."""
+    """The manifest-backed listing still works, and now ALSO surfaces the current
+    pins that ship anchors.json/drift.rej.json instead of manifest.yaml."""
     pins = list_pins("vllm")
     assert all(isinstance(p, PinSummary) for p in pins)
-    names = {p.pin for p in pins}
+    by_name = {p.pin: p for p in pins}
     # The two legacy manifest.yaml pins are committed under engines/vllm/pins.
-    assert "0.21.1_626fa9bba" in names
-    assert "0.22.1_da1daf40b" in names
-    for p in pins:
-        assert p.has_manifest is True
+    assert by_name["0.21.1_626fa9bba"].has_manifest is True
+    assert by_name["0.22.1_da1daf40b"].has_manifest is True
+    # The current anchors.json-backed pins are now listed too (no manifest).
+    assert "0.23.1_3f5a1e173" in by_name
+    assert by_name["0.23.1_3f5a1e173"].has_manifest is False
 
 
 def test_list_pins_unknown_engine_returns_empty():
     assert list_pins("definitely-not-an-engine") == []
+
+
+def test_list_pins_derives_real_status_and_drift(monkeypatch):
+    """Status + drift are derived from real on-disk artifacts, not hardcoded to
+    staging/False. The canonical vllm_pin_required pin is 'current' and surfaces
+    its genuine anchor drift; the prior declared pin is 'previous'; an undeclared
+    on-disk pin is 'staging'. Current pins ship anchors.json + drift.rej.json (no
+    manifest.yaml) and must STILL be listed (a manifest-only listing hid them)."""
+    import sndr.product_api.legacy.updater as updater
+    monkeypatch.setattr(
+        updater, "supported_pins",
+        lambda *a, **k: ["0.23.1rc1.dev424+g3f5a1e173", "0.23.1rc1.dev148+gb4c80ec0f"],
+    )
+    pins = {p.pin: p for p in list_pins("vllm")}
+    # current pins (anchors.json/drift.rej.json, no manifest.yaml) are now listed
+    assert "0.23.1_3f5a1e173" in pins, "the current pin must be listed even without manifest.yaml"
+    cur = pins["0.23.1_3f5a1e173"]
+    assert cur.status == "current"
+    assert cur.has_drift is True       # genuine_anchor_drift has entries
+    assert cur.has_manifest is False   # ships anchors.json, not manifest.yaml
+    prev = pins["0.23.1_b4c80ec0f"]
+    assert prev.status == "previous"
+    assert prev.has_drift is False
+    assert pins["0.23.1_04c2a8dea"].status == "staging"
