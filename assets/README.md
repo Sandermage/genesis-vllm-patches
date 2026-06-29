@@ -9,8 +9,23 @@ for plots, `docs/` for diagrams).
 
 | File | Purpose | Used by |
 |---|---|---|
-| `logo.png` | Genesis Sea-Born Neural Beacon — 2816×1536 master, displayed at 1280px max width in README | README.md hero, GitHub social-preview, project banners |
+| `logo.png` | Genesis Sea-Born Neural Beacon — 2816×1536 master, displayed at 1280px max width in README | README.md hero, project banners |
 | `logo-favicon.png` | 256×256 square crop for tab icons, badge generation, GitHub avatar | future docs site, GitHub social card |
+| `og-card.png` | 1280×640 Open Graph / social-preview card (title + headline figures); regenerate with `python3 assets/charts/_og_card.py` | GitHub social preview, link unfurls (Reddit / HN / X / Slack) |
+
+## Setting the GitHub social preview
+
+`og-card.png` is the link-unfurl image. GitHub does **not** expose the social
+preview via API — a maintainer must set it once in the UI:
+
+**Settings → General → Social preview → Edit → Upload an image** → pick
+`assets/og-card.png`. After that, any link to the repo unfurls with the card.
+
+Regenerate the card after a headline-number change:
+
+```bash
+python3 assets/charts/_og_card.py   # writes assets/og-card.png (needs matplotlib)
+```
 
 ## Versioning the logo
 
