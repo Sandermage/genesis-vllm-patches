@@ -24,7 +24,7 @@
 #   ./tools/audit_yaml_vs_runtime.sh --dump-config-keys <yaml_path>   # debug/test
 #
 # Examples:
-#   ./tools/audit_yaml_vs_runtime.sh sndr/model_configs/builtin/presets/prod-qwen3.6-35b-balanced.yaml vllm-qwen3.6-35b-balanced-k3 sander@192.168.1.10
+#   ./tools/audit_yaml_vs_runtime.sh sndr/model_configs/builtin/presets/prod-qwen3.6-35b-balanced.yaml vllm-qwen3.6-35b-balanced-k3 <user>@<host>
 #   ./tools/audit_yaml_vs_runtime.sh --dump-config-keys sndr/model_configs/builtin/presets/prod-qwen3.6-35b-balanced.yaml
 #
 # Exit codes:

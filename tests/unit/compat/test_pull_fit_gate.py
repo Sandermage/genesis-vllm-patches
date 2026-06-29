@@ -117,6 +117,22 @@ def test_dry_run_proceeds_despite_insufficient_disk(capsys, monkeypatch):
     assert "✗ FAIL" in out
 
 
+def test_check_disk_space_uncreatable_dir_does_not_raise(monkeypatch):
+    """Regression (CI 2026-06-29): _check_disk_space mkdir'd the resolved
+    models dir unconditionally. On a runner whose models dir resolved to an
+    unwritable root (HUGGINGFACE_HUB_CACHE=/data/models, where /data can't be
+    created), mkdir raised PermissionError and crashed `sndr pull --dry-run`
+    before the fit verdict was ever printed. The check must REPORT the failure
+    (False, reason), never propagate the OSError."""
+    def boom(self, *args, **kwargs):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(pull.Path, "mkdir", boom)
+    ok, msg = pull._check_disk_space(pull.Path("/data/models"), needed_gb=10.0)
+    assert ok is False
+    assert "/data/models" in msg
+
+
 def test_dry_run_fake_gpus_fit(capsys):
     rc = pull.main(["qwen3_6_27b_int4_autoround", "--dry-run",
                     "--fake-gpus", "RTX A5000:24564:8.6"])
