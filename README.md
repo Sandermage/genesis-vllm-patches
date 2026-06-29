@@ -223,6 +223,19 @@ conventions, lifecycle ratchet, pin-bump playbook, PR template) is in
 [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md). Security disclosures go
 through [`SECURITY.md`](SECURITY.md).
 
+## Ecosystem / Related
+
+- **[vLLM](https://github.com/vllm-project/vllm)** — the upstream engine SNDR
+  Core patches. Genesis is an overlay, not a fork; patches retire as upstream
+  merges the underlying fix.
+- **[club-3090](https://github.com/noonghunna/club-3090)** — community,
+  multi-engine (vLLM · llama.cpp · ik_llama) serving recipes for consumer GPUs.
+  Complementary to this repo and cross-references Genesis in its
+  `TQ3_MTP_GENESIS.md`. **Where SNDR Core fits:** it is the deep, single-stack
+  vLLM patch engine; club-3090 is the broad multi-engine recipe hub. If you
+  want the widest engine/model menu, start there; if you want the fastest,
+  most-patched vLLM path on Ampere/Ada/Blackwell, you're in the right place.
+
 ## Credits + license
 
 Apache-2.0 (see [`LICENSE`](LICENSE)). Per-patch attribution and upstream

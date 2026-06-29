@@ -28,7 +28,7 @@ never ship publicly.
 | Browse the patch catalogue + compatibility matrix | [`PATCHES.md`](PATCHES.md) |
 | Read the technical design appendices (PN95, GDN, ...) | [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) |
 
-## File catalogue (29 markdown files)
+## File catalogue (30 markdown files)
 
 ### Onboarding & concepts
 
@@ -95,6 +95,7 @@ never ship publicly.
 | --- | --- |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to author a new patch + community plugin paths (pip-installable and in-repo SDK) + project map (where every script / module / test lives). |
 | [`GLOSSARY.md`](GLOSSARY.md) | Term definitions — TQ, MTP, GDN, FA2, A3B, Marlin, ... |
+| [`ANNOUNCEMENT_TEMPLATE.md`](ANNOUNCEMENT_TEMPLATE.md) | Reusable skeleton for a "we shipped X" post + r/LocalLLaMA / Show HN / X variants. |
 
 ### Credits
 
