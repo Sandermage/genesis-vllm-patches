@@ -73,9 +73,23 @@ def _resolve_models_dir(override: str | None = None) -> Path:
 
 
 def _check_disk_space(target_dir: Path, needed_gb: float, headroom: float = 1.2) -> tuple[bool, str]:
-    """Verify the target dir has enough free space (with `headroom` factor)."""
-    target_dir.mkdir(parents=True, exist_ok=True)
-    stat = shutil.disk_usage(target_dir)
+    """Verify the target dir has enough free space (with `headroom` factor).
+
+    Creating the target can fail — an unwritable root such as `/data`, a
+    read-only mount, or a sandboxed CI runner all raise ``OSError`` from
+    ``mkdir``. That is a *failed check*, not a crash: a ``--dry-run`` must
+    still reach the fit verdict, and a real pull must exit cleanly with the
+    reason rather than dumping a traceback. So treat an uncreatable /
+    unstattable target as "disk check failed" and report why.
+    """
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        return False, f"cannot create models dir {target_dir}: {e}"
+    try:
+        stat = shutil.disk_usage(target_dir)
+    except OSError as e:
+        return False, f"cannot check disk at {target_dir}: {e}"
     free_gb = stat.free / 1e9
     need_with_headroom = needed_gb * headroom
     if free_gb < need_with_headroom:

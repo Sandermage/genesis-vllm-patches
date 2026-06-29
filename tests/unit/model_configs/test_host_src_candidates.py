@@ -11,6 +11,7 @@ _DEFAULT_PLUGIN_SRC_CANDIDATES (the repo root) but missed this sibling list.
 """
 from __future__ import annotations
 
+from sndr.model_configs import host
 from sndr.model_configs.host import (
     _DEFAULT_PLUGIN_SRC_CANDIDATES,
     _DEFAULT_SNDR_SRC_CANDIDATES,
@@ -38,3 +39,32 @@ def test_plugin_src_candidates_point_at_the_repo_root():
     bad = [c for c in _DEFAULT_PLUGIN_SRC_CANDIDATES
            if c.rstrip("/").endswith("/sndr")]
     assert not bad, f"plugin_src candidates must be the repo root, not sndr/: {bad}"
+
+
+def test_detect_paths_skips_permission_denied_candidate(monkeypatch):
+    # Regression (CI 2026-06-29): a default models candidate like /data/models
+    # exists but is permission-denied on a sandboxed CI runner. pathlib's
+    # Path.is_dir() PROPAGATES PermissionError (only missing/broken-symlink
+    # return False), so the probe crashed instead of skipping the candidate.
+    # An inaccessible candidate must be treated as "not usable" and skipped.
+    denied = "/denied/models"
+
+    def fake_is_dir(self):
+        if str(self) == denied:
+            raise PermissionError(13, "Permission denied")
+        return False  # nothing else "exists" in this isolated probe
+
+    monkeypatch.setattr(host.Path, "is_dir", fake_is_dir)
+
+    # Must NOT raise; the inaccessible candidate is simply omitted. Empty lists
+    # for the other vars isolate the probe to the single denied candidate.
+    out = host.detect_paths(
+        models_candidates=[denied],
+        hf_cache_candidates=[],
+        triton_cache_candidates=[],
+        compile_cache_candidates=[],
+        sndr_src_candidates=[],
+        plugin_src_candidates=[],
+        cache_root_candidates=[],
+    )
+    assert "models_dir" not in out

@@ -132,6 +132,22 @@ _DEFAULT_PLUGIN_SRC_CANDIDATES = [
 ]
 
 
+def _is_dir_safe(path: Path) -> bool:
+    """Probe-safe ``is_dir()`` — treat an inaccessible candidate as "not a
+    usable directory" instead of crashing the whole detection pass.
+
+    ``pathlib.Path.is_dir()`` returns False for a missing path or broken
+    symlink but PROPAGATES other ``OSError``s — notably ``PermissionError``
+    when a candidate such as ``/data`` exists yet is stat-denied on a
+    sandboxed runner (the 2026-06-29 CI failure). Path detection probes a list
+    of best-guess locations, so an unreadable one must be skipped, not fatal.
+    """
+    try:
+        return path.is_dir()
+    except OSError:
+        return False
+
+
 # Operator-facing env knobs that pre-empt directory probing. When set
 # and pointing at an existing absolute path, the value wins regardless
 # of the auto-detection order. The aliases keep v7.x deployments
@@ -165,7 +181,7 @@ def _env_lookup(var: str) -> Optional[str]:
         if not raw:
             continue
         path = Path(raw).expanduser()
-        if path.is_absolute() and path.is_dir():
+        if path.is_absolute() and _is_dir_safe(path):
             return str(path)
     return None
 
@@ -210,7 +226,7 @@ def detect_paths(
     else:
         cands = models_candidates if models_candidates is not None else _DEFAULT_MODELS_CANDIDATES
         for c in cands:
-            if Path(c).is_dir():
+            if _is_dir_safe(Path(c)):
                 out["models_dir"] = c
                 break
 
@@ -222,7 +238,7 @@ def detect_paths(
         if hf_cache_candidates is None:
             hf_cache_candidates = [str(Path.home() / ".cache" / "huggingface")]
         for c in hf_cache_candidates:
-            if Path(c).is_dir():
+            if _is_dir_safe(Path(c)):
                 out["hf_cache"] = c
                 break
         if "hf_cache" not in out and create_missing_caches and hf_cache_candidates:
@@ -237,7 +253,7 @@ def detect_paths(
     else:
         cands = triton_cache_candidates if triton_cache_candidates is not None else _DEFAULT_TRITON_CACHE_CANDIDATES
         for c in cands:
-            if Path(c).is_dir():
+            if _is_dir_safe(Path(c)):
                 out["triton_cache"] = c
                 break
         if "triton_cache" not in out and create_missing_caches and cands:
@@ -252,7 +268,7 @@ def detect_paths(
     else:
         cands = compile_cache_candidates if compile_cache_candidates is not None else _DEFAULT_COMPILE_CACHE_CANDIDATES
         for c in cands:
-            if Path(c).is_dir():
+            if _is_dir_safe(Path(c)):
                 out["compile_cache"] = c
                 break
         if "compile_cache" not in out and create_missing_caches and cands:
@@ -267,7 +283,7 @@ def detect_paths(
     else:
         cands = sndr_src_candidates if sndr_src_candidates is not None else _DEFAULT_SNDR_SRC_CANDIDATES
         for c in cands:
-            if Path(c).is_dir():
+            if _is_dir_safe(Path(c)):
                 out["sndr_src"] = c
                 break
 
@@ -278,7 +294,7 @@ def detect_paths(
     else:
         cands = plugin_src_candidates if plugin_src_candidates is not None else _DEFAULT_PLUGIN_SRC_CANDIDATES
         for c in cands:
-            if Path(c).is_dir():
+            if _is_dir_safe(Path(c)):
                 out["plugin_src"] = c
                 break
 
@@ -289,7 +305,7 @@ def detect_paths(
     else:
         cands = cache_root_candidates if cache_root_candidates is not None else _DEFAULT_CACHE_ROOT_CANDIDATES
         for c in cands:
-            if Path(c).is_dir():
+            if _is_dir_safe(Path(c)):
                 out["cache_root"] = c
                 break
         if "cache_root" not in out and create_missing_caches and cands:
