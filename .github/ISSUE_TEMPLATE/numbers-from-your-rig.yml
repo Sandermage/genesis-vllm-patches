@@ -1,0 +1,96 @@
+name: Numbers from your rig
+description: Cross-rig TPS / context / tool-call contribution. High-signal runs land in BENCHMARKS with attribution.
+title: "[bench] <gpu> · <model> · <tps>"
+labels: ["bench-contribution", "needs-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for benching! Cross-rig numbers tell us which results are
+        rig-specific vs. universal. Strong contributions get added to
+        [`docs/BENCHMARKS.md`](https://github.com/Sandermage/sndr_core_engine/blob/main/docs/BENCHMARKS.md)
+        with credit to you.
+
+        **The fastest way to capture everything we need:**
+
+        ```bash
+        sndr bench --quick --out my-rig.json     # or: python3 tools/genesis_bench_suite.py --quick
+        sndr report bundle                       # redacted diagnostic bundle (GPU, driver, pin, patches applied)
+        ```
+
+        The bench protocol, sampling params, and canonical prompts are pinned in
+        [`docs/BENCHMARKS.md`](https://github.com/Sandermage/sndr_core_engine/blob/main/docs/BENCHMARKS.md)
+        so your numbers are directly comparable to the reference 2× A5000 rig.
+        Paths, hostnames, and tokens are redacted by `sndr report bundle` by default.
+
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU(s) — model, count, VRAM
+      description: e.g. "2× RTX 3090 24 GB, NVLink" or "1× RTX 5090 32 GB"
+      placeholder: 2× RTX 3090 24 GB · PCIe
+    validations:
+      required: true
+
+  - type: input
+    id: driver-cuda
+    attributes:
+      label: Driver / CUDA
+      placeholder: driver 580.142 · CUDA 13.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: model-preset
+    attributes:
+      label: Model / preset benched
+      options:
+        - "Qwen3.6-35B-A3B-FP8 (prod-qwen3.6-35b-balanced)"
+        - "Qwen3.6-35B-A3B-FP8 multi-conc (prod-qwen3.6-35b-multiconc)"
+        - "Qwen3.6-27B-int4-AutoRound (prod-qwen3.6-27b-tq-k8v4)"
+        - "Qwen3.6-27B long-context (long-ctx-qwen3.6-27b)"
+        - "Gemma-4-31B"
+        - "DiffusionGemma-26B-A4B-FP8"
+        - "Other (describe in Notes)"
+    validations:
+      required: true
+
+  - type: input
+    id: stack
+    attributes:
+      label: Stack — Genesis version + vLLM pin / image SHA
+      description: from `sndr doctor` or the boot banner
+      placeholder: Genesis v12.0.0 · vLLM 0.23.1rc1.dev424+g3f5a1e173
+    validations:
+      required: true
+
+  - type: textarea
+    id: bench-output
+    attributes:
+      label: Bench output — paste `sndr bench` JSON/summary (and the report bundle if you can)
+      description: |
+        Decode TPS (single-stream and/or aggregate), context ceiling reached,
+        and VRAM. The raw `my-rig.json` summary is ideal.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: toolcall
+    attributes:
+      label: Tool-call clean rate (if you ran the tool-call check)
+      options:
+        - "Not tested"
+        - "Clean — matches reference (7/7 · 8/8 class)"
+        - "Partial — some empty/!malformed tool_calls (describe in Notes)"
+        - "Broken — tool-calls fail on this rig"
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything rig-specific — power caps, thermal throttling, cliffs hit, deviations from the pinned protocol, or a model not in the list above.
+    validations:
+      required: false
