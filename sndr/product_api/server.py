@@ -143,15 +143,21 @@ def _init_memory_engine(app: FastAPI) -> None:
         log.info("product_api.memory.embedder", extra={"embedder": "hash"})
     dim = embedder.dim
 
+    from sndr.memory.inmemory import InMemoryStore
+
     dsn = os.environ.get("GENESIS_MEMORY_DSN")
     if dsn:
-        from sndr.memory.postgres import PostgresStore
+        try:
+            from sndr.memory.postgres import PostgresStore
 
-        store = PostgresStore(dsn, dim=dim)
-        log.info("product_api.memory.backend", extra={"backend": "postgres"})
+            store = PostgresStore(dsn, dim=dim)
+            log.info("product_api.memory.backend", extra={"backend": "postgres"})
+        except Exception:  # noqa: BLE001 - DB outage must not kill the whole app
+            # Graceful degradation: a Postgres outage downgrades memory to the
+            # ephemeral in-memory backend instead of crashing create_app (S3).
+            log.exception("product_api.memory.postgres_unavailable_fallback_inmemory")
+            store = InMemoryStore()
     else:
-        from sndr.memory.inmemory import InMemoryStore
-
         store = InMemoryStore()
         log.info("product_api.memory.backend", extra={"backend": "inmemory"})
     app.state.memory_engine = MemoryEngine(store=store, embedder=embedder)

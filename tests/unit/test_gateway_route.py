@@ -91,6 +91,22 @@ def test_list_upstreams():
     assert data["default"] == "cliproxy"
 
 
+def test_upstream_error_maps_to_502_not_500():
+    app, _ = _app()
+
+    async def boom(body):
+        raise RuntimeError("upstream exploded")
+
+    app.state.gateway_upstreams["cliproxy"] = {"forward": boom, "stream": None}
+    client = TestClient(app, raise_server_exceptions=False)
+    r = client.post(
+        "/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "hi"}]},
+        headers={"X-Owner-Id": "1", "X-Memory-Upstream": "cliproxy"},
+    )
+    assert r.status_code == 502
+
+
 def test_503_without_any_upstream():
     app, _ = _app(upstreams=False)
     client = TestClient(app)

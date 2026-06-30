@@ -17,6 +17,7 @@ without a live upstream. Owner scoping via the X-Owner-Id header.
 """
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -28,6 +29,7 @@ from sndr.memory.middleware import ConversationMemory
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+log = logging.getLogger("sndr.product_api.gateway")
 router = APIRouter(tags=["gateway"])
 
 
@@ -87,15 +89,26 @@ async def chat_completions(request: Request) -> Any:
     if body.get("stream") and stream_fn is not None:
         async def tee() -> AsyncIterator[bytes]:
             buf: list[str] = []
-            async for chunk in stream_fn(body):
-                buf.append(chunk.decode("utf-8", "ignore"))
-                yield chunk
+            try:
+                async for chunk in stream_fn(body):
+                    buf.append(chunk.decode("utf-8", "ignore"))
+                    yield chunk
+            except Exception:  # noqa: BLE001 - upstream failed mid-stream
+                log.warning("gateway stream upstream error", exc_info=True)
+                # bytes may already be sent; capture only what completed below
             assistant = assistant_text_from_sse("".join(buf))
-            mem.capture(owner_id=owner, messages=original, assistant=assistant)
+            if assistant:
+                mem.capture(owner_id=owner, messages=original, assistant=assistant)
 
         return StreamingResponse(tee(), media_type="text/event-stream")
 
-    response = await forward(body)
+    try:
+        response = await forward(body)
+    except Exception as exc:  # noqa: BLE001 - the gateway wraps an upstream
+        # Map any upstream failure to a clean 502/504 instead of a raw 500, and
+        # do NOT capture a failed turn.
+        status = 504 if "timeout" in type(exc).__name__.lower() else 502
+        raise HTTPException(status_code=status, detail=f"upstream error: {type(exc).__name__}") from exc
     mem.capture(owner_id=owner, messages=original,
                 assistant=extract_assistant_text(response))
     return JSONResponse(response)
