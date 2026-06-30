@@ -40,6 +40,7 @@ from sndr.product_api.schemas.memory import (
     RememberOut,
     StatsOut,
 )
+from sndr.product_api.security import owner_from_request
 
 if TYPE_CHECKING:
     from sndr.memory.engine import MemoryEngine
@@ -76,7 +77,7 @@ async def remember(
     body: RememberIn, request: Request
 ) -> Envelope[RememberOut]:
     eng = _engine(request)
-    owner = _owner_from(request)
+    owner = owner_from_request(request)
     nid = eng.remember(
         owner_id=owner, text=body.text, kind=body.kind,
         importance=body.importance, properties=body.properties,
@@ -89,7 +90,7 @@ async def search(
     request: Request, q: str, limit: int = 10, mode: str = "vector"
 ) -> Envelope[list[HitOut]]:
     eng = _engine(request)
-    owner = _owner_from(request)
+    owner = owner_from_request(request)
     if mode == "hybrid":
         hits = eng.search_hybrid(owner_id=owner, query=q, limit=limit)
     else:
@@ -101,7 +102,7 @@ async def search(
 async def recall(body: RecallIn, request: Request) -> Envelope[list[HitOut]]:
     eng = _engine(request)
     hits = eng.recall(
-        owner_id=_owner_from(request), query=body.query, limit=body.limit,
+        owner_id=owner_from_request(request), query=body.query, limit=body.limit,
         expand_depth=body.expand_depth, reinforce=body.reinforce,
     )
     return Envelope(data=[_hit(h) for h in hits], meta=_meta())
@@ -110,7 +111,7 @@ async def recall(body: RecallIn, request: Request) -> Envelope[list[HitOut]]:
 @router.get("/node/{node_id}", summary="Fetch one node")
 async def get_node(node_id: int, request: Request) -> Envelope[NodeOut]:
     eng = _engine(request)
-    owner = _owner_from(request)
+    owner = owner_from_request(request)
     node = eng.store.get_node(node_id)
     if node is None or node.owner_id != owner:
         raise HTTPException(status_code=404, detail="node not found")
@@ -120,7 +121,7 @@ async def get_node(node_id: int, request: Request) -> Envelope[NodeOut]:
 @router.post("/edge/invalidate", summary="Invalidate (bi-temporally retire) an edge")
 async def invalidate_edge(body: InvalidateEdgeIn, request: Request) -> Envelope[InvalidateEdgeOut]:
     eng = _engine(request)
-    owner = _owner_from(request)
+    owner = owner_from_request(request)
     src = eng.store.get_node(body.src)
     if src is None or src.owner_id != owner:
         raise HTTPException(status_code=404, detail="source node not found")
@@ -131,7 +132,7 @@ async def invalidate_edge(body: InvalidateEdgeIn, request: Request) -> Envelope[
 @router.get("/neighbors/{node_id}", summary="Adjacent nodes")
 async def neighbors(node_id: int, request: Request) -> Envelope[list[NeighborOut]]:
     eng = _engine(request)
-    owner = _owner_from(request)
+    owner = owner_from_request(request)
     node = eng.store.get_node(node_id)
     if node is None or node.owner_id != owner:
         raise HTTPException(status_code=404, detail="node not found")
@@ -145,7 +146,7 @@ async def neighbors(node_id: int, request: Request) -> Envelope[list[NeighborOut
 @router.get("/stats", summary="Owner memory counts")
 async def stats(request: Request) -> Envelope[StatsOut]:
     eng = _engine(request)
-    owner = _owner_from(request)
+    owner = owner_from_request(request)
     return Envelope(
         data=StatsOut(
             nodes=eng.store.count_nodes(owner_id=owner),
@@ -158,7 +159,7 @@ async def stats(request: Request) -> Envelope[StatsOut]:
 @router.get("/graph", summary="Owner memory graph (nodes + edges) for visualization")
 async def graph(request: Request, limit: int = 200) -> Envelope[GraphOut]:
     eng = _engine(request)
-    nodes, edges = eng.graph(owner_id=_owner_from(request), limit=limit)
+    nodes, edges = eng.graph(owner_id=owner_from_request(request), limit=limit)
     return Envelope(
         data=GraphOut(
             nodes=[
@@ -181,23 +182,15 @@ async def graph(request: Request, limit: int = 200) -> Envelope[GraphOut]:
 @router.post("/link", summary="Run the semantic auto-linker (batch)")
 async def link(body: LinkIn, request: Request) -> Envelope[LinkOut]:
     eng = _engine(request)
-    created = eng.link_semantic(owner_id=_owner_from(request), tau=body.tau, k=body.k)
+    created = eng.link_semantic(owner_id=owner_from_request(request), tau=body.tau, k=body.k)
     return Envelope(data=LinkOut(created=created), meta=_meta())
 
 
 @router.post("/consolidate", summary="Batch: auto-link + detect communities + importance")
 async def consolidate(body: LinkIn, request: Request) -> Envelope[ConsolidateOut]:
     eng = _engine(request)
-    rep = eng.consolidate(owner_id=_owner_from(request), tau=body.tau, k=body.k)
+    rep = eng.consolidate(owner_id=owner_from_request(request), tau=body.tau, k=body.k)
     return Envelope(data=ConsolidateOut(**rep), meta=_meta())
-
-
-def _owner_from(request: Request) -> int:
-    raw = request.headers.get("X-Owner-Id", "1")
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="invalid X-Owner-Id") from None
 
 
 def _confined_vault(path: str) -> Path:
@@ -227,7 +220,7 @@ async def import_obsidian(
     vault = _confined_vault(body.path)
     if not vault.is_dir():
         raise HTTPException(status_code=404, detail="vault not found")
-    report = import_vault(engine=eng, owner_id=_owner_from(request), vault_path=str(vault))
+    report = import_vault(engine=eng, owner_id=owner_from_request(request), vault_path=str(vault))
     return Envelope(data=ObsidianImportOut(**report), meta=_meta())
 
 

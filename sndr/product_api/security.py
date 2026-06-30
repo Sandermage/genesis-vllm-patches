@@ -35,3 +35,13 @@ def require_api_key(request: Request) -> None:
     presented = _presented(request)
     if not presented or not hmac.compare_digest(presented, expected):
         raise HTTPException(status_code=401, detail="missing or invalid API key")
+
+
+def owner_from_request(request: Request) -> int:
+    """The owner scope for a request, from the `X-Owner-Id` header (default 1).
+    Single source shared by the memory + gateway routes."""
+    raw = request.headers.get("X-Owner-Id", "1")
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="invalid X-Owner-Id") from None

@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from sndr.memory.gateway import assistant_text_from_sse, extract_assistant_text
 from sndr.memory.middleware import ConversationMemory
+from sndr.product_api.security import owner_from_request
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -32,13 +33,6 @@ if TYPE_CHECKING:
 log = logging.getLogger("sndr.product_api.gateway")
 router = APIRouter(tags=["gateway"])
 
-
-def _owner_from(request: Request) -> int:
-    raw = request.headers.get("X-Owner-Id", "1")
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="invalid X-Owner-Id") from None
 
 
 def _memory(request: Request) -> ConversationMemory:
@@ -81,7 +75,7 @@ async def chat_completions(request: Request) -> Any:
     stream_fn = upstream.get("stream")
 
     body: dict[str, Any] = await request.json()
-    owner = _owner_from(request)
+    owner = owner_from_request(request)
     mem = _memory(request)
     original = list(body.get("messages") or [])
     body = {**body, "messages": mem.augment(owner_id=owner, messages=original)}

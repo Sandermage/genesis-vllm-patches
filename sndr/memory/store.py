@@ -153,10 +153,23 @@ class MemoryStore(ABC):
         activations are dropped; result is the top `limit` by final score.
         """
         now = self._clock()
+        # Per-recall node cache: each node is fetched at most once (the seeds come
+        # back fully from search, so prime with them). This collapses the expand +
+        # scoring get_node calls — O(unique nodes) instead of O(neighbours visited
+        # + activated) — which on the Postgres backend is the difference between a
+        # few queries and dozens of round-trips. Results are identical.
+        node_cache: dict[int, MemoryNode | None] = {}
+
+        def _node(nid: int) -> MemoryNode | None:
+            if nid not in node_cache:
+                node_cache[nid] = self.get_node(nid)
+            return node_cache[nid]
+
         # Phase 1 — ANN seeds (cosine == seed activation).
         activation: dict[int, float] = {}
         frontier: list[tuple[int, float, int]] = []  # (node_id, activation, depth)
         for hit in self.search(owner_id=owner_id, query=query, limit=max(limit, 1)):
+            node_cache[hit.id] = hit.node  # search already fetched it
             if hit.score <= _EPSILON:
                 continue
             activation[hit.id] = hit.score
@@ -167,7 +180,7 @@ class MemoryStore(ABC):
             if depth >= expand_depth:
                 continue
             for neigh_id, _rel, weight in self.neighbors(nid):
-                node = self.get_node(neigh_id)
+                node = _node(neigh_id)
                 if node is None or node.owner_id != owner_id:
                     continue
                 propagated = act * weight * SPREAD_DAMPING
@@ -178,7 +191,7 @@ class MemoryStore(ABC):
         # Blend activation with lazy decay; drop non-positive; rank; trim.
         scored: list[SearchHit] = []
         for nid, act in activation.items():
-            node = self.get_node(nid)
+            node = _node(nid)
             if node is None:
                 continue
             final = act * self._retention(node, now)
