@@ -241,3 +241,46 @@ jobs:
         # regenerated in the previous step. Must stay all-green.
         run: |
           make evidence
+
+  memory-postgres:
+    # Review finding C1: run the memory storage CONTRACT against a real
+    # Postgres + pgvector so the in-memory <-> Postgres parity claim is actually
+    # verified in CI (the same suite that's skipped when MEMORY_TEST_DSN is unset).
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: genesis
+          POSTGRES_PASSWORD: genesis
+          POSTGRES_DB: genesis_memory
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U genesis -d genesis_memory"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install memory deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest "psycopg[binary]>=3.1" PyYAML \
+              "fastapi>=0.110" "uvicorn[standard]>=0.27" httpx
+      - name: Memory contract + API + gateway against live Postgres
+        env:
+          MEMORY_TEST_DSN: postgresql://genesis:genesis@127.0.0.1:5432/genesis_memory
+        run: |
+          python -m pytest -v --tb=short \
+              tests/unit/test_memory_store_contract.py \
+              tests/unit/test_memory_engine.py \
+              tests/unit/test_memory_embedder.py \
+              tests/unit/test_memory_api.py \
+              tests/unit/test_memory_middleware.py \
+              tests/unit/test_memory_auth.py \
+              tests/unit/test_gateway_route.py \
+              tests/unit/test_memory_gateway.py \
+              tests/unit/test_obsidian_import.py

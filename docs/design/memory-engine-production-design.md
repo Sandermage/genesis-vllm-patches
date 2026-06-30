@@ -265,3 +265,35 @@ store change does not touch any of these — they speak the thin storage interfa
 9. Bi-temporal edges (`valid_at`/`invalid_at`) so contradicted facts are invalidated, not deleted —
    audit-friendly and leak-bounded (DELETE space is reclaimed by VACUUM).
 10. `timescaledb-ha` base image; alembic must register the `vector` type for autogenerate.
+
+---
+
+## 9. Implementation status (2026-07) — built vs designed
+
+Honest delta between this design and the shipped code (`sndr/memory/`, the
+product-API memory/gateway routes, the unified container).
+
+**Built + tested (in-memory + live Postgres, CI-gated):**
+- `mem_node`/`mem_edge` schema, HNSW + lexical GIN indexes, `iterative_scan` tuning.
+- Brain mechanics: ANN search, Hebbian co-access, lazy Ebbinghaus decay, **strength
+  reinforcement** (retrieval slows decay), two-phase spreading-activation recall,
+  salience prune. recall/decay live ONCE in the base class → both backends identical.
+- Hybrid search (vector + keyword), exact-content dedup, communities (label
+  propagation, not Leiden), importance heuristic, `consolidate`, **wired maintenance
+  scheduler** (consolidate + prune per owner → the leak-bound), Obsidian import.
+- `/api/v1/memory/*` + the multi-upstream OpenAI gateway; **API-key guard**;
+  graceful Postgres-down fallback + upstream-error 502/504.
+- Embedders: HashEmbedder (dep-free) + Model2Vec (real CPU). Container: one image
+  (Postgres+pgvector+API+GUI+gateway+maintenance).
+
+**Deferred (design describes; not yet built) — known fast-follows:**
+- **RLS** — owner scoping is app-layer (`WHERE owner_id` + API-key), no Postgres RLS yet.
+- **Async connection pool** — PostgresStore is a single connection + lock (correct,
+  but serializes under concurrent async load; fine at homelab scale). The design's
+  psycopg async pool is the throughput upgrade.
+- **pgvectorscale / StreamingDiskANN / halfvec** — stock pgvector HNSW only (≤2000 dim).
+- **Leiden** — replaced by deterministic label propagation (adequate for homelab).
+- **Bi-temporal invalidation** — `valid_at`/`invalid_at` columns exist and reads honor
+  them, but nothing sets `invalid_at` yet (no contradiction-invalidation path).
+- **alembic migrations / partitioning / REINDEX-VACUUM cadence** — schema is created
+  idempotently by `ensure_schema`; ops tooling is documented, not automated.
