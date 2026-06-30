@@ -2,9 +2,23 @@
 """GUI ↔ backend contract gate.
 
 The GUI's `api.ts` hand-writes the daemon route paths it calls. This test pins
-those paths against the FastAPI app's actual routes so a renamed/removed backend
+those paths against the backend's actual routes so a renamed/removed backend
 route (or a typo'd GUI path) fails CI instead of 404-ing at runtime — the
 structural-compatibility guard for the two halves of the project.
+
+During the v11→v12 migration the GUI is served by one of TWO app factories:
+
+  * ``legacy.http_app.create_app`` — the full Control Center monolith (every
+    platform route; not the persistent-memory subsystem).
+  * ``server.create_app`` — the modular daemon (persistent memory + gateway +
+    the already-migrated routes). This is what the ``genesis-memory`` container
+    runs (``uvicorn sndr.product_api.server:create_app``).
+
+So a GUI path is satisfied when AT LEAST ONE factory serves it (no path is
+orphaned platform-wide). We additionally pin the ``/api/v1/memory/*`` routes to
+the modular ``server`` factory — the daemon that actually serves the Memory
+panel — so memory drift is caught at its real source. Collapse the union to a
+single factory once Phase 11 finishes migrating the legacy routes into ``server``.
 
 It extracts every ``/api/...`` literal from api.ts, reduces each to its static
 prefix (dropping ``${…}`` path params and ``${query(…)}`` suffixes), and checks a
@@ -50,21 +64,51 @@ def _seg_prefix_match(prefix: str, route: str) -> bool:
     rs = [s for s in route.strip("/").split("/") if s]
     if len(ps) > len(rs):
         return False
-    return all(p == r or r.startswith("{") for p, r in zip(ps, rs))
+    return all(p == r or r.startswith("{") for p, r in zip(ps, rs, strict=False))
+
+
+def _api_routes(create_app) -> list[str]:
+    app = create_app()
+    return [
+        r.path for r in app.routes
+        if isinstance(getattr(r, "path", None), str) and r.path.startswith("/api/")
+    ]
 
 
 def test_every_gui_api_path_has_a_backend_route():
     api_ts = _api_ts()
     if api_ts is None:
         pytest.skip("gui/web/src/api.ts not present (backend-only checkout)")
-    from sndr.product_api.legacy.http_app import create_app
+    from sndr.product_api.legacy.http_app import create_app as legacy_create_app
+    from sndr.product_api.server import create_app as modular_create_app
 
-    app = create_app()
-    routes = [r.path for r in app.routes if isinstance(getattr(r, "path", None), str) and r.path.startswith("/api/")]
-    assert routes, "app exposed no /api/ routes"
+    # Union of the two app factories the GUI can be served by (see module docstring).
+    routes = _api_routes(legacy_create_app) + _api_routes(modular_create_app)
+    assert routes, "apps exposed no /api/ routes"
     gui_paths = _gui_paths(api_ts.read_text(encoding="utf-8"))
     assert len(gui_paths) > 30, f"suspiciously few GUI paths parsed ({len(gui_paths)}) — parser drift?"
     missing = sorted(p for p in gui_paths if not any(_seg_prefix_match(p, r) for r in routes))
     assert not missing, (
         f"GUI api.ts calls {len(missing)} path(s) with no matching backend route "
-        f"(drift — fix the route or the GUI):\n  " + "\n  ".join(missing))
+        f"in EITHER daemon (drift — add the route or fix the GUI):\n  " + "\n  ".join(missing))
+
+
+def test_memory_routes_served_by_the_modular_daemon():
+    """The Memory panel's routes must live in the modular ``server`` factory —
+    the daemon the genesis-memory container runs. Pins memory drift to its real
+    source (the union test above would otherwise mask a memory route moving)."""
+    api_ts = _api_ts()
+    if api_ts is None:
+        pytest.skip("gui/web/src/api.ts not present (backend-only checkout)")
+    from sndr.product_api.server import create_app as modular_create_app
+
+    routes = _api_routes(modular_create_app)
+    mem_gui_paths = sorted(
+        p for p in _gui_paths(api_ts.read_text(encoding="utf-8"))
+        if p.startswith("/api/v1/memory/") and not p.endswith("/fit")  # /fit is the VRAM estimator (legacy)
+    )
+    assert mem_gui_paths, "no /api/v1/memory/* paths parsed from the GUI — parser drift?"
+    missing = sorted(p for p in mem_gui_paths if not any(_seg_prefix_match(p, r) for r in routes))
+    assert not missing, (
+        "GUI memory path(s) not served by the modular server daemon "
+        "(the genesis-memory container would 404):\n  " + "\n  ".join(missing))
