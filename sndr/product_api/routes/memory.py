@@ -12,7 +12,9 @@ The MemoryEngine lives on `app.state.memory_engine` (set by `create_app` /
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -29,6 +31,8 @@ from sndr.product_api.schemas.memory import (
     LinkOut,
     NeighborOut,
     NodeOut,
+    ObsidianImportIn,
+    ObsidianImportOut,
     RecallIn,
     RememberIn,
     RememberOut,
@@ -181,6 +185,37 @@ def _owner_from(request: Request) -> int:
         return int(raw)
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="invalid X-Owner-Id") from None
+
+
+def _confined_vault(path: str) -> Path:
+    """Resolve a vault path confined to GENESIS_MEMORY_VAULT_ROOT (disabled when
+    unset). Blocks traversal outside the allowed root."""
+    root = os.environ.get("GENESIS_MEMORY_VAULT_ROOT", "").strip()
+    if not root:
+        raise HTTPException(
+            status_code=403,
+            detail="vault import disabled (set GENESIS_MEMORY_VAULT_ROOT)",
+        )
+    base = Path(root).resolve()
+    candidate = Path(path)
+    resolved = (candidate if candidate.is_absolute() else base / candidate).resolve()
+    if resolved != base and base not in resolved.parents:
+        raise HTTPException(status_code=403, detail="path escapes the allowed vault root")
+    return resolved
+
+
+@router.post("/import/obsidian", summary="Import an Obsidian vault into memory")
+async def import_obsidian(
+    body: ObsidianImportIn, request: Request
+) -> Envelope[ObsidianImportOut]:
+    from sndr.memory.obsidian import import_vault
+
+    eng = _engine(request)
+    vault = _confined_vault(body.path)
+    if not vault.is_dir():
+        raise HTTPException(status_code=404, detail="vault not found")
+    report = import_vault(engine=eng, owner_id=_owner_from(request), vault_path=str(vault))
+    return Envelope(data=ObsidianImportOut(**report), meta=_meta())
 
 
 __all__ = ["router"]

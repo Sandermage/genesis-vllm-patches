@@ -26,6 +26,7 @@ from sndr.memory.model import (
     MemoryNode,
     SearchHit,
 )
+from sndr.memory.obsidian import import_vault
 from sndr.memory.store import MemoryStore
 
 __all__ = [
@@ -43,4 +44,5 @@ __all__ = [
     "MemoryNode",
     "MemoryStore",
     "SearchHit",
+    "import_vault",
 ]

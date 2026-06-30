@@ -104,6 +104,33 @@ class TestNodeNeighborsStats:
         assert any(n["rel"] == "similar_to" for n in nb)
 
 
+class TestObsidianImport:
+    def test_import_confined_and_creates_graph(self, client, tmp_path, monkeypatch):
+        (tmp_path / "A.md").write_text("links [[B]]\n", encoding="utf-8")
+        (tmp_path / "B.md").write_text("b\n", encoding="utf-8")
+        monkeypatch.setenv("GENESIS_MEMORY_VAULT_ROOT", str(tmp_path))
+        r = client.post("/api/v1/memory/import/obsidian", json={"path": "."},
+                        headers={"X-Owner-Id": "1"})
+        assert r.status_code == 200, r.text
+        data = r.json()["data"]
+        assert data["notes"] == 2
+        assert data["links"] == 1
+        g = client.get("/api/v1/memory/graph", headers={"X-Owner-Id": "1"}).json()["data"]
+        assert any(e["rel"] == "wikilink" for e in g["edges"])
+
+    def test_import_disabled_without_root(self, client, monkeypatch):
+        monkeypatch.delenv("GENESIS_MEMORY_VAULT_ROOT", raising=False)
+        r = client.post("/api/v1/memory/import/obsidian", json={"path": "/etc"},
+                        headers={"X-Owner-Id": "1"})
+        assert r.status_code == 403
+
+    def test_import_blocks_path_escape(self, client, tmp_path, monkeypatch):
+        monkeypatch.setenv("GENESIS_MEMORY_VAULT_ROOT", str(tmp_path))
+        r = client.post("/api/v1/memory/import/obsidian", json={"path": "../../etc"},
+                        headers={"X-Owner-Id": "1"})
+        assert r.status_code == 403
+
+
 class TestConsolidate:
     def test_consolidate_links_and_clusters(self, client):
         _remember(client, "postgres vector memory graph")

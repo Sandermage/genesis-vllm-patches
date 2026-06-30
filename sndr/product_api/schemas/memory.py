@@ -40,6 +40,16 @@ class ConsolidateOut(BaseModel):
     nodes: int
 
 
+class ObsidianImportIn(BaseModel):
+    path: str = Field(min_length=1, description="vault dir, relative to the allowed root")
+
+
+class ObsidianImportOut(BaseModel):
+    notes: int
+    links: int
+    missing: int
+
+
 class HitOut(BaseModel):
     id: int
     content: str
@@ -95,6 +105,6 @@ class GraphOut(BaseModel):
 
 __all__ = [
     "ConsolidateOut", "GraphEdgeOut", "GraphNodeOut", "GraphOut", "HitOut",
-    "LinkIn", "LinkOut", "NeighborOut", "NodeOut", "RecallIn", "RememberIn",
-    "RememberOut", "StatsOut",
+    "LinkIn", "LinkOut", "NeighborOut", "NodeOut", "ObsidianImportIn",
+    "ObsidianImportOut", "RecallIn", "RememberIn", "RememberOut", "StatsOut",
 ]
