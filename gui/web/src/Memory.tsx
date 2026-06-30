@@ -4,8 +4,9 @@
 // recall / remember / neighbors / stats / rebuild-links). The Obsidian-like
 // Sigma.js force-graph is layered on in 1c-ii.
 import { useCallback, useEffect, useState } from "react";
-import { Brain, Search, Plus, RefreshCw, Network, Gauge } from "lucide-react";
-import { api, type MemHit, type MemNode, type MemNeighbor, type MemStats } from "./api";
+import { Brain, Search, Plus, RefreshCw, Network, Gauge, Share2, List } from "lucide-react";
+import { api, type MemGraph, type MemHit, type MemNode, type MemNeighbor, type MemStats } from "./api";
+import { MemoryGraph } from "./MemoryGraph";
 import { tr } from "./i18n";
 
 // Single homelab owner for now; the proxy/session will supply this later.
@@ -21,12 +22,20 @@ export function MemoryPanel() {
   const [remember, setRemember] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [view, setView] = useState<"list" | "graph">("list");
+  const [graph, setGraph] = useState<MemGraph | null>(null);
 
   const loadStats = useCallback(() => {
     api.memoryStats(OWNER).then(setStats).catch((e) => setErr(String(e)));
   }, []);
 
   useEffect(loadStats, [loadStats]);
+
+  const loadGraph = useCallback(() => {
+    api.memoryGraph(OWNER, 300).then(setGraph).catch((e) => setErr(String(e)));
+  }, []);
+
+  useEffect(() => { if (view === "graph") loadGraph(); }, [view, loadGraph]);
 
   const runSearch = useCallback(async () => {
     if (!q.trim()) { setHits([]); return; }
@@ -55,9 +64,10 @@ export function MemoryPanel() {
       await api.memoryRemember(remember, OWNER);
       setRemember("");
       loadStats();
+      if (view === "graph") loadGraph();
     } catch (e) { setErr(String(e)); }
     finally { setBusy(false); }
-  }, [remember, loadStats]);
+  }, [remember, loadStats, loadGraph, view]);
 
   const rebuildLinks = useCallback(async () => {
     setBusy(true); setErr(null);
@@ -65,9 +75,10 @@ export function MemoryPanel() {
       const r = await api.memoryLink(OWNER, { tau: 0.8, k: 10 });
       setErr(tr("Linked") + `: +${r.created} ` + tr("edges"));
       loadStats();
+      if (view === "graph") loadGraph();
     } catch (e) { setErr(String(e)); }
     finally { setBusy(false); }
-  }, [loadStats]);
+  }, [loadStats, loadGraph, view]);
 
   return (
     <div className="mem-panel" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -78,6 +89,14 @@ export function MemoryPanel() {
         <button className="btn btn-ghost" onClick={rebuildLinks} disabled={busy} style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <RefreshCw size={13} /> {tr("Rebuild links")}
         </button>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+          <button className="btn btn-ghost" aria-pressed={view === "list"} onClick={() => setView("list")} title={tr("List")} style={{ display: "flex", alignItems: "center", gap: 4, opacity: view === "list" ? 1 : 0.6 }}>
+            <List size={13} /> {tr("List")}
+          </button>
+          <button className="btn btn-ghost" aria-pressed={view === "graph"} onClick={() => setView("graph")} title={tr("Graph")} style={{ display: "flex", alignItems: "center", gap: 4, opacity: view === "graph" ? 1 : 0.6 }}>
+            <Share2 size={13} /> {tr("Graph")}
+          </button>
+        </div>
       </div>
 
       <div className="mem-remember" style={{ display: "flex", gap: 8 }}>
@@ -111,6 +130,13 @@ export function MemoryPanel() {
 
       {err && <div className="mem-err" style={{ fontSize: 12, opacity: 0.8 }}>{err}</div>}
 
+      {view === "graph" && (
+        graph
+          ? <MemoryGraph graph={graph} onSelect={openNode} />
+          : <div style={{ opacity: 0.5, fontSize: 13, padding: 24 }}>{tr("Loading graph…")}</div>
+      )}
+
+      {view === "list" && (
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         <ul className="mem-hits" style={{ flex: 1, listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
           {hits.map((h) => (
@@ -151,6 +177,7 @@ export function MemoryPanel() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

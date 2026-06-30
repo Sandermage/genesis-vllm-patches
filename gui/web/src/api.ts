@@ -1443,6 +1443,9 @@ export type MemNode = {
 };
 export type MemNeighbor = { id: number; rel: string; weight: number };
 export type MemStats = { nodes: number; edges: number };
+export type MemGraphNode = { id: number; content: string; kind: string; community_id: number | null; importance: number; access_count: number };
+export type MemGraphEdge = { src: number; dst: number; rel: string; weight: number };
+export type MemGraph = { nodes: MemGraphNode[]; edges: MemGraphEdge[] };
 
 function memHead(owner: number, json = false): Record<string, string> {
   return json
@@ -1484,6 +1487,9 @@ export const api = {
       method: "POST", headers: memHead(owner, true),
       body: JSON.stringify(opts ?? {}),
     }).then((r) => r.data),
+  memoryGraph: (owner = 1, limit = 200) =>
+    request<{ data: MemGraph }>(`/api/v1/memory/graph${query({ limit })}`, { headers: memHead(owner) })
+      .then((r) => r.data),
   presets: (params: {
     family?: string;
     workload?: string;
