@@ -88,6 +88,14 @@ http = [
     "requests>=2.28",
     "urllib3>=2.7.0",  # CVE-2026-44431 / GHSA-qccp-gfcp-xxvc pin floor (transitive via requests)
 ]
+# `pip install vllm-sndr-core[memory]` for the persistent neural-graph memory
+# engine's Postgres + pgvector backend. The engine core + in-memory reference
+# backend are pure stdlib (no dependency); only the production PostgresStore
+# needs psycopg. Vectors are passed as pgvector string literals, so neither
+# numpy nor the pgvector-python package is required.
+memory = [
+    "psycopg[binary]>=3.1",
+]
 # `pip install vllm-sndr-core[gui-api]` for the local read-only Product
 # API daemon consumed by GUI/web/desktop clients. Authentication (local
 # accounts, TOTP 2FA, sessions, OAuth) uses only the standard library — no

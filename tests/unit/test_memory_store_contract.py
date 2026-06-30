@@ -20,6 +20,10 @@ suite can later run against Postgres.
 """
 from __future__ import annotations
 
+import os
+import time
+import uuid
+
 import pytest
 
 from sndr.memory.inmemory import InMemoryStore
@@ -29,6 +33,11 @@ from sndr.memory.model import (
     HEBBIAN_LAMBDA,
     MemoryNode,
 )
+
+# Same contract, both backends. The Postgres backend runs only when
+# MEMORY_TEST_DSN points at a live Postgres+pgvector (else it skips cleanly).
+_PG_DSN = os.environ.get("MEMORY_TEST_DSN")
+_PG_DIM = 8  # >= the largest test vector; embeddings are zero-padded to this
 
 
 class _FakeClock:
@@ -44,9 +53,42 @@ class _FakeClock:
         self.t += dt
 
 
+@pytest.fixture(params=["inmemory", "postgres"])
+def store_factory(request):
+    """Yields make(*, clock=...) -> a fresh, isolated MemoryStore of the
+    parametrized backend. Postgres uses a throwaway schema dropped on teardown.
+    """
+    if request.param == "postgres":
+        if not _PG_DSN:
+            pytest.skip("MEMORY_TEST_DSN not set — Postgres backend")
+        import psycopg
+
+        from sndr.memory.postgres import PostgresStore
+
+        schema = "memtest_" + uuid.uuid4().hex[:12]
+        created: list = []
+
+        def make(*, clock=time.time):
+            st = PostgresStore(_PG_DSN, dim=_PG_DIM, schema=schema, clock=clock)
+            created.append(st)
+            return st
+
+        yield make
+        for st in created:
+            st.close()
+        with psycopg.connect(_PG_DSN, autocommit=True) as conn:
+            conn.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+    else:
+
+        def make(*, clock=time.time):
+            return InMemoryStore(clock=clock)
+
+        yield make
+
+
 @pytest.fixture
-def store() -> InMemoryStore:
-    return InMemoryStore()
+def store(store_factory):
+    return store_factory()
 
 
 def _vec(*xs: float) -> list[float]:
@@ -146,9 +188,9 @@ class TestHebbianCoAccess:
 
 
 class TestRecallDecayAndTouch:
-    def test_fresher_node_outranks_stale_at_equal_similarity(self):
+    def test_fresher_node_outranks_stale_at_equal_similarity(self, store_factory):
         clock = _FakeClock(0.0)
-        store = InMemoryStore(clock=clock)
+        store = store_factory(clock=clock)
         stale = store.add_node(owner_id=1, kind="note", content="stale",
                               embedding=_vec(1, 0, 0))
         clock.advance(10 * EBBINGHAUS_S)          # stale ages 10 time-constants
@@ -159,9 +201,9 @@ class TestRecallDecayAndTouch:
         assert [h.id for h in hits] == [fresh, stale]  # decay breaks the cosine tie
         assert hits[0].score > hits[1].score
 
-    def test_recall_touches_returned_nodes(self):
+    def test_recall_touches_returned_nodes(self, store_factory):
         clock = _FakeClock(100.0)
-        store = InMemoryStore(clock=clock)
+        store = store_factory(clock=clock)
         nid = store.add_node(owner_id=1, kind="note", content="x",
                             embedding=_vec(1, 0, 0))
         clock.advance(50.0)
@@ -215,8 +257,7 @@ class TestPruneLeakBound:
 
     def test_prune_drops_edges_of_removed_nodes_no_dangling(self, store: InMemoryStore):
         keep = store.add_node(owner_id=1, kind="note", content="keep",
-                             embedding=_vec(1, 0))
-        store.get_node(keep).importance = 100.0   # make it the survivor
+                             embedding=_vec(1, 0), importance=100.0)  # the survivor
         drop = store.add_node(owner_id=1, kind="note", content="drop",
                              embedding=_vec(1, 0))
         store.add_edge(keep, drop, "co_access", weight=1.0)

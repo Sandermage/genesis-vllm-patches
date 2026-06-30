@@ -19,10 +19,8 @@ if TYPE_CHECKING:
 
 from sndr.memory.model import (
     CO_ACCESS_REL,
-    EBBINGHAUS_S,
     HEBBIAN_ETA,
     HEBBIAN_LAMBDA,
-    SPREAD_DAMPING,
     MemoryEdge,
     MemoryNode,
     SearchHit,
@@ -149,7 +147,15 @@ class InMemoryStore(MemoryStore):
                 out.append((src, rel, edge.weight))
         return out
 
+    def _touch(self, node_ids: Sequence[int], now: float) -> None:
+        for nid in node_ids:
+            node = self._nodes.get(nid)
+            if node is not None:
+                node.access_count += 1
+                node.accessed_at = now
+
     # ── brain mechanics ──────────────────────────────────────────────────
+    # recall() and _retention() are inherited from MemoryStore (shared algorithm).
     def reinforce_co_access(self, node_ids: Sequence[int]) -> None:
         uniq = sorted(set(node_ids))
         for i in range(len(uniq)):
@@ -158,61 +164,6 @@ class InMemoryStore(MemoryStore):
                 old = self.edge_weight(a, b, CO_ACCESS_REL)
                 new = min(1.0, HEBBIAN_LAMBDA * old + HEBBIAN_ETA)
                 self.add_edge(a, b, CO_ACCESS_REL, weight=new)
-
-    def _retention(self, node: MemoryNode, now: float) -> float:
-        """Ebbinghaus retention R = exp(-age / (S * (1 + importance)))."""
-        age = max(0.0, now - node.accessed_at)
-        scale = EBBINGHAUS_S * (1.0 + max(0.0, node.importance))
-        return math.exp(-age / scale)
-
-    def recall(
-        self,
-        *,
-        owner_id: int,
-        query: Sequence[float],
-        limit: int = 10,
-        expand_depth: int = 2,
-        reinforce: bool = True,
-    ) -> list[SearchHit]:
-        now = self._clock()
-        # Phase 1 — ANN seeds (cosine == seed activation).
-        activation: dict[int, float] = {}
-        frontier: list[tuple[int, float, int]] = []  # (node_id, activation, depth)
-        for hit in self.search(owner_id=owner_id, query=query, limit=max(limit, 1)):
-            if hit.score <= _EPSILON:
-                continue
-            activation[hit.id] = hit.score
-            frontier.append((hit.id, hit.score, 0))
-        # Phase 2 — bounded, cycle-safe spreading activation along edges.
-        while frontier:
-            nid, act, depth = frontier.pop()
-            if depth >= expand_depth:
-                continue
-            for neigh_id, _rel, weight in self.neighbors(nid):
-                neigh = self._nodes.get(neigh_id)
-                if neigh is None or neigh.owner_id != owner_id:
-                    continue
-                propagated = act * weight * SPREAD_DAMPING
-                if propagated <= activation.get(neigh_id, 0.0) + _EPSILON:
-                    continue  # no improvement -> don't re-expand (terminates)
-                activation[neigh_id] = propagated
-                frontier.append((neigh_id, propagated, depth + 1))
-        # Blend activation with lazy decay; drop non-positive; rank; trim.
-        scored: list[SearchHit] = []
-        for nid, act in activation.items():
-            node = self._nodes[nid]
-            final = act * self._retention(node, now)
-            if final > _EPSILON:
-                scored.append(SearchHit(node=node, score=final))
-        scored.sort(key=lambda h: h.score, reverse=True)
-        result = scored[:limit]
-        # Touch returned nodes; Hebbian-reinforce their co-access.
-        for hit in result:
-            hit.node.access_count += 1
-            hit.node.accessed_at = now
-        if reinforce and len(result) > 1:
-            self.reinforce_co_access([h.id for h in result])
-        return result
 
     # ── maintenance (leak-bounding) ──────────────────────────────────────
     def prune(self, *, owner_id: int, max_nodes: int) -> int:
