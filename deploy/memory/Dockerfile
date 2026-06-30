@@ -15,11 +15,17 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY . /app
 
-# Install the product-API + memory backend (no vllm: deps are pyyaml/packaging
-# plus the [gui-api] and [memory] extras = fastapi/uvicorn/psycopg).
-RUN python3 -m pip install --break-system-packages --no-cache-dir ".[gui-api,memory]"
+# Install third-party deps in their own layer (cached across source changes) —
+# the [gui-api] + [memory] extras = fastapi/uvicorn/psycopg (no vllm).
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+    "pyyaml>=6.0" "packaging>=23.0" \
+    "fastapi>=0.110" "uvicorn[standard]>=0.27" "h11>=0.16.0" \
+    "psycopg[binary]>=3.1"
+
+# Then the package itself (--no-deps): only this fast layer re-runs on a code change.
+COPY . /app
+RUN python3 -m pip install --break-system-packages --no-cache-dir --no-deps .
 
 # The API talks to the co-located Postgres over loopback. DIM must match the
 # embedder; 256 = HashEmbedder default. Override at run time as needed.

@@ -94,7 +94,7 @@ def create_app() -> FastAPI:
         "product_api.app.created",
         extra={
             "version": __version__,
-            "routes": [r.path for r in app.routes],
+            "routes": len(app.routes),  # version-robust (some route objects lack .path)
         },
     )
 
