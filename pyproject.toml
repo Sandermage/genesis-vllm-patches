@@ -333,6 +333,16 @@ ignore = [
     "E501",   # handled by formatter
     "PLR0913",# too many arguments — sometimes necessary
     "PLR2004",# magic constants — too noisy for tests
+    # ── Intentional-pattern exemptions (verified 2026-06-30) ──────────────
+    # These rules fight deliberate, documented conventions in this codebase;
+    # auto-"fixing" them would BREAK behavior, so they are exempted, not fixed.
+    "PLC0415",# function-level/lazy imports are intentional everywhere — keep
+              # cold-import light + avoid eager torch/vllm import on the patch
+              # apply path (see the many "Imported here (not at module top)…"
+              # comments). Hoisting to module top is a correctness regression.
+    "N806",   # non-lowercase locals — kernel/math notation (BLOCK_Q, H, KV…)
+              # mirrors the upstream vLLM/Triton kernel variable names.
+    "N803",   # non-lowercase args — same kernel/math notation in signatures.
 ]
 
 [tool.ruff.lint.per-file-ignores]

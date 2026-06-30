@@ -1,0 +1,52 @@
+# Ruff lint — RATCHET gate.
+#
+# The tree carries a large pre-existing lint backlog (legacy code; the ruff
+# config now exempts this codebase's intentional patterns — lazy/function-level
+# imports PLC0415, kernel/math naming N806/N803). Rather than block CI on the
+# whole backlog, this gate runs ruff ONLY on the .py files changed in a PR (or
+# the latest push), so NEW / TOUCHED code must be clean while the backlog is
+# burned down incrementally. Tighten to a full-tree gate once the backlog is
+# cleared.
+#
+# Author: Sandermage (Sander) Barzov Aleksandr.
+name: Ruff lint (changed files)
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ruff-changed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need history to diff against the base
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint changed Python files
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="origin/${{ github.base_ref }}"
+            git fetch origin "${{ github.base_ref }}" --depth=1 || true
+            RANGE="${BASE}...HEAD"
+          else
+            RANGE="HEAD~1...HEAD"
+          fi
+          CHANGED=$(git diff --name-only --diff-filter=ACMR "$RANGE" -- '*.py' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No changed Python files — nothing to lint."
+            exit 0
+          fi
+          echo "Linting changed files:"; echo "$CHANGED"
+          # Respects pyproject [tool.ruff] (intentional-pattern ignores included).
+          echo "$CHANGED" | xargs ruff check
