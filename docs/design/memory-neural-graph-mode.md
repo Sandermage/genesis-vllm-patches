@@ -59,37 +59,28 @@ box over LAN.** The A5000s are touched only by an optional nightly batch.
   (AMD-native), **TEI** (CPU; AMD support is Instinct-only, not the 890M). **The GUI exposes the
   tier as a dropdown** so you choose.
 
-## 1b. Storage backend — structurality + scale (pluggable: lean start → Postgres+AGE production)
+## 1b. Storage backend — Postgres + pgvector + pgvectorscale (sqlite-vec AND Apache AGE DROPPED)
 
-sqlite-vec is the *lightest* start but has three real ceilings (all verified): (a) **brute-force
-only** — no HNSW/ANN in stable (v0.1.9), practical ceiling ~"hundreds of thousands" of vectors
-(1M×3072-dim = 8.5 s/query); (b) **single-writer** (WAL gives concurrent reads, writes serialize);
-(c) **the "graph" is a DIY edges-table + recursive CTE — no native Cypher, no in-DB graph
-algorithms (PageRank/Leiden), weaker deep multi-hop.** For the *structurality* you want, that's the
-limit. So we do NOT marry one store — we use a **pluggable backend** (exactly how LightRAG /
-nano-graphrag / cognee abstract it: storage is config/env-swappable, no rewrite) with two tiers:
+> **DECISION (operator, 2026-06-30): drop sqlite-vec; on deeper study, also drop Apache AGE.** The
+> single backend is **Postgres + pgvector + pgvectorscale**, with the graph as two relational tables
+> (`mem_node`/`mem_edge`) + `WITH RECURSIVE`. **Full concrete schema, indexing, brain-mechanics-in-SQL,
+> pooling / RLS / migrations and every subtlety live in `memory-engine-production-design.md`.** A thin
+> storage interface is kept (unit-test double + LadybugDB future option); the shipped engine is
+> Postgres-only.
 
-| Tier | Backend | Vector | Graph | Concurrency | License | Use |
-|---|---|---|---|---|---|---|
-| **Lean start** | **sqlite-vec** (1 file) | brute-force | edges-table + recursive CTE | single-writer | MIT/Apache | dev / <~100k nodes, zero-ops |
-| **Production (default for quality+structure)** | **Postgres + pgvector + pgvectorscale + Apache AGE** | **StreamingDiskANN** (ANN, ~50M) | **native openCypher** (AGE) in the SAME DB | **MVCC multi-writer** | PostgreSQL + Apache-2.0 (**fully OSI**) | the real KG |
-
-- **Recommended default for "best quality + structurality, homelab-appropriate, OSI" = Postgres +
-  pgvector + pgvectorscale + Apache AGE** — one solid server on the Ryzen box that does ANN vectors
-  AND native Cypher multi-hop in one DB (joinable in one statement, "no two-DB sync"), with true
-  concurrent writers (MVCC — beats SQLite's single writer) and a comfortable 32–128 GB footprint
-  (DiskANN is disk-based). pgvectorscale ≈ Pinecone perf at ~75% less cost (vendor bench).
-- **Caveats (honest):** AGE survived a 2024 Bitnine team-wipeout, recovered (active to mid-2026,
-  v1.7.0/PG17), but **lags Postgres versions — pin PG17+AGE 1.7.0**, and AGE has **no native graph
-  algorithms** → run PageRank/Leiden in SQL or the app (our T3 batch does Leiden anyway).
-- **Graph-native embedded alternative (if not Postgres): LadybugDB** — the live MIT fork of Kùzu
-  (which is dead upstream — Apple acqui-hire, Oct 2025); keeps embedded Cypher + HNSW vector + FTS
-  in one file, but pre-1.0 / single-maintainer (pin + vendor). Avoid **FalkorDB** (SSPL — fine
-  internal-only, a liability if ever offered as a service) and **Neo4j CE** (GPLv3 + JVM ~5 GB +
-  graph-algorithms gated to paid Enterprise) / **Memgraph** (BSL, RAM-bound) for a clean OSI build.
-- **Path:** ship the pluggable interface; **start** on sqlite-vec for the MVP; **flip a config**
-  to Postgres+pgvector+AGE for the production KG (same GUI dropdown), no engine rewrite. The
-  brain-mechanics (§2) and viz/API (§3–4) are storage-agnostic by design.
+- **Why sqlite-vec rejected:** brute-force only (no stable ANN, ceiling ~hundreds-of-thousands),
+  single-writer, "graph" = DIY edges-table — fine for a zero-ops MVP, not for the structurality wanted.
+- **Why Apache AGE also dropped (revised):** the leading Postgres-memory systems (Mem0, Cognee, Letta)
+  all avoid it; AGE is rare in shipped products (the one detailed production case bypassed its Cypher
+  for native SQL after variable-length `[r*..N]` degraded from ~100s-of-ms to **3–5 s**); you still
+  need a sidecar `vector(N)` table (vectors can't be indexed inside an AGE `agtype` node); `LOAD`/
+  `search_path` break under transaction pooling; and AGE has **no native graph algorithms** (Leiden/
+  PageRank are DIY regardless). Our retrieval is shallow (≤3 hops) — the zone where plain recursive
+  SQL wins (<10 ms depth-2, <20 ms 100-node subgraph, to ~10K nodes). Dropping AGE also lets us use
+  the stock `timescale/timescaledb-ha` image (pgvector + pgvectorscale built in) with no custom build.
+- **Graph-native escape hatch (only if we ever truly need Cypher): LadybugDB** — live MIT fork of the
+  now-dead Kùzu; pre-1.0. Avoid FalkorDB (SSPL), Neo4j CE (GPLv3+JVM), Memgraph (BSL) for a clean OSI build.
+- The brain-mechanics (§2) and viz/API (§3–4) are storage-agnostic by design.
 
 ## 2. How the "neurons / clouds" form (auto-linking + clustering) — mostly no-LLM
 
