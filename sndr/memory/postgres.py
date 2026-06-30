@@ -324,7 +324,10 @@ class PostgresStore(MemoryStore):
         with self._lock, self._conn.cursor() as cur:
             cur.execute(
                 sql.SQL(
-                    "UPDATE {node} SET access_count=access_count+1, accessed_at=%s"
+                    "UPDATE {node} SET access_count=access_count+1, accessed_at=%s,"
+                    # reinforcement: strength = 1 + ln(1 + new_count); access_count
+                    # here is the pre-increment value, so 2+it == 1+new_count.
+                    " strength = 1 + ln(2 + access_count)"
                     " WHERE id = ANY(%s)"
                 ).format(node=self._node),
                 (now, list(node_ids)),

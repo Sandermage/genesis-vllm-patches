@@ -20,6 +20,7 @@ suite can later run against Postgres.
 """
 from __future__ import annotations
 
+import math
 import os
 import time
 import uuid
@@ -249,6 +250,19 @@ class TestRecallDecayAndTouch:
         node = store.get_node(nid)
         assert node.access_count == 1
         assert node.accessed_at == pytest.approx(150.0)  # touched to "now"
+
+    def test_recall_reinforces_strength_slowing_decay(self, store: InMemoryStore):
+        # Brain-like: each retrieval strengthens the memory (strength = 1+ln(1+n)),
+        # which slows its Ebbinghaus decay. strength starts at 1.0 and grows.
+        nid = store.add_node(owner_id=1, kind="note", content="x", embedding=_vec(1, 0, 0))
+        assert store.get_node(nid).strength == pytest.approx(1.0)
+        for _ in range(3):
+            store.recall(owner_id=1, query=_vec(1, 0, 0), limit=1,
+                         expand_depth=0, reinforce=False)
+        node = store.get_node(nid)
+        assert node.access_count == 3
+        assert node.strength == pytest.approx(1.0 + math.log1p(3), abs=1e-6)
+        assert node.strength > 1.0
 
     def test_recall_reinforces_co_access_of_returned_set(self, store: InMemoryStore):
         a = store.add_node(owner_id=1, kind="note", content="a", embedding=_vec(1, 0, 0))

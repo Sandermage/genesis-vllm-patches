@@ -121,9 +121,14 @@ class MemoryStore(ABC):
         """
 
     def _retention(self, node: MemoryNode, now: float) -> float:
-        """Ebbinghaus retention R = exp(-age / (S * (1 + importance)))."""
+        """Ebbinghaus retention R = exp(-age / (S * strength * (1 + importance))).
+
+        `strength` is the reinforcement base (grows with retrieval, see _touch),
+        so frequently-recalled memories decay slower — the spacing effect.
+        """
         age = max(0.0, now - node.accessed_at)
-        scale = EBBINGHAUS_S * (1.0 + max(0.0, node.importance))
+        strength = node.strength if node.strength and node.strength > 0 else 1.0
+        scale = EBBINGHAUS_S * strength * (1.0 + max(0.0, node.importance))
         return math.exp(-age / scale)
 
     def recall(

@@ -181,6 +181,8 @@ class InMemoryStore(MemoryStore):
             if node is not None:
                 node.access_count += 1
                 node.accessed_at = now
+                # Reinforcement: retrieval strengthens the memory (slows decay).
+                node.strength = 1.0 + math.log1p(node.access_count)
 
     # ── brain mechanics ──────────────────────────────────────────────────
     # recall() and _retention() are inherited from MemoryStore (shared algorithm).
