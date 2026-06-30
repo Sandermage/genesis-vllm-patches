@@ -82,7 +82,8 @@ def _make_vault(tmp_path):
     return tmp_path
 
 
-def test_vault_docs_indexes_markdown_and_chunks_by_heading(tmp_path):
+def test_vault_docs_indexes_markdown_and_chunks_by_heading(tmp_path, monkeypatch):
+    monkeypatch.setenv("SNDR_VAULT_ROOT", str(tmp_path))  # H2: tmp vault is the allowed root
     chat_rag.reset_cache()
     docs = chat_rag.vault_docs(str(_make_vault(tmp_path)))
     assert docs, "expected note docs from the vault"
@@ -96,7 +97,8 @@ def test_vault_docs_indexes_markdown_and_chunks_by_heading(tmp_path):
     assert all(".obsidian" not in d.ref for d in docs)
 
 
-def test_retrieve_from_vault_only(tmp_path):
+def test_retrieve_from_vault_only(tmp_path, monkeypatch):
+    monkeypatch.setenv("SNDR_VAULT_ROOT", str(tmp_path))  # H2: tmp vault is the allowed root
     chat_rag.reset_cache()
     vault = str(_make_vault(tmp_path))
     result = chat_rag.retrieve(
@@ -108,7 +110,8 @@ def test_retrieve_from_vault_only(tmp_path):
     assert any("spec" in d.text.lower() or "mtp" in d.text.lower() for d in result.docs)
 
 
-def test_retrieve_combines_project_and_vault(tmp_path):
+def test_retrieve_combines_project_and_vault(tmp_path, monkeypatch):
+    monkeypatch.setenv("SNDR_VAULT_ROOT", str(tmp_path))  # H2: tmp vault is the allowed root
     chat_rag.reset_cache()
     vault = str(_make_vault(tmp_path))
     result = chat_rag.retrieve(
@@ -120,7 +123,8 @@ def test_retrieve_combines_project_and_vault(tmp_path):
     assert "note" in kinds
 
 
-def test_preview_vault_reports_counts(tmp_path):
+def test_preview_vault_reports_counts(tmp_path, monkeypatch):
+    monkeypatch.setenv("SNDR_VAULT_ROOT", str(tmp_path))  # H2: tmp vault is the allowed root
     info = chat_rag.preview_vault(str(_make_vault(tmp_path)))
     assert info["ok"] is True
     assert info["files"] >= 2

@@ -152,9 +152,10 @@ def test_chat_retrieve_empty_query_is_clean():
     assert resp.json() == {"query": "", "matched": 0, "docs": []}
 
 
-def test_chat_retrieve_post_supports_notes_vault(tmp_path):
+def test_chat_retrieve_post_supports_notes_vault(tmp_path, monkeypatch):
     from sndr.product_api.legacy import chat_rag
 
+    monkeypatch.setenv("SNDR_VAULT_ROOT", str(tmp_path))  # H2: confine to this root
     chat_rag.reset_cache()
     (tmp_path / "notes.md").write_text(
         "# Homelab GPU notes\n\nThe A5000 idles at 25W; PN95 offload helps long context.\n",
@@ -171,7 +172,8 @@ def test_chat_retrieve_post_supports_notes_vault(tmp_path):
     assert all(d["kind"] == "note" for d in body["docs"])
 
 
-def test_chat_rag_preview_validates_path(tmp_path):
+def test_chat_rag_preview_validates_path(tmp_path, monkeypatch):
+    monkeypatch.setenv("SNDR_VAULT_ROOT", str(tmp_path))  # H2: confine to this root
     client = _client()
     (tmp_path / "a.md").write_text("# A\n\nbody\n", encoding="utf-8")
     ok = client.post("/api/v1/chat/rag/preview", json={"path": str(tmp_path)})
@@ -1195,3 +1197,45 @@ def test_blocking_host_routes_do_not_block_the_event_loop():
         if inspect.iscoroutinefunction(ep) and "to_thread" not in inspect.getsource(ep):
             offenders.append(name)
     assert not offenders, f"these async host handlers block the event loop (make them sync def or to_thread): {offenders}"
+
+
+def test_terminal_auth_decision_blocks_unauthenticated_websocket():
+    """B1 regression: the PTY terminal websocket must authenticate (http
+    middleware doesn't run for websockets). Pure-policy test (TestClient can't
+    drive websockets), mirroring test_terminal_gate_*."""
+    from sndr.product_api.legacy.http_app import terminal_auth_decision
+
+    # auth disabled (loopback dev, no users/token) → open, unchanged behavior
+    assert terminal_auth_decision(enabled=False, user_role=None, legacy_ok=False) is None
+    # auth ENABLED + no valid user + no legacy token → REJECT (was the hole)
+    deny = terminal_auth_decision(enabled=True, user_role=None, legacy_ok=False)
+    assert deny is not None and "Authentication" in deny["data"]
+    # legacy shared token authorizes (mirrors REST _auth_guard)
+    assert terminal_auth_decision(enabled=True, user_role=None, legacy_ok=True) is None
+    # viewer is rejected — terminal is a privileged (operator/admin) capability
+    deny_v = terminal_auth_decision(enabled=True, user_role="viewer", legacy_ok=False)
+    assert deny_v is not None and "operator or admin" in deny_v["data"]
+    # operator + admin authorized
+    assert terminal_auth_decision(enabled=True, user_role="operator", legacy_ok=False) is None
+    assert terminal_auth_decision(enabled=True, user_role="admin", legacy_ok=False) is None
+
+
+def test_h2_resolve_vault_confines_to_allowed_root(tmp_path, monkeypatch):
+    """H2: a vault path outside SNDR_VAULT_ROOT (e.g. /etc) is rejected, so an
+    authenticated caller can't index arbitrary host files."""
+    from sndr.product_api.legacy import chat_rag
+
+    allowed = tmp_path / "vaults"
+    allowed.mkdir()
+    (allowed / "ok.md").write_text("# ok\n", encoding="utf-8")
+    monkeypatch.setenv("SNDR_VAULT_ROOT", str(allowed))
+    # inside the root → resolves without error
+    assert chat_rag.resolve_vault(str(allowed)) == str(allowed.resolve())
+    # outside the root → rejected
+    import pytest as _pt
+    with _pt.raises(ValueError):
+        chat_rag.resolve_vault("/etc")
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    with _pt.raises(ValueError):
+        chat_rag.resolve_vault(str(outside))

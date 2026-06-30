@@ -722,3 +722,32 @@ def test_served_model_falls_back_to_engine_model(monkeypatch):
     # cached per port — the second call must not hit the engine again
     monkeypatch.setattr(ec, "_get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("should be cached")))
     assert ec._served_model(eng, "k") == "qwen3.6-35b-a3b"
+
+
+def test_h1_safe_host_blocks_cloud_metadata_ssrf(monkeypatch):
+    """H1: a crafted engine `host` must not reach cloud-metadata / link-local."""
+    monkeypatch.delenv("SNDR_RUNTIME_HOST", raising=False)
+    from sndr.product_api.legacy import engine_client as ec
+    # metadata IP + hostnames + link-local → coerced to loopback
+    assert ec._safe_host("169.254.169.254") == "127.0.0.1"
+    assert ec._safe_host("metadata.google.internal") == "127.0.0.1"
+    assert ec._safe_host("169.254.1.1") == "127.0.0.1"
+    # legit engine hosts still pass (loopback, private LAN, public DNS name)
+    assert ec._safe_host("127.0.0.1") == "127.0.0.1"
+    assert ec._safe_host("192.168.1.10") == "192.168.1.10"
+    assert ec._safe_host("engine.local") == "engine.local"
+
+
+def test_h1_env_api_key_only_for_loopback(monkeypatch):
+    """H1: the operator's ENV engine key must NOT be sent to a user-supplied
+    remote host (key exfiltration). Explicit (GUI/profile) keys are not gated."""
+    from sndr.product_api.legacy import engine_client as ec
+    monkeypatch.setenv("VLLM_API_KEY", "operator-secret")
+    # loopback → env key used (local engine)
+    assert ec._resolve_api_key(None, "127.0.0.1") == "operator-secret"
+    assert ec._resolve_api_key(None, None) == "operator-secret"  # unspecified → local default
+    # remote host + no explicit key → env key withheld (no exfil)
+    assert ec._resolve_api_key(None, "192.168.1.50") is None
+    assert ec._resolve_api_key(None, "evil.example.com") is None
+    # explicit key (GUI/registered profile) is the caller's choice → always used
+    assert ec._resolve_api_key("gui-key", "evil.example.com") == "gui-key"

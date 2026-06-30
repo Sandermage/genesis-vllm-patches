@@ -244,6 +244,35 @@ def terminal_gate(apply_on: bool, ssh_available: bool, host_ids: set[str], host_
     return None
 
 
+def terminal_auth_decision(
+    *, enabled: bool, user_role: Optional[str], legacy_ok: bool
+) -> Optional[dict[str, str]]:
+    """Authentication gate for the PTY terminal websocket — returns an error
+    payload to send-and-close, or ``None`` when the caller is authorized.
+
+    SECURITY (B1): Starlette `http` middleware (the REST `_auth_guard`) does NOT
+    run for websocket connections, so the terminal must authenticate itself.
+    Extracted as a pure function (like ``terminal_gate``) so the policy is
+    unit-tested independently of the websocket transport. The full PTY is a
+    privileged capability → require operator/admin (or the legacy shared token).
+
+    Args:
+        enabled: whether auth is active (``AuthConfig.enabled``). When False
+            (loopback dev with no users/token) the terminal is open as before.
+        user_role: resolved session/PAT user role, or None if no valid user.
+        legacy_ok: True if the presented token equals the legacy shared token.
+    """
+    if not enabled:
+        return None
+    if legacy_ok:
+        return None
+    if user_role is None:
+        return {"type": "error", "data": "Authentication required"}
+    if user_role not in ("admin", "operator"):
+        return {"type": "error", "data": "Terminal requires operator or admin role"}
+    return None
+
+
 def create_app(
     *,
     allowed_origins: Optional[tuple[str, ...]] = DEFAULT_ALLOWED_ORIGINS,
@@ -2378,6 +2407,26 @@ def create_app(
         from . import ssh_client
 
         await websocket.accept()
+        # SECURITY (B1): _auth_guard (http middleware) does NOT run for
+        # websockets, so authenticate here before opening a remote shell —
+        # otherwise a network-reachable daemon exposes an unauthenticated SSH
+        # PTY (and websockets bypass CORS, enabling a cross-origin drive-by).
+        tok = websocket.query_params.get("token") or websocket.cookies.get(_SESSION_COOKIE, "")
+        if not tok:
+            _hdr = websocket.headers.get("authorization", "")
+            tok = _hdr[7:].strip() if _hdr.lower().startswith("bearer ") else websocket.headers.get("x-sndr-token", "")
+        _user = service.verify_session(tok) if tok else None
+        if _user is None and tok.startswith("sndr_pat_"):
+            _user = service.verify_api_token(tok)
+        _deny = terminal_auth_decision(
+            enabled=config.enabled,
+            user_role=getattr(_user, "role", None),
+            legacy_ok=bool(config.legacy_token and tok == config.legacy_token),
+        )
+        if _deny is not None:
+            await websocket.send_json(_deny)
+            await websocket.close(code=4401)
+            return
         profiles = list_host_profiles()
         gate = terminal_gate(apply_on, ssh_client.available(), {p.id for p in profiles}, host_id)
         if gate is not None:

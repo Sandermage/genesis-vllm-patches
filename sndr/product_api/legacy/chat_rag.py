@@ -204,10 +204,24 @@ _FRONTMATTER_RE = re.compile(r"\A---\s*\n.*?\n---\s*\n", re.DOTALL)
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
 
 
+def _vault_allowed_root() -> str:
+    """The directory under which RAG vaults may live. ``SNDR_VAULT_ROOT`` (an
+    operator-configured base) when set, else the user's home. Both sides are
+    realpath'd so escaping symlinks can't slip out."""
+    root = os.environ.get("SNDR_VAULT_ROOT", "").strip()
+    return os.path.realpath(os.path.expanduser(root if root else "~"))
+
+
 def resolve_vault(path: str) -> str:
     """Validate and canonicalise a vault directory path.
 
-    Raises ``ValueError`` if the path is empty, missing, or not a directory.
+    SECURITY (H2): confine to ``_vault_allowed_root()``. Without this, any
+    authenticated caller could index (and read back as snippets) arbitrary
+    text files anywhere on the daemon host — ``/etc``, other users' homes, etc.
+    Widen the allowed base via ``SNDR_VAULT_ROOT``.
+
+    Raises ``ValueError`` if the path is empty, missing, not a directory, or
+    outside the allowed root.
     """
     raw = (path or "").strip()
     if not raw:
@@ -217,6 +231,11 @@ def resolve_vault(path: str) -> str:
         raise ValueError(f"path does not exist: {raw}")
     if not os.path.isdir(resolved):
         raise ValueError(f"not a directory: {raw}")
+    root = _vault_allowed_root()
+    if not (resolved == root or resolved.startswith(root + os.sep)):
+        raise ValueError(
+            f"vault path outside the allowed root — set SNDR_VAULT_ROOT to permit it: {raw}"
+        )
     return resolved
 
 

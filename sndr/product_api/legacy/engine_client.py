@@ -50,22 +50,50 @@ _HISTORY: dict[str, list[dict[str, Any]]] = {}
 _HISTORY_CAP = 60
 
 
+# Cloud-metadata SSRF targets — never a legitimate engine host. Blocked
+# regardless of the charset check so a crafted ``host`` can't reach instance
+# credentials (169.254.169.254 / metadata.google.internal / etc.).
+_METADATA_HOSTS = {"metadata.google.internal", "metadata", "instance-data", "metadata.azure.com"}
+
+
+def _is_link_local_ip(candidate: str) -> bool:
+    try:
+        import ipaddress
+        return ipaddress.ip_address(candidate).is_link_local
+    except ValueError:
+        return False  # hostname (not an IP literal) — name denylist handles metadata names
+
+
 def _safe_host(host: Optional[str]) -> str:
     candidate = (host or os.environ.get("SNDR_RUNTIME_HOST") or "127.0.0.1").strip()
     if not _HOST_RE.match(candidate):
         return "127.0.0.1"
+    # SSRF (H1): reject cloud-metadata / link-local targets. Loopback + private
+    # (the legit engine fleet) + public stay allowed; this only blocks the
+    # 169.254/16 metadata range + known metadata hostnames.
+    if candidate.lower() in _METADATA_HOSTS or _is_link_local_ip(candidate):
+        return "127.0.0.1"
     return candidate
 
 
-def _resolve_api_key(explicit: Optional[str]) -> Optional[str]:
-    """Pick the engine API key: explicit (from the GUI) wins, else operator env.
+def _resolve_api_key(explicit: Optional[str], host: Optional[str] = None) -> Optional[str]:
+    """Pick the engine API key: explicit (from the GUI/host-profile) wins, else
+    the operator env key.
 
     Engines launched with ``--api-key`` (e.g. the 35B PROD on :8102) reject
     ``/v1/*`` with 401 unless a ``Authorization: Bearer`` header is sent.
+
+    SECURITY (H1): the operator's ENV key is for the LOCAL engine — it is only
+    returned for a loopback ``host``. Without this gate a user-supplied remote
+    ``host`` would receive the operator's key as a Bearer header (key
+    exfiltration to an attacker-controlled endpoint). An explicit key (GUI /
+    registered host-profile) is the caller's deliberate choice and is not gated.
     """
     key = (explicit or "").strip()
     if key:
         return key
+    if host is not None and host not in _LOOPBACK_HOSTS:
+        return None  # never send the operator's env key to a non-loopback host
     for name in ("SNDR_ENGINE_API_KEY", "VLLM_API_KEY", "SNDR_OPENAI_API_KEY", "OPENAI_API_KEY"):
         val = (os.environ.get(name) or "").strip()
         if val:
@@ -235,7 +263,7 @@ def _resolve_engine_key(explicit: Optional[str], eng: dict[str, str]) -> Optiona
     """Full engine-key resolution for a request: explicit (GUI header) → operator
     env → auto-discovered LOCAL engine key. Used by every path that talks to the
     engine; the discovery step only fires for a co-located loopback engine."""
-    return _resolve_api_key(explicit) or _discover_local_engine_key(eng)
+    return _resolve_api_key(explicit, (eng or {}).get("host")) or _discover_local_engine_key(eng)
 
 
 _SERVED_MODEL_CACHE: dict[int, Optional[str]] = {}
@@ -340,7 +368,7 @@ def probe_host(host: Optional[str] = None, port: int = 8000, *, timeout: float =
     optional ``api_key`` is forwarded so a key-protected engine still lists its
     served models. No mutation; read-only HTTP GET with a short timeout."""
     safe = _safe_host(host)
-    key = _resolve_api_key(api_key)
+    key = _resolve_api_key(api_key, safe)
     try:
         safe_port = int(port)
     except (TypeError, ValueError):
