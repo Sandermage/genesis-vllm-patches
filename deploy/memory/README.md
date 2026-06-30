@@ -4,6 +4,10 @@ Postgres + pgvector + the product-API (serving `/api/v1/memory/*`, and the GUI
 when a build is present) in **one** container. Unified config, no cross-container
 overhead. The vLLM engine stays a separate GPU container.
 
+> **Full reference:** [`docs/memory/MANUAL.md`](../../docs/memory/MANUAL.md) — API,
+> gateway, embedders, Obsidian import, config, security, troubleshooting, examples.
+> This file is the quick deploy/run card.
+
 ## Build
 
 From the repo root (the Dockerfile uses the repo as build context):

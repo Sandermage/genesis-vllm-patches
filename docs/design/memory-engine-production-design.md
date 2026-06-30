@@ -281,19 +281,27 @@ product-API memory/gateway routes, the unified container).
 - Hybrid search (vector + keyword), exact-content dedup, communities (label
   propagation, not Leiden), importance heuristic, `consolidate`, **wired maintenance
   scheduler** (consolidate + prune per owner → the leak-bound), Obsidian import.
+- **Bi-temporal invalidation** — `invalidate_edge` writer + `POST /edge/invalidate`;
+  reads exclude `invalid_at`, records kept for audit.
 - `/api/v1/memory/*` + the multi-upstream OpenAI gateway; **API-key guard**;
-  graceful Postgres-down fallback + upstream-error 502/504.
+  graceful Postgres-down fallback + upstream-error 502/504; visible maintenance logs.
 - Embedders: HashEmbedder (dep-free) + Model2Vec (real CPU). Container: one image
   (Postgres+pgvector+API+GUI+gateway+maintenance).
 
-**Deferred (design describes; not yet built) — known fast-follows:**
-- **RLS** — owner scoping is app-layer (`WHERE owner_id` + API-key), no Postgres RLS yet.
+Full operational + developer reference: **`docs/memory/MANUAL.md`**.
+
+**Decided against (design over-promised) — with rationale:**
+- **RLS** — NOT used. It conflicts with the cross-owner ops (`owner_ids`,
+  `count_edges`, the maintenance scheduler) and the single-connection model, and
+  app-layer `WHERE owner_id` + the API-key guard already enforce isolation. Revisit
+  only for true multi-tenant DB-enforced isolation (would also need per-owner
+  connections + reworking the cross-owner ops).
+
+**Deferred (scale-up; documented in MANUAL §14, not wired by default):**
 - **Async connection pool** — PostgresStore is a single connection + lock (correct,
-  but serializes under concurrent async load; fine at homelab scale). The design's
-  psycopg async pool is the throughput upgrade.
-- **pgvectorscale / StreamingDiskANN / halfvec** — stock pgvector HNSW only (≤2000 dim).
+  but serializes under concurrent async load; fine at homelab single-user scale).
+- **pgvectorscale / StreamingDiskANN / halfvec** — stock pgvector HNSW only (≤2000
+  dim); the escalation (>1M vectors or >2000-dim embedders) swaps the base image.
 - **Leiden** — replaced by deterministic label propagation (adequate for homelab).
-- **Bi-temporal invalidation** — `valid_at`/`invalid_at` columns exist and reads honor
-  them, but nothing sets `invalid_at` yet (no contradiction-invalidation path).
 - **alembic migrations / partitioning / REINDEX-VACUUM cadence** — schema is created
   idempotently by `ensure_schema`; ops tooling is documented, not automated.
