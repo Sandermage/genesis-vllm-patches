@@ -513,6 +513,7 @@ def test_apply_wraps_both_targets_and_is_idempotent(monkeypatch) -> None:
     coder_cls, xml_cls = _make_mock_parser_classes()
     _install_fake_vllm_modules(monkeypatch, coder_cls, xml_cls)
     monkeypatch.setenv(mod.ENV_FLAG_FULL, "1")
+    monkeypatch.setenv("GENESIS_ALLOW_RETIRED", "1")  # retired patch: exercise wiring/mechanics past the GAP4 gate
 
     status, reason = mod.apply()
     assert status == "applied", reason
@@ -534,6 +535,7 @@ def test_revert_restores_original(monkeypatch) -> None:
     original = coder_cls.extract_tool_calls_streaming
     _install_fake_vllm_modules(monkeypatch, coder_cls, xml_cls)
     monkeypatch.setenv(mod.ENV_FLAG_FULL, "1")
+    monkeypatch.setenv("GENESIS_ALLOW_RETIRED", "1")  # retired patch: exercise wiring/mechanics past the GAP4 gate
 
     mod.apply()
     assert coder_cls.extract_tool_calls_streaming is not original
@@ -550,6 +552,7 @@ def test_apply_self_retires_on_upstream_drift_marker(monkeypatch) -> None:
     setattr(xml_cls, mod._UPSTREAM_DRIFT_MARKER, True)
     _install_fake_vllm_modules(monkeypatch, coder_cls, xml_cls)
     monkeypatch.setenv(mod.ENV_FLAG_FULL, "1")
+    monkeypatch.setenv("GENESIS_ALLOW_RETIRED", "1")  # retired patch: exercise wiring/mechanics past the GAP4 gate
 
     status, reason = mod.apply()
     assert status == "skipped"

@@ -106,6 +106,7 @@ class TestEnvFlag:
         monkeypatch.setenv(
             "GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO", "1"
         )
+        monkeypatch.setenv("GENESIS_ALLOW_RETIRED", "1")  # retired patch: test flag wiring past the GAP4 gate
         decision, _ = should_apply("PN82")
         assert decision is True
 
@@ -119,6 +120,7 @@ class TestEnvFlag:
         monkeypatch.setenv(
             "SNDR_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO", "1"
         )
+        monkeypatch.setenv("GENESIS_ALLOW_RETIRED", "1")  # retired patch: test alias wiring past the GAP4 gate
         decision, _ = should_apply("PN82")
         assert decision is True
 

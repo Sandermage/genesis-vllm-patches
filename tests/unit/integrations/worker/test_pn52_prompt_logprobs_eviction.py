@@ -107,6 +107,7 @@ def test_env_flag_default_off(monkeypatch):
 def test_env_flag_engages(monkeypatch):
     from sndr.dispatcher import should_apply
     monkeypatch.setenv("GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION", "1")
+    monkeypatch.setenv("GENESIS_ALLOW_RETIRED", "1")  # retired patch: exercise wiring/mechanics past the GAP4 gate
     decision, _ = should_apply("PN52")
     assert decision is True
 
