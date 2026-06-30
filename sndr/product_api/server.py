@@ -51,6 +51,7 @@ def create_app() -> FastAPI:
     # Register all routers. Each route file declares its own prefix.
     from sndr.product_api.routes.containers import router as containers_router
     from sndr.product_api.routes.engines import router as engines_router
+    from sndr.product_api.routes.gateway import router as gateway_router
     from sndr.product_api.routes.health import router as health_router
     from sndr.product_api.routes.hosts import fleet_router
     from sndr.product_api.routes.hosts import router as hosts_router
@@ -80,10 +81,13 @@ def create_app() -> FastAPI:
     app.include_router(evidence_router)
     app.include_router(jobs_router)
     app.include_router(memory_router)
+    app.include_router(gateway_router)
 
     # Persistent neural-graph memory engine on app.state (Postgres if
     # GENESIS_MEMORY_DSN is set, else the in-memory reference backend).
     _init_memory_engine(app)
+    # Memory-augmented OpenAI gateway (active only if GATEWAY_UPSTREAM_URL set).
+    _init_gateway(app)
 
     # Serve the built Carbon Control Center SPA from the daemon itself.
     # API routes are registered above, so they take precedence over the mount.
@@ -141,6 +145,53 @@ def _init_memory_engine(app: FastAPI) -> None:
         store = InMemoryStore()
         log.info("product_api.memory.backend", extra={"backend": "inmemory"})
     app.state.memory_engine = MemoryEngine(store=store, embedder=embedder)
+
+
+def _init_gateway(app: FastAPI) -> None:
+    """Configure the memory-gateway upstream from env (httpx). When
+    GATEWAY_UPSTREAM_URL is unset, the gateway route stays dormant (503) — the
+    rest of the app is unaffected.
+
+      GATEWAY_UPSTREAM_URL  e.g. http://cliproxy:8317/v1 (external) or
+                            http://127.0.0.1:8102/v1 (internal vLLM)
+      GATEWAY_UPSTREAM_KEY  bearer token the upstream expects (optional)
+    """
+    import os
+
+    url = os.environ.get("GATEWAY_UPSTREAM_URL")
+    if not url:
+        return
+    base = url.rstrip("/")
+    key = os.environ.get("GATEWAY_UPSTREAM_KEY")
+
+    def _headers() -> dict[str, str]:
+        h = {"Content-Type": "application/json"}
+        if key:
+            h["Authorization"] = f"Bearer {key}"
+        return h
+
+    async def forward(body: dict) -> dict:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                f"{base}/chat/completions", json=body, headers=_headers()
+            )
+            resp.raise_for_status()
+            return resp.json()
+
+    async def stream(body: dict):
+        import httpx
+
+        async with httpx.AsyncClient(timeout=300.0) as client, client.stream(
+            "POST", f"{base}/chat/completions", json=body, headers=_headers()
+        ) as resp:
+            async for chunk in resp.aiter_bytes():
+                yield chunk
+
+    app.state.gateway_forward = forward
+    app.state.gateway_stream = stream
+    log.info("product_api.gateway.upstream", extra={"upstream": base})
 
 
 def _mount_carbon_ui(app: FastAPI) -> None:

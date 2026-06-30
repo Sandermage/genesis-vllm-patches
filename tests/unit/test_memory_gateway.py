@@ -11,7 +11,11 @@ from __future__ import annotations
 
 from sndr.memory.embedder import HashEmbedder
 from sndr.memory.engine import MemoryEngine
-from sndr.memory.gateway import MemoryGateway, extract_assistant_text
+from sndr.memory.gateway import (
+    MemoryGateway,
+    assistant_text_from_sse,
+    extract_assistant_text,
+)
 from sndr.memory.inmemory import InMemoryStore
 from sndr.memory.middleware import ConversationMemory
 
@@ -66,3 +70,18 @@ class TestExtractAssistant:
     def test_missing_is_empty(self):
         assert extract_assistant_text({}) == ""
         assert extract_assistant_text({"choices": []}) == ""
+
+
+class TestSseAccumulator:
+    def test_reassembles_streamed_assistant(self):
+        sse = (
+            'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n'
+            'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n'
+            'data: {"choices":[{"delta":{"content":" world"}}]}\n\n'
+            "data: [DONE]\n\n"
+        )
+        assert assistant_text_from_sse(sse) == "Hello world"
+
+    def test_tolerates_noise_and_empty(self):
+        sse = "data: \n\n: comment\n\ndata: not-json\n\ndata: [DONE]\n\n"
+        assert assistant_text_from_sse(sse) == ""

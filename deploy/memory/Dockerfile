@@ -24,7 +24,7 @@ WORKDIR /app
 # no torch at inference).
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
     "pyyaml>=6.0" "packaging>=23.0" \
-    "fastapi>=0.110" "uvicorn[standard]>=0.27" "h11>=0.16.0" \
+    "fastapi>=0.110" "uvicorn[standard]>=0.27" "h11>=0.16.0" "httpx>=0.27" \
     "psycopg[binary]>=3.1" "model2vec>=0.3"
 
 # Bake the static embedder model into the image so runtime is fully offline.

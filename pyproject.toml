@@ -111,6 +111,7 @@ gui-api = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "h11>=0.16.0",  # CVE-2025-43859 / GHSA-vqfr-h8mv-ghfj pin floor (transitive via uvicorn)
+    "httpx>=0.27",  # memory-gateway upstream forwarding (/v1/chat/completions)
 ]
 # `pip install vllm-sndr-core[k8s]` for the GUI's read-only Kubernetes mode
 # (cluster status, nodes with GPU capacity, pods/logs/exec). The daemon imports

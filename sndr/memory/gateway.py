@@ -41,6 +41,34 @@ def extract_assistant_text(response: dict[str, Any]) -> str:
     return str(msg.get("content") or "")
 
 
+def assistant_text_from_sse(sse_text: str) -> str:
+    """Reassemble the assistant message from an OpenAI SSE stream — concatenate
+    every `choices[0].delta.content` across `data:` events (skipping `[DONE]`
+    and unparseable lines). Used to capture a streamed reply into memory."""
+    import json
+
+    parts: list[str] = []
+    for raw in sse_text.splitlines():
+        line = raw.strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[len("data:"):].strip()
+        if not payload or payload == "[DONE]":
+            continue
+        try:
+            chunk = json.loads(payload)
+        except (ValueError, TypeError):
+            continue
+        choices = chunk.get("choices") or []
+        if not choices:
+            continue
+        delta = choices[0].get("delta") or {}
+        piece = delta.get("content")
+        if piece:
+            parts.append(str(piece))
+    return "".join(parts)
+
+
 class MemoryGateway:
     def __init__(
         self,

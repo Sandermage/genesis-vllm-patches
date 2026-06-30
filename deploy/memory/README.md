@@ -46,6 +46,36 @@ curl -s localhost:8800/api/v1/memory/stats -H 'X-Owner-Id: 1'
 | `POSTGRES_USER` / `POSTGRES_DB` | `genesis` / `genesis_memory` | first-boot DB init |
 | `POSTGRES_HOST_AUTH_METHOD` | `trust` | loopback-only PG (port 5432 never published) → no baked secret |
 
+## Memory gateway (universal augment for all models)
+
+The same container exposes an OpenAI-compatible `POST /v1/chat/completions` that
+transparently adds memory to ANY model — recall+inject before the upstream,
+capture after. Point clients at the gateway; it forwards to the upstream you set:
+
+| Var | Example | Meaning |
+|---|---|---|
+| `GATEWAY_UPSTREAM_URL` | `http://cliproxy:8317/v1` (external) · `http://127.0.0.1:8102/v1` (internal vLLM) | OpenAI-compatible upstream |
+| `GATEWAY_UPSTREAM_KEY` | `<bearer>` | token the upstream expects (optional) |
+
+Flow: `client → :8811/v1/chat/completions → recall+inject → UPSTREAM → capture → client`
+(SSE streaming is teed through and the reply reassembled for capture). The
+gateway stays dormant (503) until `GATEWAY_UPSTREAM_URL` is set.
+
+**CLIProxyAPI (external models), unmodified** — run the stock image and bind it
+private; our gateway is the only client:
+
+```yaml
+# CLIProxyAPI config.yaml
+host: "127.0.0.1"
+port: 8317
+api-keys: ["<shared-secret>"]          # GATEWAY_UPSTREAM_KEY
+disable-claude-cloak-mode: true          # don't let cloak clobber our system block
+# providers / openai-compatibility / auth-dir as usual
+```
+
+Owner scoping: clients send `X-Owner-Id: <id>` (the per-user memory). External
+models need no special support — recalled memory arrives as plain system text.
+
 ## Notes
 
 - No supervisord: the pgvector base image's entrypoint initialises Postgres on
