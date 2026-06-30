@@ -30,6 +30,14 @@ docker run -d --name genesis-memory \
 - Postgres data persists in the `genesis_memory_pgdata` volume.
 - Owner scoping: send `X-Owner-Id: <id>` (the proxy middleware sets this).
 
+> **⚠ One postmaster per data directory.** This container runs its *own* bundled
+> Postgres on `genesis_memory_pgdata`, so it must be the **sole** mounter of that
+> volume. Never point a second Postgres container (e.g. a standalone test/CI DB)
+> at the same volume — two postmasters on one data dir trigger Postgres's
+> lock-file check (`postmaster.pid contains wrong PID`), and each self-issues an
+> immediate shutdown ~every 60 s, ping-ponging crash-recovery and risking
+> corruption. A separate test DB must use a **separate** volume.
+
 ## Smoke
 
 ```bash
