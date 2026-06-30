@@ -61,7 +61,8 @@ the memory gateway**. The vLLM GPU engine stays a separate container.
 - `engine.py` — `MemoryEngine` (text facade) + `run_maintenance`.
 - `middleware.py` — `ConversationMemory` (augment/capture).
 - `client.py` — `MemoryHTTPClient` (drive memory from another process).
-- `gateway.py` — `MemoryGateway` core + SSE helpers.
+- `gateway.py` — OpenAI-response helpers (assistant-text extraction + SSE
+  reassembly) used by the gateway route.
 - `obsidian.py` — `import_vault`.
 - `product_api/routes/{memory,gateway}.py`, `schemas/memory.py`, `security.py`.
 

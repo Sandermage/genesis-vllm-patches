@@ -16,7 +16,6 @@ from __future__ import annotations
 from sndr.memory.client import MemoryHTTPClient
 from sndr.memory.embedder import Embedder, HashEmbedder, Model2VecEmbedder
 from sndr.memory.engine import MemoryEngine
-from sndr.memory.gateway import MemoryGateway
 from sndr.memory.inmemory import InMemoryStore
 from sndr.memory.middleware import ConversationMemory
 from sndr.memory.model import (
@@ -40,7 +39,6 @@ __all__ = [
     "Model2VecEmbedder",
     "MemoryEdge",
     "MemoryEngine",
-    "MemoryGateway",
     "MemoryNode",
     "MemoryStore",
     "SearchHit",
