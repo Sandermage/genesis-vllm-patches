@@ -80,8 +80,15 @@ def create_app() -> FastAPI:
     app.include_router(configs_router)
     app.include_router(evidence_router)
     app.include_router(jobs_router)
-    app.include_router(memory_router)
-    app.include_router(gateway_router)
+    # Memory + gateway carry per-owner data and drive the upstream LLM, so they
+    # are guarded by the API-key dependency (enforced when GENESIS_MEMORY_API_KEY
+    # is set; open otherwise for localhost/dev).
+    from fastapi import Depends
+
+    from sndr.product_api.security import require_api_key
+
+    app.include_router(memory_router, dependencies=[Depends(require_api_key)])
+    app.include_router(gateway_router, dependencies=[Depends(require_api_key)])
 
     # Persistent neural-graph memory engine on app.state (Postgres if
     # GENESIS_MEMORY_DSN is set, else the in-memory reference backend).
