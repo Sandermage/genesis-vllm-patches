@@ -41,9 +41,10 @@ curl -s localhost:8800/api/v1/memory/stats -H 'X-Owner-Id: 1'
 
 | Var | Default | Meaning |
 |---|---|---|
-| `GENESIS_MEMORY_DSN` | `postgresql://genesis:genesis@127.0.0.1:5432/genesis_memory` | co-located Postgres |
+| `GENESIS_MEMORY_DSN` | `postgresql://genesis@127.0.0.1:5432/genesis_memory` | co-located Postgres (loopback) |
 | `GENESIS_MEMORY_DIM` | `256` | embedding dim (must match the `vector(dim)` column / embedder) |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `genesis` / `genesis` / `genesis_memory` | first-boot DB init |
+| `POSTGRES_USER` / `POSTGRES_DB` | `genesis` / `genesis_memory` | first-boot DB init |
+| `POSTGRES_HOST_AUTH_METHOD` | `trust` | loopback-only PG (port 5432 never published) → no baked secret |
 
 ## Notes
 

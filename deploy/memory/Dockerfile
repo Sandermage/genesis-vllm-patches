@@ -33,11 +33,13 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir --no-deps .
 # The built GUI, served same-origin by the product-API (one core).
 COPY --from=gui /gui/dist /app/gui-static
 
-ENV GENESIS_MEMORY_DSN="postgresql://genesis:genesis@127.0.0.1:5432/genesis_memory" \
+# Postgres is loopback-only inside the container (port 5432 is never published),
+# so trust auth on localhost is safe and avoids baking any secret into the image.
+ENV GENESIS_MEMORY_DSN="postgresql://genesis@127.0.0.1:5432/genesis_memory" \
     GENESIS_MEMORY_DIM="256" \
     POSTGRES_USER="genesis" \
-    POSTGRES_PASSWORD="genesis" \
     POSTGRES_DB="genesis_memory" \
+    POSTGRES_HOST_AUTH_METHOD="trust" \
     SNDR_GUI_STATIC_CARBON="/app/gui-static"
 
 COPY deploy/memory/entrypoint.sh /usr/local/bin/genesis-memory-entrypoint.sh
