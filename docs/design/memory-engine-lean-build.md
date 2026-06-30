@@ -98,32 +98,56 @@ batch consolidation (§3).
   contradictions (Graphiti-style edge invalidation: mark superseded, don't delete — preserves
   audit). Runs nightly on idle GPU.
 
-## 5. Minimal data model (sqlite-vec / pgvector)
+## 5. Minimal data model + working SQL (sqlite-vec primary, pgvector at scale)
 
+**Decay is computed lazily at READ** (store `last_accessed`/`access_count`/`strength`, compute
+`activation = strength·exp(−Δt/τ)` in the SELECT) — no scheduler, no per-write sweep; one eager
+sweep only for hard-cap eviction in the batch job.
+
+```sql
+-- NODES (source of truth) + vec0 virtual table (rowid == nodes.id)
+CREATE TABLE nodes (
+  id INTEGER PRIMARY KEY, kind TEXT CHECK(kind IN('entity','episode','concept')),
+  content TEXT NOT NULL, created_at INTEGER DEFAULT(unixepoch()),
+  last_accessed INTEGER DEFAULT(unixepoch()), access_count INTEGER DEFAULT 0,
+  importance REAL DEFAULT 0.0, strength REAL DEFAULT 1.0,
+  source_id TEXT DEFAULT '',            -- provenance (audit + trust-scoring)
+  owner TEXT NOT NULL DEFAULT 'default' -- per-user/project isolation
+);
+CREATE VIRTUAL TABLE nodes_vec USING vec0(
+  id INTEGER PRIMARY KEY, embedding FLOAT[768],
+  kind TEXT, owner TEXT,                -- metadata cols: filterable inside KNN
+  created_day INTEGER PARTITION KEY     -- ~3x faster recency-bucketed filtered KNN
+);
+CREATE TABLE edges (                     -- typed, weighted, timestamped co-activation graph
+  src INTEGER, dst INTEGER, rel TEXT, weight REAL DEFAULT 1.0,
+  valid_at INTEGER, invalid_at INTEGER,            -- bi-temporal (supersede, don't delete)
+  last_co_access INTEGER DEFAULT(unixepoch()), PRIMARY KEY(src,dst,rel)
+);
+CREATE INDEX idx_edges_src ON edges(src);  CREATE INDEX idx_edges_dst ON edges(dst);
 ```
-memories(
-  id            INTEGER PK,
-  kind          TEXT,        -- episodic | semantic | concept | procedural
-  content       TEXT,
-  embedding     BLOB,        -- one pinned embedder; version-tagged
-  importance    REAL,        -- 0..1 (cheap heuristic at write; LLM-rated in batch)
-  created_at    REAL,
-  last_access   REAL,        -- updated on recall (decay reset)
-  access_count  INTEGER,     -- recall frequency (strength)
-  salience      REAL,        -- derived; drives eviction
-  source_id     TEXT,        -- provenance (which turn/doc) — for audit + trust-scoring
-  owner         TEXT         -- per-user/project isolation key (RLS / filter)
-)
-edges(
-  src INTEGER, dst INTEGER,
-  type TEXT,                 -- relation label (batch-extracted) or "coaccess"
-  weight REAL,               -- Hebbian; decays; top-N per node kept
-  valid_at REAL, invalid_at REAL,  -- bi-temporal (supersede, don't delete)
-  last_coaccess REAL
-)
+```sql
+-- READ: filtered KNN + lazy decay (tau=1 day), no LLM
+SELECT n.id, n.content,
+  v.distance/(1.0 + n.strength*exp(-(unixepoch()-n.last_accessed)/86400.0) + n.importance) AS adj
+FROM nodes_vec v JOIN nodes n ON n.id=v.id
+WHERE v.embedding MATCH :qvec AND k=50 AND v.owner=:owner ORDER BY adj LIMIT 10;
+
+-- ON HIT: recency + bounded-Hebbian reinforce (no LLM); per co-retrieved pair (i,j)
+UPDATE nodes SET access_count=access_count+1, strength=strength+0.1, last_accessed=unixepoch() WHERE id=:hit;
+UPDATE edges SET weight=weight+0.1*(1.0-weight), last_co_access=unixepoch() WHERE src=:i AND dst=:j;
+
+-- 2-hop spreading activation seeded from KNN hits (brain pattern-completion), no LLM
+WITH RECURSIVE spread(id,act,depth) AS (
+  SELECT :seed,1.0,0
+  UNION ALL SELECT CASE WHEN e.src=s.id THEN e.dst ELSE e.src END, s.act*e.weight*0.5, s.depth+1
+  FROM spread s JOIN edges e ON(e.src=s.id OR e.dst=s.id) WHERE s.depth<2)
+SELECT id, SUM(act) act FROM spread GROUP BY id ORDER BY act DESC;
 ```
-Both tables hard-capped; eviction by `salience` (memories) and weight/recency (edges).
-Isolation via `owner` + Postgres RLS (or SQLite-per-tenant) — never metadata-filter-only.
+Hard-cap eviction (batch job): drop lowest `activation` over the row-count ceiling. Isolation via
+`owner` + Postgres RLS (never metadata-filter-only). **pgvector at scale:** same schema, inline
+`embedding vector(768)`, `USING hnsw(... vector_cosine_ops) WITH(m=16,ef_construction=64)`, and
+`SET hnsw.iterative_scan=relaxed_order` (>=v0.8) so the `owner`/`kind` filter doesn't starve KNN.
 
 ## 6. Universal integration (unchanged from rev2)
 
