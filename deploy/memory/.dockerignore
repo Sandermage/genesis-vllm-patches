@@ -1,0 +1,19 @@
+# Keep the build context lean (this file is used when building from repo root
+# with -f deploy/memory/Dockerfile).
+.git
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.pytest_cache
+.ruff_cache
+.mypy_cache
+node_modules
+**/node_modules
+gui/web/dist
+gui/web/build
+snapshots
+*.log
+.venv
+venv
+htmlcov
+.coverage
