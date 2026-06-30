@@ -107,6 +107,22 @@ class TestHybridAndDedup:
         assert eng.store.count_nodes(owner_id=1) == 2
 
 
+class TestMaintenance:
+    def test_run_maintenance_consolidates_and_bounds_all_owners(self):
+        from sndr.memory.engine import run_maintenance
+
+        eng = _engine()
+        for owner in (1, 2):
+            for i in range(30):
+                eng.remember(owner_id=owner, text=f"owner{owner} note number {i}")
+        report = run_maintenance(eng, max_nodes=10)
+        # every owner pruned to the cap (leak-bound) + consolidated
+        assert eng.store.count_nodes(owner_id=1) == 10
+        assert eng.store.count_nodes(owner_id=2) == 10
+        assert set(report["owners"]) == {1, 2}
+        assert report["pruned"] == 40  # 20 removed per owner
+
+
 class TestSemanticLinking:
     def test_links_similar_notes_not_dissimilar(self):
         eng = _engine()

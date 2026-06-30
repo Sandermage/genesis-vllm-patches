@@ -439,3 +439,10 @@ class PostgresStore(MemoryStore):
         with self._lock, self._conn.cursor() as cur:
             cur.execute(sql.SQL("SELECT count(*) FROM {edge}").format(edge=self._edge))
             return cur.fetchone()[0]
+
+    def owner_ids(self) -> list[int]:
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute(
+                sql.SQL("SELECT DISTINCT owner_id FROM {node}").format(node=self._node)
+            )
+            return sorted(r[0] for r in cur.fetchall())

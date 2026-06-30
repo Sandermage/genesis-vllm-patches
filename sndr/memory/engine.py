@@ -23,6 +23,21 @@ if TYPE_CHECKING:
 _SIMILAR_REL = "similar_to"
 
 
+def run_maintenance(
+    engine: MemoryEngine, *, max_nodes: int, tau: float = SEMANTIC_EDGE_TAU
+) -> dict[str, Any]:
+    """One maintenance pass over every owner: consolidate (auto-link + communities
+    + importance) then prune to `max_nodes` (the wired leak-bound). This is what
+    the background scheduler calls on a timer — the design's "nightly batch".
+    Returns a small report."""
+    owners = engine.store.owner_ids()
+    pruned = 0
+    for owner_id in owners:
+        engine.consolidate(owner_id=owner_id, tau=tau)
+        pruned += engine.store.prune(owner_id=owner_id, max_nodes=max_nodes)
+    return {"owners": owners, "pruned": pruned}
+
+
 class MemoryEngine:
     def __init__(self, *, store: MemoryStore, embedder: Embedder) -> None:
         self.store = store

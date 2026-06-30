@@ -128,6 +128,12 @@ class TestNodeCrud:
         assert store.get_node(a).importance == pytest.approx(0.5)
         assert store.get_node(b).importance == pytest.approx(0.9, abs=1e-6)
 
+    def test_owner_ids_lists_distinct_owners(self, store: InMemoryStore):
+        store.add_node(owner_id=1, kind="note", content="a", embedding=_vec(1, 0))
+        store.add_node(owner_id=1, kind="note", content="b", embedding=_vec(0, 1))
+        store.add_node(owner_id=2, kind="note", content="c", embedding=_vec(1, 0))
+        assert sorted(store.owner_ids()) == [1, 2]
+
     def test_iter_nodes_is_owner_scoped(self, store: InMemoryStore):
         a = store.add_node(owner_id=1, kind="note", content="a", embedding=_vec(1, 0))
         b = store.add_node(owner_id=1, kind="note", content="b", embedding=_vec(0, 1))

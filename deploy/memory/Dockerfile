@@ -45,6 +45,8 @@ ENV GENESIS_MEMORY_DSN="postgresql://genesis@127.0.0.1:5432/genesis_memory" \
     POSTGRES_USER="genesis" \
     POSTGRES_DB="genesis_memory" \
     POSTGRES_HOST_AUTH_METHOD="trust" \
+    GENESIS_MEMORY_MAINTENANCE_INTERVAL="1800" \
+    GENESIS_MEMORY_MAX_NODES="20000" \
     SNDR_GUI_STATIC_CARBON="/app/gui-static"
 
 COPY deploy/memory/entrypoint.sh /usr/local/bin/genesis-memory-entrypoint.sh

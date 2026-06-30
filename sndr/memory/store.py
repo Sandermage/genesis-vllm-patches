@@ -209,3 +209,7 @@ class MemoryStore(ABC):
     @abstractmethod
     def count_edges(self) -> int:
         """Total edge count (for leak/soak assertions)."""
+
+    @abstractmethod
+    def owner_ids(self) -> list[int]:
+        """Distinct owner ids present (for the maintenance scheduler)."""

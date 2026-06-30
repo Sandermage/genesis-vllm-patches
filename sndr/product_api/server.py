@@ -88,6 +88,9 @@ def create_app() -> FastAPI:
     _init_memory_engine(app)
     # Memory-augmented OpenAI gateway (active only if GATEWAY_UPSTREAM_URL set).
     _init_gateway(app)
+    # Background consolidation + prune (the wired leak-bound); off unless an
+    # interval is configured.
+    _init_maintenance(app)
 
     # Serve the built Carbon Control Center SPA from the daemon itself.
     # API routes are registered above, so they take precedence over the mount.
@@ -222,6 +225,45 @@ def _init_gateway(app: FastAPI) -> None:
     log.info(
         "product_api.gateway.upstreams",
         extra={"names": sorted(upstreams), "default": app.state.gateway_default},
+    )
+
+
+def _init_maintenance(app: FastAPI) -> None:
+    """Start the background maintenance loop (consolidate + prune every owner on
+    a timer) — the wired leak-bound + auto-organize. Off unless
+    GENESIS_MEMORY_MAINTENANCE_INTERVAL (seconds) > 0. Runs in a daemon thread so
+    the blocking store calls never stall the event loop.
+
+      GENESIS_MEMORY_MAINTENANCE_INTERVAL   seconds between passes (0 = off)
+      GENESIS_MEMORY_MAX_NODES              per-owner cap (default 10000)
+    """
+    import os
+    import threading
+    import time
+
+    interval = int(os.environ.get("GENESIS_MEMORY_MAINTENANCE_INTERVAL", "0"))
+    if interval <= 0:
+        return
+    max_nodes = int(os.environ.get("GENESIS_MEMORY_MAX_NODES", "10000"))
+
+    from sndr.memory.engine import run_maintenance
+
+    def _loop() -> None:
+        while True:
+            time.sleep(interval)
+            engine = getattr(app.state, "memory_engine", None)
+            if engine is None:
+                continue
+            try:
+                report = run_maintenance(engine, max_nodes=max_nodes)
+                log.info("product_api.memory.maintained", extra=report)
+            except Exception:  # noqa: BLE001 - a maintenance failure must not kill the loop
+                log.exception("product_api.memory.maintenance_failed")
+
+    threading.Thread(target=_loop, name="memory-maintenance", daemon=True).start()
+    log.info(
+        "product_api.memory.maintenance_started",
+        extra={"interval": interval, "max_nodes": max_nodes},
     )
 
 

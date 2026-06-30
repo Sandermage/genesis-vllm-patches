@@ -35,9 +35,10 @@ _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
 
 def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
-    """Cosine similarity; 0.0 for a zero-magnitude or mismatched vector."""
-    n = min(len(a), len(b))
-    if n == 0:
+    """Cosine similarity; 0.0 for a zero-magnitude OR mismatched-dimension vector
+    (a dim mismatch means incomparable embedding spaces, not high similarity)."""
+    n = len(a)
+    if n == 0 or len(b) != n:
         return 0.0
     dot = sum(a[i] * b[i] for i in range(n))
     na = math.sqrt(sum(a[i] * a[i] for i in range(n)))
@@ -242,3 +243,6 @@ class InMemoryStore(MemoryStore):
 
     def count_edges(self) -> int:
         return len(self._edges)
+
+    def owner_ids(self) -> list[int]:
+        return sorted({n.owner_id for n in self._nodes.values()})
