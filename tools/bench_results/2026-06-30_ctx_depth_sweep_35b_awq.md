@@ -101,3 +101,55 @@ re-sends a shared prefix. Each lever is a launch-flag change → a controlled li
 A/B (the natural next step).
 
 Raw JSON: `/tmp/ctx_sweep_results.json` on the rig.
+
+## 6. Live A/B validation of the levers (2026-06-30, prod restored after)
+
+Each lever tested by editing the bind-mounted inner `run.sh`, `docker restart`,
+re-bench, then restored to canonical (AWQ / batched-4096 / MTP K=5 / no-APC).
+
+### Lever 1 — `max-num-batched-tokens` 4096 → 16384: **NO improvement (rejected)**
+
+| content | prompt_tok | TTFT 4096 | TTFT 16384 |
+|---|---|---|---|
+| code | 33186 | 7.23 s | 7.27 s |
+| code | 66348 | 38.9 s | 38.5 s |
+| struct | 123129 | 134.9 s | 133.5 s |
+
+The prefill cliff is **fundamental quadratic-attention cost at depth, not a
+chunk-count artifact** — bigger prefill batches don't help and cost more
+activation memory. Keep 4096.
+
+### Lever 2 — `--enable-prefix-caching`: **6–10× TTFT win (strong recommend)**
+
+| workload | miss TTFT | hit TTFT | speedup |
+|---|---|---|---|
+| prose 23.7k tok | 5.33 s | 0.84 s | **6.3×** |
+| code 66k tok | 38.7 s | 3.84 s | **10.1×** |
+
+`prefix_cache_queries_total` went 0 → 180k, hits 83.5k (~46% in-test). **APC is
+fully compatible with TQ `turboquant_k8v4` + AWQ + MTP + the 280k window** — the
+earlier "TQ disables APC" hypothesis was wrong; the flag was simply absent from
+the launcher. No tradeoff with context size. Biggest single win for any
+repeated-prefix workload (RAG fixed corpus, multi-turn chat, agentic history).
+
+### Lever 3 — MTP `num_speculative_tokens` 5 → 3: **1.7–2.1× concurrency (recommend for multi-user)**
+
+| concurrency | K=5 agg tok/s | K=3 agg tok/s | K=5 per-stream | K=3 per-stream |
+|---|---|---|---|---|
+| 1 | 126 | 111 | 234 | 205 |
+| 2 | 86 | 94 | 57 | **121** |
+| 4 | 84 | **161** | 54 | 130 |
+| 8 | 99 | **169** | 67 | 153 |
+
+K=3 costs ~10 % single-stream decode but is **1.7–2.1× faster in aggregate at
+conc ≥ 2** and avoids K=5's concurrency cliff (per-stream 57 → 121 at conc=2).
+Note: the launcher is named `…-k3` and its header says "MTP K=3" — the live `5`
+is config drift. Use K=3 for any multi-user endpoint; keep K=5 only for a
+dedicated single-user low-latency path.
+
+### Recommended permanent changes (via the V2 profile YAML re-render, not a manual launcher edit)
+
+1. **Add `--enable-prefix-caching`** — unconditional win, no downside found.
+2. **Set MTP K=3** (matches the launcher's own stated intent) unless the box is
+   single-user-latency only.
+3. Leave `max-num-batched-tokens=4096` (16384 gave nothing).
