@@ -15,7 +15,7 @@ publish workflow (see .github/workflows/release.yml).
 """
 from __future__ import annotations
 
-__version__: str = "12.0.0.dev0"
+__version__: str = "12.0.0"
 
 # Major version is the wire/contract version for license tokens and
 # engine adapter ABC compatibility. Customers' license tokens carry an

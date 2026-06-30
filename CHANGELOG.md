@@ -118,7 +118,9 @@ holds the release version.)
 
 ---
 
-## [Unreleased] — dev301 → dev424 integration program (2026-06-24 … 2026-06-26)
+## [Unreleased] — current pin dev424 (3f5a1e173); dev301 → dev424 integration (2026-06-24 … 2026-06-26)
+
+> The tagged **[v12.0.0]** below was cut at pin dev491; production subsequently rolled the pin back to the validated dev424 line (the rollback + re-tune work is recorded in the dated sections beneath this one). Current shipped pin = dev424.
 
 A single integration program promoting the live rig from the dev301 pin to
 the validated dev424 pin and landing the patch + tooling + docs work that
@@ -457,7 +459,7 @@ DESIGNED to fail-on-perf-edge and was satisfied by the +4.08 % A/B.
 
 ---
 
-## [Unreleased] — vLLM pin bump dev148 → dev301 (2026-06-24)
+## dev148 → dev301 pin bump (2026-06-24)
 
 ### Highlights
 
@@ -535,7 +537,7 @@ DESIGNED to fail-on-perf-edge and was satisfied by the +4.08 % A/B.
 
 ---
 
-## [Unreleased] — dev148 pin · MTP K=5 re-tune · PN394/PN399/PN353A · Gemma-31B kv-auto · enterprise hardening (2026-06-19 … 2026-06-23)
+## dev148 pin · MTP K=5 re-tune · PN394/PN399/PN353A · Gemma-31B kv-auto · enterprise hardening (2026-06-19 … 2026-06-23)
 
 ### Highlights
 

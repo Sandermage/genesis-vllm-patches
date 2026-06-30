@@ -160,7 +160,7 @@ jobs:
       #      first manual upload OR via "pending publishers" form).
       #   2. Add a Trusted Publisher under Project settings → Publishing:
       #         Owner    = Sandermage
-      #         Repo     = genesis-vllm-patches
+      #         Repo     = sndr_core_engine
       #         Workflow = release.yml
       #         Env      = pypi
       #   3. Create the `pypi` environment in this repo's settings

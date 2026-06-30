@@ -21,7 +21,7 @@ What to include:
 ## Scope
 
 Reports are in scope when they affect the public-core package
-(`vllm.sndr_core`), the shipped CLI (`sndr`), or any artefact
+(`sndr` (the operator product)), the shipped CLI (`sndr`), or any artefact
 under [`tools/`](tools/), [`scripts/`](scripts/), or
 [`docs/`](docs/) in this repository.
 
@@ -39,7 +39,7 @@ Out of scope:
 
 Genesis pins a specific vLLM commit; security fixes track the
 `KNOWN_GOOD_VLLM_PINS` allowlist in
-`vllm/sndr_core/detection/guards.py`. Operators running an
+`sndr/engines/vllm/detection/guards.py`. Operators running an
 unsupported pin should bump to the current pin per
 [`docs/RELEASE_POLICY.md`](docs/RELEASE_POLICY.md) before
 escalating.
