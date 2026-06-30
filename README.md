@@ -11,7 +11,17 @@
 [![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev424+g3f5a1e173-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/registry-321%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
+[![Memory](https://img.shields.io/badge/memory-neural--graph-ff69b4.svg)](docs/memory/MANUAL.md)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
+
+<!-- Topics for GitHub indexing/discovery (set via repo Settings → Topics):
+     vllm · llm-inference · qwen · gemma · spec-decode · kv-cache-quantization ·
+     gpu · cuda · memory · pgvector · rag · knowledge-graph · openai-api ·
+     llm-proxy · obsidian · self-hosted · ampere · ada · blackwell -->
+
+**Two products in one engine:** ⚙️ a runtime **vLLM patch-overlay** (faster inference
+on consumer GPUs) **+** 🧠 a **persistent neural-graph memory** that makes every model —
+local and external — smarter over time. Apache-2.0, self-hosted, one container each.
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class
 inference on consumer NVIDIA Ampere / Ada / Blackwell with TurboQuant k8v4 KV
@@ -153,6 +163,102 @@ Marlin N=352 thread-tile crash, then the `probs @ embed_weight` `[131072,2816]` 
 shape mismatch; the coherent generation confirms the soft-embed all-gather yields correct
 TP=2 output).
 
+## 🧠 Persistent Memory — neural-graph (new in v12)
+
+A brain-like **persistent memory** that makes every model — the internal vLLM
+engines **and** external models behind your proxy — smarter over time. Knowledge
+is stored as a graph whose nodes auto-form connections and cluster into "clouds"
+(like Obsidian), is recalled by vector similarity **plus** spreading activation
+across the graph, and **decays / reinforces like human memory**. It ships as one
+**CPU-only container** (Postgres + pgvector + API + GUI + gateway) — the GPU
+engines are untouched.
+
+```mermaid
+flowchart LR
+  Client([client / app])
+  subgraph C["genesis-memory container (CPU, :8811)"]
+    GW["/v1/chat/completions<br/>memory gateway"]
+    API["/api/v1/memory/*<br/>REST API"]
+    GUI["GUI graph panel<br/>(Sigma.js)"]
+    ENG["MemoryEngine"]
+    EMB["Embedder<br/>Model2Vec / Hash"]
+    PG[("Postgres + pgvector<br/>nodes · edges")]
+    MNT["maintenance loop<br/>consolidate + prune"]
+    GW --> ENG
+    API --> ENG
+    GUI -. same-origin .-> API
+    ENG --> EMB
+    ENG --> PG
+    MNT --> ENG
+  end
+  Client -->|"X-Memory-Upstream"| GW
+  GW -->|"augment → forward → capture"| EXT["CLIProxyAPI →<br/>Claude · Gemini · …"]
+  GW --> VLLM["vLLM engine<br/>(the 35B)"]
+```
+
+**The brain mechanics** (deterministic, no per-write LLM):
+
+```mermaid
+flowchart TD
+  R["remember(text)"] --> N["node + embedding"]
+  Q["recall(query)"] --> ANN["vector ANN seeds"]
+  ANN --> SP["spreading activation<br/>act × weight × β, ≤3 hops, cycle-safe"]
+  SP --> DEC["× Ebbinghaus retention<br/>exp(-age / (S·strength·(1+importance)))"]
+  DEC --> TOP["top-N"]
+  TOP --> TCH["touch → strength↑ (spacing)"]
+  TOP --> HEB["Hebbian: co-recalled wire together<br/>w ← min(1,(1-λ)w+η)"]
+  CONS["consolidate / nightly"] --> LNK["kNN → similar_to edges"]
+  CONS --> COM["communities (label propagation) → clouds"]
+  CONS --> IMP["importance = f(degree, access)"]
+  CONS --> PRN["prune to cap (leak-bound)"]
+```
+
+| Capability | What it does |
+|---|---|
+| **Storage** | Postgres + pgvector (HNSW ANN + lexical GIN); pure-stdlib in-memory reference backend (identical results, CI-verified) |
+| **Recall** | vector ANN seeds → bounded, cycle-safe spreading activation over the graph, blended with decay |
+| **Brain mechanics** | Hebbian co-access, Ebbinghaus decay + **strength reinforcement** (spacing effect), communities ("clouds"), importance, bi-temporal edge invalidation |
+| **Search** | `vector` · `keyword` · `hybrid` (catches exact terms / names / IDs) |
+| **Universal augment** | OpenAI-compatible **gateway**: recall → inject (plain-text system block) → forward → capture, for **any** model. Multi-upstream — choose per request (`X-Memory-Upstream`) |
+| **Ingest** | **Obsidian** vault import (notes → nodes, `[[wikilinks]]` → edges, `#tags`), path-confined |
+| **GUI** | Obsidian-like force-directed graph (Sigma.js + ForceAtlas2): nodes colored by community, sized by importance |
+| **Embedders** | `Model2Vec` (real static CPU, 256-dim, no torch) · `HashEmbedder` (dependency-free) |
+| **Ops** | API-key auth · owner-scoping · auto consolidate + prune (**leak-bounded**) · graceful Postgres-down fallback · upstream-error 502/504 |
+
+**Use it** (one container) — point any OpenAI client at the gateway and it gains memory:
+
+```bash
+docker build -f deploy/memory/Dockerfile -t genesis-memory:dev .
+docker run -d --name genesis-memory -p 8811:8800 \
+  -e GENESIS_MEMORY_EMBEDDER=model2vec -e GENESIS_MEMORY_API_KEY="$(openssl rand -base64 24)" \
+  -e GATEWAY_UPSTREAMS='{"local":{"url":"http://vllm:8102/v1","key":"…"},"cliproxy":{"url":"http://cliproxyapi:8317/v1","key":"…"}}' \
+  -v genesis_memory_pgdata:/var/lib/postgresql/data genesis-memory:dev
+
+curl -s localhost:8811/api/v1/memory/remember -H 'X-Owner-Id:1' -H 'Authorization:Bearer …' \
+  -H content-type:application/json -d '{"text":"the deploy server is 192.168.1.10:8811"}'
+```
+
+**GUI — Memory panel** (Control Center → Engine → 🧠 Memory; served same-origin):
+
+```text
+┌─ 🧠 Memory ──────────────────────────────────────────  [ List | Graph ] ┐
+│ nodes 1,284 · edges 3,902 · communities 17          [ Remember ][ Rebuild ]│
+│ search: ▢ deploy server ____________  ☑ Brain recall            [Search]   │
+│ ╭──────────────── force-graph (Sigma.js) ───────────────╮  ╭ node detail ╮│
+│ │   ●─────●   ● cloud A      ●──●        ● cloud C       │  │ #842 · note ││
+│ │  ╱│╲   ╲   ╱        ●───●──╱    ╲                      │  │ "the deploy ││
+│ │ ● ● ●   ●─●  cloud B   ●        ●                      │  │  server …"  ││
+│ │  colors = communities · size = importance · click=open│  │ → #311 sim  ││
+│ ╰────────────────────────────────────────────────────────╯  ╰────────────╯│
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+> Live screenshots of the rendered React GUI live under `docs/assets/screenshots/`
+> (capture from `:8811` / `npm run dev`). The diagrams above render directly on GitHub.
+
+Full operational + developer reference (architecture, every endpoint, config,
+security, deployment, troubleshooting, examples): **[`docs/memory/MANUAL.md`](docs/memory/MANUAL.md)**.
+
 ## Pick your path
 
 | You have | Start here |
@@ -181,6 +287,7 @@ To pick a different vLLM pin, workload, or non-interactive flag set:
 | If you want to... | Read |
 | --- | --- |
 | One-page operator manual (installer → launcher → configs → patches) | [`docs/USAGE.md`](docs/USAGE.md) |
+| 🧠 Persistent memory — full reference (API, gateway, embedders, Obsidian, deploy) | [`docs/memory/MANUAL.md`](docs/memory/MANUAL.md) |
 | Install + first boot | [`docs/INSTALL.md`](docs/INSTALL.md) → [`docs/QUICKSTART.md`](docs/QUICKSTART.md) |
 | Browse `sndr` commands | [`docs/CLI_REFERENCE.md`](docs/CLI_REFERENCE.md) |
 | Pick a model + hardware combo | [`docs/MODELS.md`](docs/MODELS.md) + [`docs/HARDWARE.md`](docs/HARDWARE.md) |
@@ -204,7 +311,9 @@ pipeline stays auditable.
 | Path | What it is |
 | --- | --- |
 | [`sndr/`](sndr) | The engine. The `PATCH_REGISTRY` + dispatcher, the apply pipeline (text-anchor / class-rebind / middleware patchers), per-engine patch sets (`sndr/engines/vllm/...`), the V2 layered model-config system, the universal launcher, the CLI (`sndr`/`genesis`), and the read-only product API the GUI consumes. This is the only tree the Apache wheel ships. |
-| [`gui/`](gui) | The control center — a desktop/web front-end (`gui/web`, `gui/desktop`) that drives the `sndr` product API: launch presets, inspect the live apply summary, browse the patch catalogue, run benches, and manage remote hosts. Built static assets are served by the product API. |
+| [`gui/`](gui) | The control center — a desktop/web front-end (`gui/web`, `gui/desktop`) that drives the `sndr` product API: launch presets, inspect the live apply summary, browse the patch catalogue, run benches, manage remote hosts, **and the 🧠 Memory graph panel**. Built static assets are served by the product API. |
+| [`sndr/memory/`](sndr/memory) | The **persistent neural-graph memory engine** — storage interface + in-memory & Postgres/pgvector backends, embedders, the brain mechanics (recall / Hebbian / decay / communities / prune), the `ConversationMemory` augment-capture middleware, the HTTP client, and the Obsidian importer. Exposed via `sndr/product_api/routes/{memory,gateway}.py`. See [`docs/memory/MANUAL.md`](docs/memory/MANUAL.md). |
+| [`deploy/memory/`](deploy/memory) | The unified **genesis-memory** container (Postgres + pgvector + product-API + GUI + gateway in one image) — `Dockerfile`, `entrypoint.sh`, README. |
 | [`tests/`](tests) | The pytest suite (13k+ collected). Unit tests per subsystem under `tests/unit/...`, contract/bundle/proof tests, and the load-bearing CI gate. Excluded from the wheel. |
 | [`docs/`](docs) | All public documentation (USAGE, INSTALL, MODELS, HARDWARE, PATCHES, BENCHMARKS, the pin-bump playbook, anchor SOT, …). `docs/README.md` is the index. |
 | [`scripts/`](scripts) + [`tools/`](tools) | Maintainer tooling — the audit gates (`make gates`), doc-sync / link / attribution / drift checkers, anchor-SOT regeneration, bench harnesses, and pin-bump preflight. Not shipped in the wheel. |
