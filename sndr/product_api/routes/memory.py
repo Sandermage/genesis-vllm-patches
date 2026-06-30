@@ -78,12 +78,16 @@ async def remember(
     return Envelope(data=RememberOut(id=nid), meta=_meta())
 
 
-@router.get("/search", summary="Pure ANN search (no side effects)")
+@router.get("/search", summary="Search (vector, or hybrid vector+keyword); no side effects")
 async def search(
-    request: Request, q: str, limit: int = 10
+    request: Request, q: str, limit: int = 10, mode: str = "vector"
 ) -> Envelope[list[HitOut]]:
     eng = _engine(request)
-    hits = eng.search(owner_id=_owner_from(request), query=q, limit=limit)
+    owner = _owner_from(request)
+    if mode == "hybrid":
+        hits = eng.search_hybrid(owner_id=owner, query=q, limit=limit)
+    else:
+        hits = eng.search(owner_id=owner, query=q, limit=limit)
     return Envelope(data=[_hit(h) for h in hits], meta=_meta())
 
 

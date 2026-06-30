@@ -11,6 +11,7 @@ store. Production = Postgres + pgvector (see the design doc).
 from __future__ import annotations
 
 import math
+import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +31,7 @@ from sndr.memory.store import MemoryStore
 # Relations that wire both ways during traversal / spreading activation.
 _SYMMETRIC_RELS = frozenset({"co_access", "similar_to"})
 _EPSILON = 1e-12
+_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
 
 def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
@@ -131,6 +133,32 @@ class InMemoryStore(MemoryStore):
         ]
         hits.sort(key=lambda h: h.score, reverse=True)
         return hits[:limit]
+
+    def keyword_search(
+        self, *, owner_id: int, query: str, limit: int = 15
+    ) -> list[SearchHit]:
+        qtokens = set(_TOKEN_RE.findall(query.lower()))
+        if not qtokens:
+            return []
+        hits: list[SearchHit] = []
+        for node in self._nodes.values():
+            if node.owner_id != owner_id:
+                continue
+            ntokens = _TOKEN_RE.findall(node.content.lower())
+            if not ntokens:
+                continue
+            overlap = sum(1 for t in ntokens if t in qtokens)
+            if overlap > 0:
+                # tf-style: overlap normalized by sqrt(doc length) (BM25-ish)
+                hits.append(SearchHit(node=node, score=overlap / math.sqrt(len(ntokens))))
+        hits.sort(key=lambda h: h.score, reverse=True)
+        return hits[:limit]
+
+    def find_by_content(self, *, owner_id: int, content: str) -> int | None:
+        for node in self._nodes.values():
+            if node.owner_id == owner_id and node.content == content:
+                return node.id
+        return None
 
     def neighbors(
         self, node_id: int, *, min_weight: float = 0.0

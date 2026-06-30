@@ -135,6 +135,33 @@ class TestNodeCrud:
         assert got == sorted([a, b])
 
 
+class TestKeywordSearch:
+    def test_keyword_matches_lexically_excludes_unrelated(self, store: InMemoryStore):
+        a = store.add_node(owner_id=1, kind="note", content="the deploy server address",
+                          embedding=_vec(1, 0, 0))
+        store.add_node(owner_id=1, kind="note", content="banana orange weather",
+                       embedding=_vec(0, 1, 0))
+        hits = store.keyword_search(owner_id=1, query="deploy server", limit=10)
+        ids = [h.id for h in hits]
+        assert a in ids
+        assert len(ids) == 1  # only the lexical match, not the unrelated note
+
+    def test_keyword_is_owner_scoped(self, store: InMemoryStore):
+        store.add_node(owner_id=1, kind="note", content="secret token value",
+                       embedding=_vec(1, 0))
+        hits = store.keyword_search(owner_id=2, query="secret token", limit=10)
+        assert hits == []
+
+
+class TestFindByContent:
+    def test_find_by_content_exact(self, store: InMemoryStore):
+        a = store.add_node(owner_id=1, kind="note", content="exact phrase here",
+                          embedding=_vec(1, 0))
+        assert store.find_by_content(owner_id=1, content="exact phrase here") == a
+        assert store.find_by_content(owner_id=1, content="different") is None
+        assert store.find_by_content(owner_id=2, content="exact phrase here") is None
+
+
 class TestVectorSearch:
     def test_search_ranks_by_cosine(self, store: InMemoryStore):
         near = store.add_node(owner_id=1, kind="note", content="near",

@@ -14,11 +14,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sndr.memory.model import SEMANTIC_EDGE_TAU
+from sndr.memory.model import SEMANTIC_EDGE_TAU, SearchHit
 
 if TYPE_CHECKING:
     from sndr.memory.embedder import Embedder
-    from sndr.memory.model import SearchHit
     from sndr.memory.store import MemoryStore
 
 _SIMILAR_REL = "similar_to"
@@ -38,7 +37,15 @@ class MemoryEngine:
         kind: str = "note",
         importance: float = 0.0,
         properties: dict[str, Any] | None = None,
+        dedup: bool = True,
     ) -> int:
+        """Store `text` as a node; return its id. With `dedup` (default), an
+        existing node with identical content for this owner is returned instead
+        of inserting a duplicate (prevents memory bloat from repeated facts)."""
+        if dedup:
+            existing = self.store.find_by_content(owner_id=owner_id, content=text)
+            if existing is not None:
+                return existing
         embedding = self.embedder.embed_one(text)
         return self.store.add_node(
             owner_id=owner_id,
@@ -58,6 +65,31 @@ class MemoryEngine:
         return self.store.search(
             owner_id=owner_id, query=self.embedder.embed_one(query), limit=limit
         )
+
+    def search_hybrid(
+        self, *, owner_id: int, query: str, limit: int = 10, alpha: float = 0.5
+    ) -> list[SearchHit]:
+        """Blend semantic (vector) and lexical (keyword) search — alpha weights
+        the vector side. Each side is min-max normalized to [0,1] before mixing,
+        so exact terms/names/IDs (lexical) and meaning (vector) both count."""
+        vec = self.store.search(
+            owner_id=owner_id, query=self.embedder.embed_one(query), limit=limit * 2
+        )
+        kw = self.store.keyword_search(owner_id=owner_id, query=query, limit=limit * 2)
+
+        def _norm(hits: list[SearchHit]) -> dict[int, float]:
+            top = max((h.score for h in hits), default=0.0)
+            return {h.id: (h.score / top if top > 0 else 0.0) for h in hits}
+
+        nv, nk = _norm(vec), _norm(kw)
+        nodes = {h.id: h.node for h in kw}
+        nodes.update({h.id: h.node for h in vec})
+        scored = [
+            SearchHit(node=nodes[i], score=alpha * nv.get(i, 0.0) + (1 - alpha) * nk.get(i, 0.0))
+            for i in nodes
+        ]
+        scored.sort(key=lambda h: h.score, reverse=True)
+        return scored[:limit]
 
     def recall(
         self,

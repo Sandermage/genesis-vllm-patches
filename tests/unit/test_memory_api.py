@@ -58,6 +58,22 @@ class TestRememberSearch:
                        headers={"X-Owner-Id": "2"})
         assert r.json()["data"] == []
 
+    def test_hybrid_search_mode(self, client):
+        tgt = _remember(client, "the api owner header is X-Owner-Id exactly")
+        _remember(client, "a general note about something else entirely")
+        r = client.get("/api/v1/memory/search",
+                       params={"q": "X-Owner-Id", "mode": "hybrid"},
+                       headers={"X-Owner-Id": "1"})
+        assert r.status_code == 200
+        assert r.json()["data"][0]["id"] == tgt
+
+    def test_remember_dedup_default(self, client):
+        a = _remember(client, "a fact stored exactly once")
+        b = _remember(client, "a fact stored exactly once")
+        assert a == b  # dedup on by default
+        stats = client.get("/api/v1/memory/stats", headers={"X-Owner-Id": "1"}).json()["data"]
+        assert stats["nodes"] == 1
+
     def test_remember_accepts_kind_and_importance(self, client):
         nid = _remember(client, "an important fact", kind="fact", importance=0.9)
         r = client.get(f"/api/v1/memory/node/{nid}", headers={"X-Owner-Id": "1"})

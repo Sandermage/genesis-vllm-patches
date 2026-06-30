@@ -88,6 +88,19 @@ class MemoryStore(ABC):
         """Owner-scoped ANN search; hits sorted by descending cosine score."""
 
     @abstractmethod
+    def keyword_search(
+        self, *, owner_id: int, query: str, limit: int = 15
+    ) -> list[SearchHit]:
+        """Owner-scoped lexical (keyword/BM25-style) search over node content;
+        returns only docs sharing terms with the query, ranked by relevance.
+        Complements vector search for exact terms, names, and identifiers."""
+
+    @abstractmethod
+    def find_by_content(self, *, owner_id: int, content: str) -> int | None:
+        """Return the id of an owner node with exactly this content, else None
+        (the cheap exact-dedup probe)."""
+
+    @abstractmethod
     def neighbors(
         self, node_id: int, *, min_weight: float = 0.0
     ) -> list[tuple[int, str, float]]:

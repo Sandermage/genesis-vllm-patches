@@ -85,6 +85,28 @@ class TestCommunitiesAndImportance:
         assert None not in comm
 
 
+class TestHybridAndDedup:
+    def test_hybrid_surfaces_exact_token_match(self):
+        eng = _engine()
+        target = eng.remember(owner_id=1, text="the api owner header is X-Owner-Id exactly")
+        eng.remember(owner_id=1, text="a general note about databases and storage")
+        hits = eng.search_hybrid(owner_id=1, query="X-Owner-Id", limit=5)
+        assert hits[0].id == target  # lexical component pins the exact-token doc
+
+    def test_remember_dedup_returns_existing(self):
+        eng = _engine()
+        a = eng.remember(owner_id=1, text="a unique fact to store once")
+        b = eng.remember(owner_id=1, text="a unique fact to store once", dedup=True)
+        assert a == b
+        assert eng.store.count_nodes(owner_id=1) == 1
+
+    def test_remember_without_dedup_duplicates(self):
+        eng = _engine()
+        eng.remember(owner_id=1, text="repeated fact")
+        eng.remember(owner_id=1, text="repeated fact", dedup=False)
+        assert eng.store.count_nodes(owner_id=1) == 2
+
+
 class TestSemanticLinking:
     def test_links_similar_notes_not_dissimilar(self):
         eng = _engine()

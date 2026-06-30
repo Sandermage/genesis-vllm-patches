@@ -19,6 +19,7 @@ injection); the schema name additionally must be a plain identifier.
 """
 from __future__ import annotations
 
+import contextlib
 import re
 import threading
 import time
@@ -76,6 +77,17 @@ class PostgresStore(MemoryStore):
         self._conn = psycopg.connect(dsn, autocommit=True)
         self._node = sql.Identifier(schema, "mem_node")
         self._edge = sql.Identifier(schema, "mem_edge")
+        # Filtered-ANN tuning: relaxed_order iterative scan keeps owner-scoped
+        # HNSW from starving the candidate set (else recall collapses); a higher
+        # ef_search trades a little latency for recall. GUCs exist in pgvector
+        # >= 0.8; guard for older builds.
+        with self._lock, self._conn.cursor() as cur:
+            for stmt in (
+                "SET hnsw.iterative_scan = 'relaxed_order'",
+                "SET hnsw.ef_search = 100",
+            ):
+                with contextlib.suppress(psycopg.Error):
+                    cur.execute(stmt)
         if ensure:
             self.ensure_schema()
 
@@ -132,6 +144,22 @@ class PostgresStore(MemoryStore):
                 sql.SQL(
                     "CREATE INDEX IF NOT EXISTS {ix} ON {edge} (dst_id)"
                 ).format(ix=sql.Identifier(f"{self._schema}_edge_dst"), edge=self._edge)
+            )
+            # ANN index (the design's main index). HNSW needs dim <= 2000.
+            if self._dim <= 2000:
+                cur.execute(
+                    sql.SQL(
+                        "CREATE INDEX IF NOT EXISTS {ix} ON {node}"
+                        " USING hnsw (embedding vector_cosine_ops)"
+                        " WITH (m = 16, ef_construction = 200)"
+                    ).format(ix=sql.Identifier(f"{self._schema}_node_hnsw"), node=self._node)
+                )
+            # Lexical index for hybrid (keyword/BM25-style) search.
+            cur.execute(
+                sql.SQL(
+                    "CREATE INDEX IF NOT EXISTS {ix} ON {node}"
+                    " USING gin (to_tsvector('simple', content))"
+                ).format(ix=sql.Identifier(f"{self._schema}_node_tsv"), node=self._node)
             )
 
     def close(self) -> None:
@@ -244,6 +272,34 @@ class PostgresStore(MemoryStore):
             )
             rows = cur.fetchall()
         return [SearchHit(node=self._row_to_node(r), score=float(r[12])) for r in rows]
+
+    def keyword_search(
+        self, *, owner_id: int, query: str, limit: int = 15
+    ) -> list[SearchHit]:
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute(
+                sql.SQL(
+                    "SELECT " + self._COLS + ", ts_rank_cd(to_tsvector('simple', content),"
+                    " plainto_tsquery('simple', %s)) AS rank FROM {node}"
+                    " WHERE owner_id=%s"
+                    " AND to_tsvector('simple', content) @@ plainto_tsquery('simple', %s)"
+                    " ORDER BY rank DESC LIMIT %s"
+                ).format(node=self._node),
+                (query, owner_id, query, limit),
+            )
+            rows = cur.fetchall()
+        return [SearchHit(node=self._row_to_node(r), score=float(r[12])) for r in rows]
+
+    def find_by_content(self, *, owner_id: int, content: str) -> int | None:
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute(
+                sql.SQL(
+                    "SELECT id FROM {node} WHERE owner_id=%s AND content=%s LIMIT 1"
+                ).format(node=self._node),
+                (owner_id, content),
+            )
+            row = cur.fetchone()
+        return row[0] if row else None
 
     def neighbors(
         self, node_id: int, *, min_weight: float = 0.0
