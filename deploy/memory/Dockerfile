@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
-# Unified genesis-memory image: Postgres + pgvector + the product-API (which
-# serves /api/v1/memory/* and, when a build is present, the GUI) in ONE
-# container — unified config, no cross-container overhead (operator's ask).
-#
+# Unified genesis-memory image: Postgres + pgvector + the product-API + the GUI
+# in ONE container — unified config, no cross-container overhead (operator's ask).
 # The vLLM engine stays a separate GPU container; this image is CPU-only.
-#
-# Base = the pgvector image already on the server (Postgres 15 + pgvector 0.8).
-# No supervisord: the base entrypoint initialises Postgres on first boot, then
-# our entrypoint waits for it and launches uvicorn as the foreground process.
+
+# ---- Stage 1: build the React/Vite GUI ----
+FROM node:22-slim AS gui
+WORKDIR /gui
+COPY gui/web/package.json gui/web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY gui/web/ ./
+RUN npm run build   # -> /gui/dist (index.html + assets)
+
+# ---- Stage 2: runtime (Postgres 15 + pgvector 0.8 base, already on the server) ----
 FROM pgvector/pgvector:0.8.0-pg15-trixie
 
 RUN apt-get update \
@@ -16,8 +20,7 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# Install third-party deps in their own layer (cached across source changes) —
-# the [gui-api] + [memory] extras = fastapi/uvicorn/psycopg (no vllm).
+# Third-party deps in their own cached layer (no vllm).
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
     "pyyaml>=6.0" "packaging>=23.0" \
     "fastapi>=0.110" "uvicorn[standard]>=0.27" "h11>=0.16.0" \
@@ -27,13 +30,15 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
 COPY . /app
 RUN python3 -m pip install --break-system-packages --no-cache-dir --no-deps .
 
-# The API talks to the co-located Postgres over loopback. DIM must match the
-# embedder; 256 = HashEmbedder default. Override at run time as needed.
+# The built GUI, served same-origin by the product-API (one core).
+COPY --from=gui /gui/dist /app/gui-static
+
 ENV GENESIS_MEMORY_DSN="postgresql://genesis:genesis@127.0.0.1:5432/genesis_memory" \
     GENESIS_MEMORY_DIM="256" \
     POSTGRES_USER="genesis" \
     POSTGRES_PASSWORD="genesis" \
-    POSTGRES_DB="genesis_memory"
+    POSTGRES_DB="genesis_memory" \
+    SNDR_GUI_STATIC_CARBON="/app/gui-static"
 
 COPY deploy/memory/entrypoint.sh /usr/local/bin/genesis-memory-entrypoint.sh
 RUN chmod +x /usr/local/bin/genesis-memory-entrypoint.sh
