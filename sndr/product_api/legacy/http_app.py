@@ -404,9 +404,10 @@ def create_app(
         # hard-refresh (content-hashed assets already bust per-file; this closes
         # the "which build am I looking at" gap after a version/pin bump).
         try:
-            from pathlib import Path
-            txt = (Path(__file__).parent / "web_static" / "build-id.txt").read_text(encoding="utf-8")
-            return txt.strip() or None
+            served = _resolve_gui_static_dir()  # the exact dir the SPA is served from
+            if served is None:
+                return None
+            return (served / "build-id.txt").read_text(encoding="utf-8").strip() or None
         except OSError:
             return None
 

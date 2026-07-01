@@ -9,7 +9,10 @@ WORKDIR /gui
 COPY gui/web/package.json gui/web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY gui/web/ ./
-RUN npm run build   # -> /gui/dist (index.html + assets)
+RUN npm run build \
+ && printf 'docker-%s\n' "$(ls -1 /gui/dist/assets 2>/dev/null | sha1sum | cut -c1-12)" > /gui/dist/build-id.txt
+# build-id.txt (content hash of the emitted assets) is served from SNDR_GUI_STATIC
+# and surfaced via /api/v1/health.gui_build_id; the SPA polls it for auto-reload.
 
 # ---- Stage 2: runtime (Postgres 15 + pgvector 0.8 base, already on the server) ----
 FROM pgvector/pgvector:0.8.0-pg15-trixie
