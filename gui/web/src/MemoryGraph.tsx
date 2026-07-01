@@ -80,7 +80,7 @@ export function MemoryGraph({ graph, onSelect }: { graph: MemGraph; onSelect: (i
   const radius = (imp: number, acc: number) => 5 + Math.min(10, imp * 4 + Math.log1p(acc) * 1.5);
 
   return (
-    <svg viewBox={`0 0 ${VW} ${VH}`} style={{ width: "100%", height: 520, border: "1px solid var(--border, #2a2a2a)", borderRadius: 8, background: "var(--panel, #16181d)" }}>
+    <svg viewBox={`0 0 ${VW} ${VH}`} style={{ width: "100%", height: 520, border: "1px solid var(--border)", borderRadius: "var(--r)", background: "var(--surface-2)" }}>
       {graph.edges.map((e) => {
         const a = layout.pos.get(e.src), b = layout.pos.get(e.dst);
         if (!a || !b) return null;
@@ -89,9 +89,9 @@ export function MemoryGraph({ graph, onSelect }: { graph: MemGraph; onSelect: (i
           <line
             key={`${e.src}-${e.dst}-${e.rel}`}
             x1={px(a.x)} y1={py(a.y)} x2={px(b.x)} y2={py(b.y)}
-            stroke={active ? "#aab" : "#3a3f47"}
+            style={{ stroke: active ? "var(--accent)" : "var(--border-strong)" }}
             strokeWidth={Math.max(0.5, e.weight * 2)}
-            strokeOpacity={active ? 0.9 : 0.45}
+            strokeOpacity={active ? 0.95 : 0.5}
           />
         );
       })}
@@ -103,10 +103,12 @@ export function MemoryGraph({ graph, onSelect }: { graph: MemGraph; onSelect: (i
           <g key={node.id} transform={`translate(${px(p.x)},${py(p.y)})`} style={{ cursor: "pointer" }}
              onMouseEnter={() => setHover(node.id)} onMouseLeave={() => setHover(null)}
              onClick={() => onSelect(node.id)}>
-            <circle r={r} fill={colorFor(node.community_id)} stroke={hover === node.id ? "#fff" : "rgba(0,0,0,0.3)"} strokeWidth={hover === node.id ? 2 : 1} />
+            <circle r={r} fill={colorFor(node.community_id)} strokeWidth={hover === node.id ? 2 : 1}
+              style={{ stroke: hover === node.id ? "var(--text)" : "var(--border)" }} />
             <title>{node.content}</title>
             {hover === node.id && (
-              <text x={r + 4} y={4} fontSize={12} fill="#e8eaed" style={{ pointerEvents: "none" }}>
+              <text x={r + 5} y={4} fontSize={12} fontWeight={600}
+                style={{ fill: "var(--text)", stroke: "var(--surface-2)", strokeWidth: 3, paintOrder: "stroke", pointerEvents: "none" }}>
                 {node.content.length > 48 ? node.content.slice(0, 47) + "…" : node.content}
               </text>
             )}

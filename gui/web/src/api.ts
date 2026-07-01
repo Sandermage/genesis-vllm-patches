@@ -1323,6 +1323,17 @@ async function request<T>(path: string, init?: ApiRequestInit): Promise<T> {
       }
       throw new Error(detail);
     }
+    // Guard a non-JSON 200: a missing route falls through to the SPA's
+    // index.html, so a naive .json() would throw a cryptic "Unexpected token
+    // '<'". Surface a clear, actionable message instead (defense-in-depth — the
+    // daemon should serve every route, but the GUI must never crash on drift).
+    const ctype = response.headers.get("content-type") ?? "";
+    if (!ctype.includes("json")) {
+      throw new Error(
+        `${path} returned ${ctype || "non-JSON"} (HTTP ${response.status}), not JSON — ` +
+        `the daemon may be missing this route.`
+      );
+    }
     return response.json() as Promise<T>;
   } catch (err) {
     // Surface a self-aborting timeout as an explicit, human error rather than a

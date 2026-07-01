@@ -23,6 +23,7 @@ export function MemoryPanel() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null); // transient success/info (not an error)
+  const [detailBusy, setDetailBusy] = useState(false); // loading a node's detail + neighbors
   const [view, setView] = useState<"list" | "graph">("list");
   const [graph, setGraph] = useState<MemGraph | null>(null);
 
@@ -51,11 +52,12 @@ export function MemoryPanel() {
   }, [q, brain]);
 
   const openNode = useCallback(async (id: number) => {
-    setErr(null);
+    setErr(null); setNotice(null); setDetailBusy(true);
     try {
       const [node, nb] = await Promise.all([api.memoryNode(id, OWNER), api.memoryNeighbors(id, OWNER)]);
       setSelected(node); setNeighbors(nb);
     } catch (e) { setErr(String(e)); }
+    finally { setDetailBusy(false); }
   }, []);
 
   const doRemember = useCallback(async () => {
@@ -131,8 +133,8 @@ export function MemoryPanel() {
         </button>
       </div>
 
-      {err && <div className="mem-err" style={{ fontSize: 12, color: "var(--danger, #f97362)" }}>{err}</div>}
-      {notice && <div className="mem-notice" style={{ fontSize: 12, color: "var(--success, #5fd07d)" }}>{notice}</div>}
+      {err && <div role="alert" style={{ fontSize: 12.5, color: "var(--danger)", background: "var(--danger-soft)", padding: "7px 11px", borderRadius: "var(--r-sm)" }}>{err}</div>}
+      {notice && <div style={{ fontSize: 12.5, color: "var(--ok)", background: "var(--ok-soft)", padding: "7px 11px", borderRadius: "var(--r-sm)" }}>{notice}</div>}
 
       {view === "graph" && (
         graph
@@ -158,8 +160,11 @@ export function MemoryPanel() {
           {!hits.length && !busy && <li style={{ opacity: 0.5, fontSize: 13 }}>{tr("No results yet — remember something, then search.")}</li>}
         </ul>
 
+        {detailBusy && !selected && (
+          <div style={{ flex: 1, opacity: 0.6, fontSize: 13, padding: 12 }}>{tr("Loading…")}</div>
+        )}
         {selected && (
-          <div className="mem-detail" style={{ flex: 1, border: "1px solid var(--border, #2a2a2a)", borderRadius: 6, padding: 12 }}>
+          <div className="mem-detail" style={{ flex: 1, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: 12, background: "var(--surface)", opacity: detailBusy ? 0.55 : 1, transition: "opacity 0.15s" }}>
             <div style={{ fontSize: 12, opacity: 0.6 }}>#{selected.id} · {selected.kind} · {tr("accessed")} {selected.access_count}×</div>
             <p style={{ margin: "6px 0 12px" }}>{selected.content}</p>
             <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>{tr("Connections")} ({neighbors.length})</div>
