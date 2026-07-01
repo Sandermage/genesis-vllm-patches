@@ -682,6 +682,20 @@ PROMOTION_PENDING_VLLM_PINS: tuple[str, ...] = (
     # validation (35B / 27B / Gemma4-31B / DiffusionGemma all apply failed=0 +
     # smoke + tool-call PASS, 35B bench 210.7 TPS = 101% of dev491). See the
     # KNOWN_GOOD_VLLM_PINS "PROD pin PROMOTION 0.23.1" block above.
+    # ── PROD pin CANDIDATE dev672 (added 2026-07-01, validation PENDING) ──
+    # Image: vllm/vllm-openai:nightly-93d8f834dd8acf33eb0e2a75b2711b628cb6e226
+    # (0.23.1rc1.dev672+g93d8f834d, commit 93d8f834, +248 commits over dev424).
+    # Operator-authorized bump dev424 -> dev672 (2026-07-01). Static assessment
+    # in the candidate container with GENESIS_ENFORCE_VERSION_RANGE=1 against the
+    # main-sync tree: apply applied=84 / skipped=169 / failed=0. PN30 is version-
+    # gated (<0.23.0 — upstream fused postprocess kernel supersedes the DS conv
+    # spec-decode path); PN8 graceful-skips (get_draft_quant_config is native now,
+    # vllm#40849). TurboQuant KV is upstream-native at this pin (quantization/
+    # turboquant/ + TurboQuantAttentionBackend + triton_turboquant_decode/store).
+    # PROMOTION PENDING the live window: 35B boot + smoke + tool-call + bench vs
+    # dev424 (rollback). Move to KNOWN_GOOD after validation + CHANGELOG.
+    "0.23.1rc1.dev672+g93d8f834d",                       # setuptools_scm-derived
+    "nightly-93d8f834dd8acf33eb0e2a75b2711b628cb6e226",  # docker tag form (full SHA)
 )
 
 

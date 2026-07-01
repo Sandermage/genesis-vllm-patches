@@ -118,6 +118,60 @@ holds the release version.)
 
 ---
 
+## [Unreleased · dev672-candidate] — pin bump dev424 → dev672 (validation PENDING) (2026-07-01)
+
+> Operator-authorized bump to the latest nightly. Static assessment complete;
+> live 35B window validation PENDING. dev424 (`3f5a1e173`) remains the shipped
+> pin + instant rollback until dev672 is promoted. No change to the running
+> `vllm-qwen3.6-35b-balanced-k3` container yet.
+
+### Highlights
+
+- **vLLM candidate `0.23.1rc1.dev672+g93d8f834d`** (image
+  `vllm/vllm-openai:nightly-93d8f834dd8acf33eb0e2a75b2711b628cb6e226`, commit
+  `93d8f834`, +248 commits over dev424) pulled to the rig and hash-tagged;
+  `:nightly` restored to the validated dev424 (pin-policy invariant: `:nightly`
+  = current validated pin, never an unvalidated candidate). dev301
+  (`nightly-04c2a8dea`) retained as the deeper rollback.
+- **Added dev672 to `PROMOTION_PENDING_VLLM_PINS`** (`guards.py`) so the runtime
+  pin-gate accepts the candidate for validation. Graduates to
+  `KNOWN_GOOD_VLLM_PINS` after the live window.
+
+### Audit findings (static — candidate container, `GENESIS_ENFORCE_VERSION_RANGE=1`, main-sync tree)
+
+- Boot-apply: **applied=84 / skipped=169 / failed=0.** Clean for a 248-commit jump.
+- **Upstream absorbed a batch of Genesis features** (iron-rule #11 — the
+  framework's version-gates + `upstream_drift_markers` auto-retire already
+  handle them, so no manual patch surgery was needed):
+  - **TurboQuant KV cache is now native** — `vllm/model_executor/layers/
+    quantization/turboquant/` (config + `from_cache_dtype`),
+    `TurboQuantAttentionBackend`, `triton_turboquant_decode/store.py`;
+    `turboquant_k8v4` recognized. P5 auto-defers on `PR #39931 detected`; P8
+    retired; the k8v4 / hybrid / int64-cast / continuation-prefill-fp16
+    drift-markers self-retire on this pin.
+  - **PN8** (MTP draft online-quant, vllm#40849) — `get_draft_quant_config` is
+    native now; PN8 graceful-skips (no crash).
+  - **PN30** (DS conv + spec-decode AL>1, issue #17) — already version-gated
+    `<0.23.0` since the 0.23.0 promotion (upstream fused postprocess kernel
+    supersedes the DS-conv spec-decode path).
+- Anchor-drift probe (enforcement OFF): PN38 / PN40 / G4_26 anchors moved, but
+  all three are disabled/gated on the A5000-2x fleet → non-blocking for the 35B.
+
+### Migration notes (PENDING — executed at promotion, post-window)
+
+- Live window: boot dev672 on the 35B ports, smoke + streaming tool-call +
+  canonical `genesis_bench_suite.py --quick` vs dev424; promote-or-rollback
+  (dev424 image stays tagged for an instant `docker` rollback).
+- On promote: bump `vllm_pin_required` dev424 → dev672 across the ModelDefs +
+  the a5000-2x hardware `image:` tag (R-MD-HW-2 SHA-match), regen the
+  `pins/0.23.1_93d8f834d` anchor-SOT (`make rebuild-pin`), move dev672 to
+  `KNOWN_GOOD_VLLM_PINS`, and drop dev301 per the CLAUDE.md ≤2-pin policy.
+- GPU note: the model-level TurboQuant CUDA path (P67 split-M kernel, TQ decode
+  kernels, G4_61/62) only *applies* on the live GPU — its interaction with the
+  now-native TQ backend is validated by the window bench, not the no-GPU probe.
+
+---
+
 ## [Unreleased] — current pin dev424 (3f5a1e173); dev301 → dev424 integration (2026-06-24 … 2026-06-26)
 
 > The tagged **[v12.0.0]** below was cut at pin dev491; production subsequently rolled the pin back to the validated dev424 line (the rollback + re-tune work is recorded in the dated sections beneath this one). Current shipped pin = dev424.
