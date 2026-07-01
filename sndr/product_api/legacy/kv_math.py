@@ -337,8 +337,88 @@ def arch_from_dict(data: dict[str, Any]) -> ModelArch:
     return replace(base, **overrides) if overrides else base
 
 
+# ─── Grounded cross-rig reference (MEASURED numbers only, each cited) ─────────
+# The planner estimates VRAM/context from first principles; it deliberately does
+# NOT predict throughput (topology/SM/kernel interactions make that unreliable).
+# Instead we surface REAL measured TPS points so an operator can sanity-check the
+# throughput their config is likely to see. Sources: our own canonical
+# genesis_bench_suite runs, and the noonghunna/club-3090 BENCHMARKS.md
+# (public, cross-rig 3090/4090/5090 data). No fabricated multipliers.
+MEASURED_REFERENCE: list[dict[str, Any]] = [
+    # model, hardware, tp, link, tps_single, tps_multi, context_k, source
+    {"model": "Qwen3.6-35B-A3B FP8 TQ k8v4 (MTP K=5)", "hardware": "2× A5000 24GB", "tp": 2, "link": "pcie",
+     "tps_single": 240.6, "tps_multi": 644, "context_k": 280, "source": "genesis bench dev672 2026-07-01 (multi @conc=8)"},
+    {"model": "Qwen3.6-35B-A3B FP8", "hardware": "2× 3090 24GB", "tp": 2, "link": "pcie",
+     "tps_single": 178.5, "tps_multi": 173.7, "context_k": 262, "source": "club-3090 qwen-35b-a3b-dual (7.81× conc)"},
+    {"model": "Qwen3.6-27B INT4 TQ k8v4 (MTP K=3)", "hardware": "2× A5000 24GB", "tp": 2, "link": "pcie",
+     "tps_single": 120, "tps_multi": 292, "context_k": 280, "source": "genesis bench (multi @conc=4)"},
+    {"model": "Qwen3.6-27B", "hardware": "2× 3090 24GB", "tp": 2, "link": "pcie",
+     "tps_single": 70, "tps_multi": 90, "context_k": 262, "source": "club-3090 dual.yml baseline"},
+    {"model": "Qwen3.6-27B DFlash", "hardware": "2× 3090 24GB (NVLink)", "tp": 2, "link": "nvlink",
+     "tps_single": 103, "tps_multi": 167, "context_k": 188, "source": "club-3090 dual-nvlink-dflash-noviz"},
+    {"model": "Qwen3.6-27B ik-llama iq4ks-two-stage", "hardware": "1× 3090 24GB", "tp": 1, "link": "single",
+     "tps_single": 59, "tps_multi": 98, "context_k": 200, "source": "club-3090 (code-optimized, decode)"},
+    {"model": "Qwen3.6-27B DFlash", "hardware": "1× 5090 32GB", "tp": 1, "link": "single",
+     "tps_single": 127, "tps_multi": 200, "context_k": 49, "source": "club-3090 5090 single-card"},
+    {"model": "Gemma-4 31B bf16 MTP", "hardware": "2× 3090 24GB", "tp": 2, "link": "pcie",
+     "tps_single": 118.8, "tps_multi": 154.3, "context_k": 131, "source": "club-3090 gemma-bf16-mtp"},
+    {"model": "Gemma-4 31B MTP", "hardware": "1× 5090 32GB", "tp": 1, "link": "single",
+     "tps_single": 159.7, "tps_multi": 215.1, "context_k": 131, "source": "club-3090 5090 (first single-card boot)"},
+]
+
+# Single-card "escape hatch" lanes for when TP=2 won't fit (or you only have one
+# card). Real llama.cpp / ik-llama configs with measured decode TPS + max ctx.
+_SINGLE_CARD: dict[str, list[dict[str, Any]]] = {
+    "qwen3.6-27b": [
+        {"engine": "ik-llama", "config": "iq4ks-two-stage", "tps_single": 59.4, "tps_code": 97.8, "context_k": 200,
+         "vram_gb": 22.3, "note": "code-optimized two-stage; single 3090", "source": "club-3090 BENCHMARKS.md"},
+        {"engine": "ik-llama", "config": "iq4ks-mtp", "tps_single": 59.7, "tps_code": 68.8, "context_k": 200,
+         "vram_gb": 22.3, "note": "MTP draft; 1109 tok/s prefill", "source": "club-3090"},
+        {"engine": "llama.cpp", "config": "mtp Q4_K_M", "tps_single": 50.3, "tps_code": 58.9, "context_k": 200,
+         "vram_gb": 22.3, "note": "mainline llama.cpp; 1025 tok/s prefill", "source": "club-3090"},
+        {"engine": "beellama", "config": "dflash", "tps_single": 50.2, "tps_code": 99.7, "context_k": 160,
+         "vram_gb": 23.0, "note": "single-card DFlash default", "source": "club-3090"},
+    ],
+}
+# alias the registry keys to the escape-hatch table
+_SINGLE_CARD_ALIASES = {
+    "qwen3.6-27b-int4": "qwen3.6-27b", "qwen3.6-27b-int4-autoround": "qwen3.6-27b",
+    "qwen3.6-27b": "qwen3.6-27b",
+}
+
+
+def single_card_alternatives(model: str) -> list[dict[str, Any]]:
+    """Real single-card escape-hatch configs for a model (empty if none known).
+
+    Surfaced when TP=2 does not fit — a 24GB card can still run 27B via
+    llama.cpp / ik-llama at 200K context. 35B / Gemma-4 need a 32GB card
+    (5090) or the llama.cpp fallback; 24GB single-card vLLM OOMs (SM86)."""
+    key = _SINGLE_CARD_ALIASES.get(str(model).lower().strip())
+    return [dict(a) for a in _SINGLE_CARD.get(key or "", [])]
+
+
+def topology_note(tp: int) -> dict[str, Any] | None:
+    """Informational NVLink-vs-PCIe throughput note for multi-GPU (TP≥2).
+
+    This is a CITED throughput observation, NOT applied to the VRAM/context
+    estimate — interconnect changes tokens/s, not the byte budget."""
+    if int(tp) < 2:
+        return None
+    return {
+        "level": "info",
+        "applies_to_estimate": False,
+        "text": (
+            "TP≥2 throughput scales with interconnect: NVLink measured ~+15% "
+            "narrative / +16% code vs identical PCIe; consumer patched-P2P "
+            "(no NVLink) ~+10% / +14%. Affects tokens/s only, not the VRAM budget."
+        ),
+        "source": "club-3090 27B dual PCIe vs NVLink (measured)",
+    }
+
+
 __all__ = [
-    "KV_DTYPE_BYTES", "ModelArch", "arch_from_dict", "calibrate_overhead",
-    "estimate", "fit_envelope", "known_models", "kv_bytes_per_token",
-    "recommend", "weights_bytes",
+    "KV_DTYPE_BYTES", "MEASURED_REFERENCE", "ModelArch", "arch_from_dict",
+    "calibrate_overhead", "estimate", "fit_envelope", "known_models",
+    "kv_bytes_per_token", "recommend", "single_card_alternatives",
+    "topology_note", "weights_bytes",
 ]

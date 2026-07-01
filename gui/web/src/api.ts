@@ -586,7 +586,13 @@ export type KvCalcResult = {
   envelope: { contexts: number[]; concurrencies: number[]; grid: EnvelopeCell[][] };
   recommendation: KvRec[];
   arch_advice: ArchAdvice | null;
+  measured_reference?: MeasuredRef[];
+  topology_note?: { level: string; applies_to_estimate: boolean; text: string; source: string } | null;
+  single_card?: SingleCardAlt[];
+  single_card_suggested?: boolean;
 };
+export type MeasuredRef = { model: string; hardware: string; tp: number; link: "pcie" | "nvlink" | "single" | "n/a"; tps_single: number; tps_multi: number; context_k: number; source: string };
+export type SingleCardAlt = { engine: string; config: string; tps_single: number; tps_code: number; context_k: number; vram_gb: number; note: string; source: string };
 
 // ── Fleet overview (all engine hosts at a glance) ───────────────────────────
 export type FleetEngine = { container: string | null; port: number | null; reachable: boolean; version: string | null; models: string[]; patches: number };

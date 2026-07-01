@@ -3223,10 +3223,18 @@ def create_app(
 
             arch_advice = gpu_arch.classify(name=payload.get("gpu_name"), compute_cap=payload.get("compute_cap"))
 
+        # club-3090 grounded reference (measured cross-rig TPS, single-card
+        # escape-hatch, interconnect note) — real numbers only, never predicted.
+        single_card = kv_math.single_card_alternatives(str(payload.get("model_id") or ""))
         return {"arch": asdict(arch), "kv_dtype": kv_name, "overhead_mib": round(overhead),
                 "rig": {"tp": tp, "gpu_count": gpu_count, "gpu_vram_mib": gpu_vram_mib, "util": util},
                 "result": result, "by_dtype": by_dtype, "by_tp": by_tp, "curve": curve,
-                "envelope": envelope, "recommendation": recommendation, "arch_advice": arch_advice}
+                "envelope": envelope, "recommendation": recommendation, "arch_advice": arch_advice,
+                "measured_reference": kv_math.MEASURED_REFERENCE,
+                "topology_note": kv_math.topology_note(tp),
+                "single_card": single_card,
+                # suggest the escape-hatch when the target won't comfortably fit on the current rig
+                "single_card_suggested": bool(single_card) and (tp == 1 or result["verdict"] != "pass")}
 
     # --- Quality / bench baselines + regression diff ------------------------
     @app.get("/api/v1/baselines")

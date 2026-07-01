@@ -158,6 +158,50 @@ export function KvCalcPanel() {
           </div>
         </div>
       )}
+      {calc?.topology_note && tp >= 2 && (
+        <div className="kvcalc-rec" role="note" style={{ borderLeft: "3px solid #3b82f6" }}>
+          <Server size={16} />
+          <div className="kvcalc-rec-text">
+            <strong>{tr("Interconnect (throughput only, not VRAM)")}</strong>
+            <span>{calc.topology_note.text}</span>
+            <span style={{ opacity: 0.6, fontSize: "0.85em" }}>{tr("source")}: {calc.topology_note.source}</span>
+          </div>
+        </div>
+      )}
+      {calc?.single_card_suggested && calc.single_card && calc.single_card.length > 0 && (
+        <div className="kvcalc-rec" role="note" style={{ borderLeft: "3px solid #f59e0b" }}>
+          <AlertTriangle size={16} />
+          <div className="kvcalc-rec-text">
+            <strong>{tr("Single-card escape hatch")}</strong>
+            <span>{tr("Tight/over budget on this rig — real single-card lanes (measured decode):")}</span>
+            {calc.single_card.map((a) => (
+              <span key={a.engine + a.config}>• {a.engine} {a.config}: {a.tps_single}/{a.tps_code} {tr("TPS")} · {a.context_k}K {tr("ctx")} · ~{a.vram_gb}GB — {a.note}</span>
+            ))}
+            <span style={{ opacity: 0.6, fontSize: "0.85em" }}>{tr("source")}: club-3090 BENCHMARKS.md</span>
+          </div>
+        </div>
+      )}
+      {calc?.measured_reference && calc.measured_reference.length > 0 && (
+        <details className="kvcalc-ref" style={{ margin: "8px 0", fontSize: "0.9em" }}>
+          <summary style={{ cursor: "pointer", opacity: 0.85 }}>{tr("Measured throughput reference (real rigs — not a prediction)")}</summary>
+          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}>
+            <thead><tr style={{ textAlign: "left", opacity: 0.7 }}>
+              <th>{tr("Model")}</th><th>{tr("Hardware")}</th><th>TP</th><th>{tr("link")}</th><th>{tr("TPS 1 / N")}</th><th>{tr("ctx")}</th></tr></thead>
+            <tbody>
+              {calc.measured_reference.map((m, i) => {
+                const fam = (calc.arch?.name || "").split(" ")[0];
+                const match = fam && m.model.includes(fam);
+                return (
+                  <tr key={i} style={{ fontWeight: match ? 600 : 400, background: match ? "rgba(59,130,246,0.08)" : undefined }}>
+                    <td>{m.model}</td><td>{m.hardware}</td><td>{m.tp}</td><td>{m.link}</td>
+                    <td>{m.tps_single}{m.tps_multi ? ` / ${m.tps_multi}` : ""}</td><td>{m.context_k}K</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </details>
+      )}
 
       <label className="kvcalc-slider">
         <div className="kvcalc-slider-head"><span>{tr("Context")}</span><strong>{ctx.toLocaleString()} {tr("tokens")}</strong>{r && (() => { const v = r.verdict ?? (r.fits ? "pass" : "fail"); return <span className={`kvcalc-verdict ${v === "pass" ? "ok" : v === "tight" ? "warn" : "bad"}`}>{v === "pass" ? <><CheckCircle2 size={13} /> {tr("fits")} · {fmtGb(r.headroom_mib)} {tr("free")}</> : v === "tight" ? <><AlertTriangle size={13} /> {tr("tight — vLLM caps KV pool to")} {fmtGb(r.kv_pool_capped_mib ?? 0)}</> : <><AlertTriangle size={13} /> {fmtGb(-r.headroom_mib)} {tr("over budget")}</>}</span>; })()}</div>

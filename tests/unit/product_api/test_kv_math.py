@@ -166,3 +166,41 @@ def test_exact_weight_bytes_override_used():
 def test_known_models_registry_is_usable():
     models = kv_math.known_models()
     assert models and all(m.num_layers > 0 and m.params_b > 0 for m in models.values())
+
+
+# --- club-3090 grounded reference: measured TPS, single-card escape-hatch, topology ---
+
+def test_measured_reference_is_grounded_and_sourced():
+    # Every reference point is a REAL measured number with a citation — not a
+    # fabricated/predicted multiplier. Enforces the no-speculation contract.
+    ref = kv_math.MEASURED_REFERENCE
+    assert len(ref) >= 6
+    for r in ref:
+        assert r["tps_single"] > 0
+        assert r["source"]  # must cite where the number came from
+        assert r["hardware"] and r["model"]
+        assert r["link"] in ("pcie", "nvlink", "single", "n/a")
+    # must include the club-3090 27B NVLink point and a genesis A5000 point
+    assert any("nvlink" == r["link"] and "27" in r["model"] for r in ref)
+    assert any("A5000" in r["hardware"] for r in ref)
+
+
+def test_single_card_alternatives_for_27b_are_real_configs():
+    alts = kv_math.single_card_alternatives("qwen3.6-27b-int4")
+    assert alts, "27B must have single-card escape-hatch options"
+    for a in alts:
+        assert a["tps_single"] > 0 and a["context_k"] > 0 and a["engine"] and a["source"]
+    # the ik-llama two-stage code-optimized lane (98 TPS code, 200K) must be present
+    assert any(a["tps_code"] >= 90 and a["context_k"] >= 200 for a in alts)
+
+
+def test_single_card_alternatives_unknown_model_is_empty_not_error():
+    assert kv_math.single_card_alternatives("no-such-model") == []
+
+
+def test_topology_note_only_for_multi_gpu_and_is_informational():
+    assert kv_math.topology_note(1) is None            # single GPU → no TP topology note
+    note = kv_math.topology_note(2)
+    assert note and note["source"] and "nvlink" in note["text"].lower()
+    # it is a throughput note, NOT applied to the VRAM/context estimate
+    assert note.get("applies_to_estimate") is False
