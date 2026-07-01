@@ -32,6 +32,10 @@ GPU_DEVICE="${GPU_DEVICE:-nvidia.com/gpu=all}"         # CDI; set empty to disab
 ENGINE_BASE="${SNDR_OPENAI_BASE_URL:-http://vllm-qwen3.6-35b-balanced-k3:8102/v1}"
 ENGINE_METRICS="${SNDR_METRICS_URL:-${ENGINE_BASE%/v1}/metrics}"
 ENGINE_KEY="${SNDR_ENGINE_API_KEY:-genesis-local}"
+# The reported engine host MUST match the base_url host (the container name the
+# daemon resolves), so the chat — which proxies through the daemon — adopts a
+# host the daemon can actually reach (not 127.0.0.1). Derive it from the base URL.
+ENGINE_HOST="${SNDR_RUNTIME_HOST:-$(printf '%s' "$ENGINE_BASE" | sed -E 's#^[a-z]+://([^:/]+).*#\1#')}"
 
 # Carry secrets/config forward from the running container, unless $ENV_FILE is set.
 ENV_FILE="${ENV_FILE:-/tmp/genesis-memory.env}"
@@ -56,6 +60,7 @@ docker run -d --name "$NAME" --restart unless-stopped \
     -e "SNDR_OPENAI_BASE_URL=${ENGINE_BASE}" \
     -e "SNDR_METRICS_URL=${ENGINE_METRICS}" \
     -e "SNDR_ENGINE_API_KEY=${ENGINE_KEY}" \
+    -e "SNDR_RUNTIME_HOST=${ENGINE_HOST}" \
     "$IMAGE" >/dev/null
 
 docker network connect "$NET" "$NAME" 2>/dev/null || true

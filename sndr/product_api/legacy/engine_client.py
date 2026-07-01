@@ -76,6 +76,29 @@ def _safe_host(host: Optional[str]) -> str:
     return candidate
 
 
+def _configured_engine_hosts() -> set[str]:
+    """Hosts the operator EXPLICITLY declared as their engine via env — sending
+    the env key to these is intended (they configured both the host AND the key),
+    so they are exempt from the non-loopback gate below. Arbitrary user-supplied
+    hosts are still blocked. Covers the co-located-container case: the memory
+    daemon reaches the engine by its Docker name (SNDR_OPENAI_BASE_URL /
+    SNDR_RUNTIME_HOST), which is non-loopback but operator-trusted."""
+    hosts: set[str] = set()
+    rt = (os.environ.get("SNDR_RUNTIME_HOST") or "").strip()
+    if rt:
+        hosts.add(rt)
+    base = (os.environ.get("SNDR_OPENAI_BASE_URL") or "").strip()
+    if base:
+        try:
+            import urllib.parse
+            h = urllib.parse.urlparse(base).hostname
+            if h:
+                hosts.add(h)
+        except (ValueError, TypeError):
+            pass
+    return hosts
+
+
 def _resolve_api_key(explicit: Optional[str], host: Optional[str] = None) -> Optional[str]:
     """Pick the engine API key: explicit (from the GUI/host-profile) wins, else
     the operator env key.
@@ -83,17 +106,18 @@ def _resolve_api_key(explicit: Optional[str], host: Optional[str] = None) -> Opt
     Engines launched with ``--api-key`` (e.g. the 35B PROD on :8102) reject
     ``/v1/*`` with 401 unless a ``Authorization: Bearer`` header is sent.
 
-    SECURITY (H1): the operator's ENV key is for the LOCAL engine — it is only
-    returned for a loopback ``host``. Without this gate a user-supplied remote
-    ``host`` would receive the operator's key as a Bearer header (key
-    exfiltration to an attacker-controlled endpoint). An explicit key (GUI /
-    registered host-profile) is the caller's deliberate choice and is not gated.
+    SECURITY (H1): the operator's ENV key is only sent to a LOOPBACK host OR the
+    host the operator explicitly configured as their engine (``SNDR_OPENAI_BASE_URL``
+    / ``SNDR_RUNTIME_HOST``). Without this gate a user-supplied remote ``host``
+    would receive the operator's key as a Bearer header (key exfiltration to an
+    attacker-controlled endpoint). An explicit key (GUI / registered host-profile)
+    is the caller's deliberate choice and is not gated.
     """
     key = (explicit or "").strip()
     if key:
         return key
-    if host is not None and host not in _LOOPBACK_HOSTS:
-        return None  # never send the operator's env key to a non-loopback host
+    if host is not None and host not in _LOOPBACK_HOSTS and host not in _configured_engine_hosts():
+        return None  # never send the operator's env key to an UNconfigured non-loopback host
     for name in ("SNDR_ENGINE_API_KEY", "VLLM_API_KEY", "SNDR_OPENAI_API_KEY", "OPENAI_API_KEY"):
         val = (os.environ.get(name) or "").strip()
         if val:
