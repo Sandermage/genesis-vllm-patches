@@ -64,11 +64,14 @@ def _seg_prefix_match(prefix: str, route: str) -> bool:
 
 
 def _api_routes(create_app) -> list[str]:
-    app = create_app()
-    return [
-        r.path for r in app.routes
-        if isinstance(getattr(r, "path", None), str) and r.path.startswith("/api/")
-    ]
+    # Enumerate via the OpenAPI schema, NOT `app.routes` — version-robust:
+    # FastAPI >=0.138 wraps an included router in a lazy `_IncludedRouter`
+    # (no `.path`) instead of flattening its sub-routes into `app.routes`, so
+    # iterating `app.routes` silently undercounts on newer FastAPI. `openapi()`
+    # reflects every served path on every version. Paths keep the `{param}`
+    # style that `_seg_prefix_match` treats as a wildcard.
+    paths = create_app().openapi().get("paths", {})
+    return [p for p in paths if p.startswith("/api/")]
 
 
 def test_unified_daemon_serves_every_gui_api_path():
@@ -95,14 +98,15 @@ def test_unified_daemon_keeps_the_spa_catch_all_last():
     from sndr.product_api.unified import create_app as unified_create_app
 
     routes = unified_create_app().router.routes
-    api_after_spa = False
-    seen_spa = False
-    for r in routes:
-        if getattr(r, "name", None) in ("ui", "carbon-ui"):
-            seen_spa = True
-        elif seen_spa and getattr(r, "path", "").startswith("/api/"):
-            api_after_spa = True
-    assert not api_after_spa, "an /api/ route is registered AFTER the SPA catch-all (it would be shadowed)"
+    spa_idx = [i for i, r in enumerate(routes) if getattr(r, "name", None) in ("ui", "carbon-ui")]
+    # Position-based (version-robust: FastAPI >=0.138 wraps included routers in a
+    # pathless `_IncludedRouter`, so a `.path`-based check can't see them). When a
+    # built GUI is present the SPA "/" mount MUST be the last route, else anything
+    # after it is shadowed. No SPA (backend-only checkout) → the reorder is a no-op.
+    if spa_idx:
+        assert spa_idx[-1] == len(routes) - 1, (
+            "the SPA catch-all is not the last route in the unified daemon — "
+            "routes registered after it would be shadowed")
 
 
 def test_memory_routes_served_by_the_modular_daemon():
