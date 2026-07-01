@@ -17,6 +17,25 @@ def test_kv_bytes_per_token_matches_formula():
     assert kv_math.kv_bytes_per_token(arch, kv_bytes=1.0) == 131072
 
 
+def test_hybrid_grows_kv_only_in_attention_layers():
+    # A hybrid model (attn_layers=16 of 64) grows KV in ONLY its attention
+    # layers — 1/4 of a naive all-layers count (the ~4x over-estimate a generic
+    # calc makes on qwen3-next-hybrid).
+    dense = kv_math.ModelArch(name="d", num_layers=64, num_kv_heads=4, head_dim=256, params_b=27.0, weight_bits=4)
+    hybrid = kv_math.ModelArch(name="h", num_layers=64, attn_layers=16, num_kv_heads=4, head_dim=256, params_b=27.0, weight_bits=4)
+    assert kv_math.kv_bytes_per_token(hybrid, kv_bytes=1.0) == kv_math.kv_bytes_per_token(dense, kv_bytes=1.0) // 4
+    # so the fit calc gives the hybrid far more max context (KV is 4x lighter).
+    de = kv_math.estimate(dense, context=32768, tp=2, kv_bytes=0.5, gpu_vram_mib=24564)
+    he = kv_math.estimate(hybrid, context=32768, tp=2, kv_bytes=0.5, gpu_vram_mib=24564)
+    assert he["max_context"] > 3 * de["max_context"]
+
+
+def test_new_kv_dtypes_have_exact_bytes():
+    assert kv_math.KV_DTYPE_BYTES["q4_0"] == 0.5625
+    assert kv_math.KV_DTYPE_BYTES["turboquant_3bit_nc"] == 0.425
+    assert kv_math.KV_DTYPE_BYTES["int8_per_token_head"] == 1.01
+
+
 def test_weights_bytes_respect_quant_bits():
     arch = kv_math.ModelArch(name="t", num_layers=64, num_kv_heads=8, head_dim=128, params_b=27.0, weight_bits=4)
     # 27e9 params * 4 bits / 8 = 13.5 GB.

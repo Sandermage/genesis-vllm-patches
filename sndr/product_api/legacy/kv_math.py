@@ -20,16 +20,21 @@ guessed constant.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Any, Optional
+from typing import Any
 
 _MIB = 1024 * 1024
 
 # KV dtype → bytes per element. The OpenAI/vLLM names operators actually use.
+# Exact bytes/element include quant-scale overhead (calibrated against measured
+# per-card VRAM — cross-checked with the club-3090 kv-calc byte table).
 KV_DTYPE_BYTES: dict[str, float] = {
     "fp16": 2.0, "bf16": 2.0, "float16": 2.0,
     "fp8": 1.0, "fp8_e5m2": 1.0, "fp8_e4m3": 1.0, "int8": 1.0,
+    "int8_per_token_head": 1.01,  # int8 + per-token-head fp16 scale (compressed-tensors weights)
     "tq_k8v4": 0.75,  # Genesis turbo-quant KV (8-bit K + 4-bit V ≈ 0.75 B/elem)
+    "q4_0": 0.5625,   # 4-bit + per-group fp16 scale (0.5 + 0.0625)
     "int4": 0.5,
+    "turboquant_3bit_nc": 0.425,  # TQ3: 3-bit + QJL overhead (0.375 + 0.05); Genesis-only
 }
 
 
@@ -48,29 +53,44 @@ class ModelArch:
     params_b: float          # total parameters, in billions (estimate fallback)
     weight_bits: float       # quant bit-width of the weights (4/8/16…)
     is_moe: bool = False
-    active_params_b: Optional[float] = None  # informational (compute, not VRAM)
-    weights_bytes_total: Optional[int] = None  # exact resident weight bytes, if measured
-    max_context: Optional[int] = None          # native context window
+    active_params_b: float | None = None  # informational (compute, not VRAM)
+    weights_bytes_total: int | None = None  # exact resident weight bytes, if measured
+    max_context: int | None = None          # native context window
     # Sliding-window attention (Gemma, some Qwen): local layers cap their KV at
     # ``sliding_window`` tokens; only ``global_layers`` hold the full context.
-    sliding_window: Optional[int] = None
-    global_layers: Optional[int] = None
+    sliding_window: int | None = None
+    global_layers: int | None = None
+    # Hybrid (GDN/Mamba/DeltaNet) + MoE-hybrid models grow KV in ONLY their
+    # full-attention layers; the recurrent layers hold a fixed per-sequence state
+    # (weights/activation, not KV). ``attn_layers`` is that KV-growing count
+    # (None → all ``num_layers`` grow, the dense default). Without this a hybrid
+    # like Qwen3.6 (16 attn of 64) over-estimates KV ~4×.
+    attn_layers: int | None = None
     source: str = "curated"   # "curated" | "host-config"
+
+
+def _kv_growing_layers(arch: ModelArch) -> int:
+    """Number of layers whose KV grows with context (attention layers). Hybrid
+    models set ``attn_layers``; dense models grow all ``num_layers``."""
+    if arch.attn_layers is not None and arch.attn_layers > 0:
+        return min(arch.num_layers, arch.attn_layers)
+    return arch.num_layers
 
 
 def _kv_token_layers(arch: ModelArch, context: int) -> int:
     """Effective per-token KV "layer-tokens" at a context length, accounting for
-    sliding-window attention. Without a window this is ``num_layers·context``."""
+    both hybrid (only attn layers grow) and sliding-window attention."""
+    n = _kv_growing_layers(arch)
     if arch.sliding_window and arch.global_layers is not None:
-        glob = max(0, min(arch.num_layers, arch.global_layers))
-        local = arch.num_layers - glob
+        glob = max(0, min(n, arch.global_layers))
+        local = n - glob
         return glob * context + local * min(context, arch.sliding_window)
-    return arch.num_layers * context
+    return n * context
 
 
 def kv_bytes_per_token(arch: ModelArch, *, kv_bytes: float) -> int:
-    """Bytes of KV cache one token occupies across all layers (K and V)."""
-    return int(2 * arch.num_layers * arch.num_kv_heads * arch.head_dim * kv_bytes)
+    """Bytes of KV cache one token occupies across the KV-growing layers (K+V)."""
+    return int(2 * _kv_growing_layers(arch) * arch.num_kv_heads * arch.head_dim * kv_bytes)
 
 
 def weights_bytes(arch: ModelArch) -> int:
@@ -116,19 +136,20 @@ def estimate(
     if free_for_kv > 0 and per_layer_token > 0:
         unit = per_layer_token * concurrency / tp  # bytes per (layer-token)
         budget_layer_tokens = free_for_kv / unit
-        glob = arch.num_layers
+        n_grow = _kv_growing_layers(arch)  # only these layers grow KV (hybrid-aware)
+        glob = n_grow
         local = 0
         window = arch.sliding_window or 0
         if window and arch.global_layers is not None:
-            glob = max(0, min(arch.num_layers, arch.global_layers))
-            local = arch.num_layers - glob
-        # Regime A: ctx <= window → all layers count fully.
-        ctx_a = budget_layer_tokens / arch.num_layers if arch.num_layers else 0
+            glob = max(0, min(n_grow, arch.global_layers))
+            local = n_grow - glob
+        # Regime A: ctx <= window → all KV-growing layers count fully.
+        ctx_a = budget_layer_tokens / n_grow if n_grow else 0
         if not window or ctx_a <= window:
             max_context = int(ctx_a)
         else:
             # Regime B: ctx > window → local layers pinned at window.
-            denom = glob if glob else arch.num_layers
+            denom = glob if glob else n_grow
             max_context = int((budget_layer_tokens - local * window) / denom) if denom else 0
 
     mib = lambda b: round(b / _MIB)  # noqa: E731
@@ -184,7 +205,7 @@ def recommend(
     gpu_vram_mib: int,
     util: float,
     overhead_mib: float,
-    dtypes: Optional[dict[str, float]] = None,
+    dtypes: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
     """Rank KV dtypes by *fidelity* (bytes/elem) at the target operating point,
     flagging which fit. The recommended pick is the highest-fidelity KV that
@@ -236,8 +257,10 @@ def calibrate_overhead(
 # future step can auto-pull exact dims from each model's config.json over SSH.
 def known_models() -> dict[str, ModelArch]:
     return {
-        "qwen3.6-27b-int4": ModelArch("Qwen3.6-27B INT4", num_layers=64, num_kv_heads=8, head_dim=128, params_b=27.0, weight_bits=4),
-        "qwen3.6-35b-a3b-fp8": ModelArch("Qwen3.6-35B-A3B FP8 (MoE)", num_layers=64, num_kv_heads=8, head_dim=128, params_b=35.0, weight_bits=8, is_moe=True, active_params_b=3.0),
+        # Qwen3.6 hybrid (qwen3-next-hybrid): only the full-attention layers grow
+        # KV (the rest are GDN/DeltaNet recurrent). GQA num_kv_heads=4, head_dim=256.
+        "qwen3.6-27b-int4": ModelArch("Qwen3.6-27B INT4", num_layers=64, attn_layers=16, num_kv_heads=4, head_dim=256, params_b=27.0, weight_bits=4),
+        "qwen3.6-35b-a3b-fp8": ModelArch("Qwen3.6-35B-A3B FP8 (MoE)", num_layers=40, attn_layers=10, num_kv_heads=4, head_dim=256, params_b=35.0, weight_bits=8, is_moe=True, active_params_b=3.0),
         "gemma-4-31b-awq": ModelArch("Gemma 4 31B AWQ", num_layers=62, num_kv_heads=8, head_dim=128, params_b=31.0, weight_bits=4),
         "gemma-4-26b-a4b-awq": ModelArch("Gemma 4 26B-A4B AWQ (MoE)", num_layers=48, num_kv_heads=8, head_dim=128, params_b=26.0, weight_bits=4, is_moe=True, active_params_b=4.0),
     }
