@@ -392,11 +392,19 @@ _SINGLE_CARD: dict[str, list[dict[str, Any]]] = {
         {"engine": "beellama", "config": "dflash", "tps_single": 50.2, "tps_code": 99.7, "context_k": 160,
          "vram_gb": 23.0, "note": "PROMOTED single-card DEFAULT (ships 102K ctx); fastest single-card code path", "source": "club-3090 v0.24.0"},
     ],
+    # Gemma-4 (26B-A4B / 31B): a 24GB single-card vLLM OOMs on SM86 (Ampere) —
+    # the honest single-card path is a 32GB card (5090) or a llama.cpp GGUF.
+    "gemma-4": [
+        {"engine": "vllm", "config": "int8-mtp", "tps_single": 159.7, "tps_code": 215.1, "context_k": 131,
+         "vram_gb": 32, "note": "needs a 32GB card (5090); on 24GB single-card vLLM OOMs (SM86) — fall back to a llama.cpp GGUF Q4 there", "source": "club-3090"},
+    ],
 }
 # alias the registry keys to the escape-hatch table
 _SINGLE_CARD_ALIASES = {
     "qwen3.6-27b-int4": "qwen3.6-27b", "qwen3.6-27b-int4-autoround": "qwen3.6-27b",
     "qwen3.6-27b": "qwen3.6-27b",
+    "gemma-4-31b-awq": "gemma-4", "gemma-4-26b-a4b-awq": "gemma-4",
+    "gemma-4-31b": "gemma-4", "gemma-4-26b": "gemma-4", "gemma-4": "gemma-4",
 }
 
 

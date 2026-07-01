@@ -85,8 +85,9 @@ class MemoryEngine:
         self, *, owner_id: int, query: str, limit: int = 10, alpha: float = 0.5
     ) -> list[SearchHit]:
         """Blend semantic (vector) and lexical (keyword) search — alpha weights
-        the vector side. Each side is min-max normalized to [0,1] before mixing,
-        so exact terms/names/IDs (lexical) and meaning (vector) both count."""
+        the vector side. Each side is max-normalized (divided by its own top
+        score) to [0,1] before mixing, so exact terms/names/IDs (lexical) and
+        meaning (vector) both count on a comparable scale."""
         vec = self.store.search(
             owner_id=owner_id, query=self.embedder.embed_one(query), limit=limit * 2
         )
@@ -202,8 +203,15 @@ class MemoryEngine:
     ) -> tuple[list, list[tuple[int, int, str, float]]]:
         """Return (nodes, edges) for an owner's memory graph, bounded to `limit`
         nodes — the data the GUI force-graph renders. Edges are the undirected
-        set among the returned nodes (deduped). Storage-agnostic."""
-        nodes = list(self.store.iter_nodes(owner_id))[:limit]
+        set among the returned nodes (deduped). Storage-agnostic.
+
+        The bound keeps the most IMPORTANT (hub) nodes, not the first-inserted:
+        for a large memory a plain head-`limit` would render an arbitrary stale
+        corner. `sorted` is stable, so with importance unset (all 0.0) this
+        degrades to deterministic insertion order."""
+        nodes = sorted(
+            self.store.iter_nodes(owner_id), key=lambda n: n.importance, reverse=True
+        )[:limit]
         ids = {n.id for n in nodes}
         edges: list[tuple[int, int, str, float]] = []
         seen: set[tuple[int, int, str]] = set()

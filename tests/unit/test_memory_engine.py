@@ -203,3 +203,24 @@ class TestSemanticLinking:
         assert x in direct          # x is a direct ANN hit on the query token
         assert y not in direct      # y is not (it lacks the query token)
         assert y in expanded        # but it is reached via the similar_to edge
+
+
+def test_graph_returns_most_important_nodes_not_oldest():
+    """The GUI force-graph is bounded to `limit` nodes. It must show the most
+    IMPORTANT (hub) nodes, not the first-inserted (oldest) ones — otherwise a
+    large memory renders an arbitrary stale corner instead of the live cloud."""
+    eng = _engine()
+    ids = [eng.remember(owner_id=1, text=f"memory node number {i}") for i in range(5)]
+    # oldest are low-importance; two of the NEWEST are the hubs
+    eng.store.set_importance({ids[0]: 0.1, ids[1]: 0.1, ids[2]: 0.1, ids[3]: 0.9, ids[4]: 0.8})
+    nodes, _edges = eng.graph(owner_id=1, limit=2)
+    assert {n.id for n in nodes} == {ids[3], ids[4]}
+
+
+def test_graph_degrades_to_insertion_order_when_importance_unset():
+    """With no importance computed yet (all 0.0), the bound is stable — the first
+    `limit` inserted nodes — so a fresh graph still renders deterministically."""
+    eng = _engine()
+    ids = [eng.remember(owner_id=1, text=f"fresh node {i}") for i in range(4)]
+    nodes, _edges = eng.graph(owner_id=1, limit=2)
+    assert [n.id for n in nodes] == ids[:2]

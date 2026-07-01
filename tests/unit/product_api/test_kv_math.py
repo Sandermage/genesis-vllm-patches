@@ -207,3 +207,12 @@ def test_topology_note_only_for_multi_gpu_and_is_informational():
     assert note and note["source"] and "nvlink" in note["text"].lower()
     # it is a throughput note, NOT applied to the VRAM/context estimate
     assert note.get("applies_to_estimate") is False
+
+
+def test_single_card_alternatives_for_gemma_are_real():
+    # Gemma-4 users were getting NO single-card guidance (only 27B had it) — gap
+    # fix. The honest answer: a 32GB card (5090), or a llama.cpp GGUF on 24GB.
+    alts = kv_math.single_card_alternatives("gemma-4-31b-awq")
+    assert alts, "Gemma-4 must have single-card guidance"
+    assert all(a["tps_single"] > 0 and a["context_k"] > 0 for a in alts)  # no fabricated 0s
+    assert any(a["vram_gb"] >= 32 for a in alts)
