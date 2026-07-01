@@ -27,6 +27,11 @@ NET="${NET:-genesis_project_genesis}"                  # reach the engine + clip
 PGVOL="${PGVOL:-genesis_memory_pgdata}"
 DOCKER_SOCK="${DOCKER_SOCK:-/var/run/docker.sock}"
 GPU_DEVICE="${GPU_DEVICE:-nvidia.com/gpu=all}"         # CDI; set empty to disable GPU telemetry
+# Obsidian vault mount → enables the GUI's Memory "Import" (notes → memories,
+# [[wikilinks]] → edges). Read-only; drop .md notes into $VAULT_DIR on the host.
+# Paths in the GUI are confined to this root (GENESIS_MEMORY_VAULT_ROOT=/vault).
+VAULT_DIR="${VAULT_DIR:-$HOME/sndr-memory-vault}"
+mkdir -p "$VAULT_DIR"
 
 # Engine the GUI auto-connects to (model/version/KPIs auto-detect from it).
 ENGINE_BASE="${SNDR_OPENAI_BASE_URL:-http://vllm-qwen3.6-35b-balanced-k3:8102/v1}"
@@ -55,12 +60,14 @@ docker run -d --name "$NAME" --restart unless-stopped \
     -p "${PORT}:8800" \
     -v "${PGVOL}:/var/lib/postgresql/data" \
     -v "${DOCKER_SOCK}:/var/run/docker.sock" \
+    -v "${VAULT_DIR}:/vault:ro" \
     "${gpu_args[@]}" \
     "${envfile_args[@]}" \
     -e "SNDR_OPENAI_BASE_URL=${ENGINE_BASE}" \
     -e "SNDR_METRICS_URL=${ENGINE_METRICS}" \
     -e "SNDR_ENGINE_API_KEY=${ENGINE_KEY}" \
     -e "SNDR_RUNTIME_HOST=${ENGINE_HOST}" \
+    -e "GENESIS_MEMORY_VAULT_ROOT=/vault" \
     "$IMAGE" >/dev/null
 
 docker network connect "$NET" "$NAME" 2>/dev/null || true

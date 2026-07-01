@@ -107,10 +107,9 @@ export function MemoryPanel() {
   }, []);
 
   const doImport = useCallback(async () => {
-    if (!importPath.trim()) return;
     setBusy(true); setErr(null); setNotice(null);
     try {
-      const r = await api.memoryImportObsidian(importPath.trim(), OWNER);
+      const r = await api.memoryImportObsidian(importPath.trim() || ".", OWNER);  // empty → whole vault
       setShowImport(false); setImportPath("");
       setNotice(`${tr("Imported")} ${r.notes} ${tr("notes")}, ${r.links} ${tr("links")}${r.missing ? ` · ${r.missing} ${tr("unresolved")}` : ""}.`);
       loadStats();
@@ -282,13 +281,13 @@ export function MemoryPanel() {
               value={importPath}
               onChange={(e) => setImportPath(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") doImport(); }}
-              placeholder={tr("vault path (e.g. my-notes or a subfolder)")}
+              placeholder={tr("subfolder, or empty for the whole vault")}
               autoFocus
               style={{ width: "100%", marginBottom: 12 }}
             />
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button className="btn btn-ghost" onClick={() => setShowImport(false)}>{tr("Cancel")}</button>
-              <button className="primary-action" onClick={doImport} disabled={busy || !importPath.trim()} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button className="primary-action" onClick={doImport} disabled={busy} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Upload size={13} /> {tr("Import")}
               </button>
             </div>
