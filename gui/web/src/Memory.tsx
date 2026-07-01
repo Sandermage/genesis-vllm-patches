@@ -4,7 +4,7 @@
 // recall / remember / neighbors / stats / rebuild-links). The Obsidian-like
 // Sigma.js force-graph is layered on in 1c-ii.
 import { useCallback, useEffect, useState } from "react";
-import { Brain, Search, Plus, RefreshCw, Network, Gauge, Share2, List, Trash2, Download } from "lucide-react";
+import { Brain, Search, Plus, RefreshCw, Network, Gauge, Share2, List, Trash2, Download, Upload, X, Sparkles } from "lucide-react";
 import { api, type MemGraph, type MemHit, type MemNode, type MemNeighbor, type MemStats } from "./api";
 import { MemoryGraph } from "./MemoryGraph";
 import { tr } from "./i18n";
@@ -26,6 +26,10 @@ export function MemoryPanel() {
   const [detailBusy, setDetailBusy] = useState(false); // loading a node's detail + neighbors
   const [view, setView] = useState<"list" | "graph">("list");
   const [graph, setGraph] = useState<MemGraph | null>(null);
+  const [limit, setLimit] = useState(25);      // max recall/search hits
+  const [depth, setDepth] = useState(2);        // brain-recall graph-expand depth
+  const [showImport, setShowImport] = useState(false);
+  const [importPath, setImportPath] = useState("");
 
   const loadStats = useCallback(() => {
     api.memoryStats(OWNER).then(setStats).catch((e) => setErr(String(e)));
@@ -44,12 +48,12 @@ export function MemoryPanel() {
     setBusy(true); setErr(null); setNotice(null);
     try {
       const r = brain
-        ? await api.memoryRecall(q, OWNER, { limit: 25, expand_depth: 2, reinforce: false })
-        : await api.memorySearch(q, OWNER, 25);
+        ? await api.memoryRecall(q, OWNER, { limit, expand_depth: depth, reinforce: false })
+        : await api.memorySearch(q, OWNER, limit);
       setHits(r);
     } catch (e) { setErr(String(e)); }
     finally { setBusy(false); }
-  }, [q, brain]);
+  }, [q, brain, limit, depth]);
 
   const openNode = useCallback(async (id: number) => {
     setErr(null); setNotice(null); setDetailBusy(true);
@@ -102,6 +106,19 @@ export function MemoryPanel() {
     finally { setBusy(false); }
   }, []);
 
+  const doImport = useCallback(async () => {
+    if (!importPath.trim()) return;
+    setBusy(true); setErr(null); setNotice(null);
+    try {
+      const r = await api.memoryImportObsidian(importPath.trim(), OWNER);
+      setShowImport(false); setImportPath("");
+      setNotice(`${tr("Imported")} ${r.notes} ${tr("notes")}, ${r.links} ${tr("links")}${r.missing ? ` · ${r.missing} ${tr("unresolved")}` : ""}.`);
+      loadStats();
+      if (view === "graph") loadGraph();
+    } catch (e) { setErr(String(e)); }
+    finally { setBusy(false); }
+  }, [importPath, loadStats, loadGraph, view]);
+
   const rebuildLinks = useCallback(async () => {
     setBusy(true); setErr(null); setNotice(null);
     try {
@@ -127,6 +144,9 @@ export function MemoryPanel() {
         </button>
         <button className="btn btn-ghost" onClick={doExport} disabled={busy} title={tr("Download the memory graph as JSON (backup)")} style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <Download size={13} /> {tr("Export")}
+        </button>
+        <button className="btn btn-ghost" onClick={() => { setErr(null); setNotice(null); setShowImport(true); }} disabled={busy} title={tr("Import an Obsidian vault (notes → memories, [[wikilinks]] → edges)")} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Upload size={13} /> {tr("Import")}
         </button>
         <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
           <button className="btn btn-ghost" aria-pressed={view === "list"} onClick={() => setView("list")} title={tr("List")} style={{ display: "flex", alignItems: "center", gap: 4, opacity: view === "list" ? 1 : 0.6 }}>
@@ -162,6 +182,14 @@ export function MemoryPanel() {
         <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }} title={tr("Spread activation across the graph (brain recall) vs pure vector search")}>
           <input type="checkbox" checked={brain} onChange={(e) => setBrain(e.target.checked)} /> {tr("Brain recall")}
         </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }} title={tr("Max results")}>
+          {tr("Limit")} <input type="number" min={1} max={200} value={limit} onChange={(e) => setLimit(Math.min(200, Math.max(1, Number(e.target.value) || 25)))} style={{ width: 56 }} />
+        </label>
+        {brain && (
+          <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }} title={tr("Graph-expansion hops for brain recall")}>
+            {tr("Depth")} <input type="number" min={0} max={5} value={depth} onChange={(e) => setDepth(Math.min(5, Math.max(0, Number(e.target.value) || 0)))} style={{ width: 48 }} />
+          </label>
+        )}
         <button className="btn" onClick={runSearch} disabled={busy} style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <Search size={13} /> {tr("Search")}
         </button>
@@ -205,7 +233,20 @@ export function MemoryPanel() {
                 <Trash2 size={13} /> {tr("Forget")}
               </button>
             </div>
-            <p style={{ margin: "6px 0 12px" }}>{selected.content}</p>
+            <p style={{ margin: "6px 0 10px" }}>{selected.content}</p>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+              <span className="chip" title={tr("Importance (centrality) in [0,1]")} style={{ fontSize: 11, padding: "2px 8px", borderRadius: "var(--r-pill)", background: "var(--accent-soft)", color: "var(--accent-text)" }}>
+                <Sparkles size={11} style={{ verticalAlign: "-1px" }} /> {tr("importance")} {selected.importance.toFixed(2)}
+              </span>
+              <span className="chip" title={tr("Reinforcement strength = 1 + ln(1 + accesses)")} style={{ fontSize: 11, padding: "2px 8px", borderRadius: "var(--r-pill)", background: "var(--surface-2)", color: "var(--text-muted)" }}>
+                {tr("strength")} {selected.strength.toFixed(2)}
+              </span>
+              {selected.community_id !== null && (
+                <span className="chip" title={tr("Community (cloud) id")} style={{ fontSize: 11, padding: "2px 8px", borderRadius: "var(--r-pill)", background: "var(--surface-2)", color: "var(--text-muted)" }}>
+                  {tr("cloud")} #{selected.community_id}
+                </span>
+              )}
+            </div>
             <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>{tr("Connections")} ({neighbors.length})</div>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
               {neighbors.map((n) => (
@@ -225,6 +266,34 @@ export function MemoryPanel() {
           </div>
         )}
       </div>
+      )}
+
+      {showImport && (
+        <div className="dialog-backdrop" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) setShowImport(false); }}>
+          <section className="info-dialog" role="dialog" aria-modal="true" aria-label={tr("Import Obsidian vault")} style={{ maxWidth: 520 }}>
+            <div className="module-card-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Upload size={16} /> <h2 style={{ flex: 1, margin: 0 }}>{tr("Import Obsidian vault")}</h2>
+              <button className="icon-only" aria-label={tr("Close")} onClick={() => setShowImport(false)}><X size={15} /></button>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "8px 0" }}>
+              {tr("Notes become memories, [[wikilinks]] become edges, #tags are kept. The path is confined to the server's vault root.")}
+            </p>
+            <input
+              value={importPath}
+              onChange={(e) => setImportPath(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") doImport(); }}
+              placeholder={tr("vault path (e.g. my-notes or a subfolder)")}
+              autoFocus
+              style={{ width: "100%", marginBottom: 12 }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button className="btn btn-ghost" onClick={() => setShowImport(false)}>{tr("Cancel")}</button>
+              <button className="primary-action" onClick={doImport} disabled={busy || !importPath.trim()} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Upload size={13} /> {tr("Import")}
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );

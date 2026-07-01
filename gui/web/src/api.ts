@@ -1504,6 +1504,11 @@ export const api = {
   memoryGraph: (owner = 1, limit = 200) =>
     request<{ data: MemGraph }>(`/api/v1/memory/graph${query({ limit })}`, { headers: memHead(owner) })
       .then((r) => r.data),
+  memoryImportObsidian: (path: string, owner = 1) =>
+    request<{ data: { notes: number; links: number; missing: number } }>("/api/v1/memory/import/obsidian", {
+      method: "POST", headers: memHead(owner, true),
+      body: JSON.stringify({ path }),
+    }).then((r) => r.data),
   memoryConsolidate: (owner = 1, opts?: { tau?: number; k?: number }) =>
     request<{ data: { linked: number; communities: number; nodes: number } }>("/api/v1/memory/consolidate", {
       method: "POST", headers: memHead(owner, true),
