@@ -234,14 +234,16 @@ curl -s localhost:8811/api/v1/memory/remember -H 'X-Owner-Id:1' -H 'Authorizatio
   -H content-type:application/json -d '{"text":"the deploy server is 192.168.1.10:8811"}'
 ```
 
-**GUI — Memory panel** (Control Center → Engine → 🧠 Memory; served same-origin):
+**GUI — Memory panel** (Control Center → Engine → 🧠 Memory; served same-origin).
+Real screenshots of the live Control Center (dark theme, captured from `:8811`):
 
 <p align="center">
-  <img src="docs/assets/memory-gui-panel.svg" alt="GUI Memory panel — toolbar (nodes/edges/communities, Rebuild links, List/Graph), search with Brain recall, community-colored force graph, and a node-detail card with typed connections" width="900">
+  <img src="docs/assets/screenshots/memory-panel-list.png" alt="Live Memory panel, list view — toolbar with nodes/edges/communities counts, Rebuild links / Export / Import, Brain-recall search with scored hits, and a node-detail card showing importance / strength / cloud badges plus typed wikilink and similar_to connections with weights" width="900">
 </p>
 
-> Live screenshots of the rendered React GUI live under `docs/assets/screenshots/`
-> (capture from `:8811` / `npm run dev`). The diagrams above render directly on GitHub.
+<p align="center">
+  <img src="docs/assets/screenshots/memory-panel-graph.png" alt="Live Memory panel, graph view — force-directed memory graph with community-colored nodes and Hebbian-weighted edges" width="900">
+</p>
 
 Full operational + developer reference (architecture, every endpoint, config,
 security, deployment, troubleshooting, examples): **[`docs/memory/MANUAL.md`](docs/memory/MANUAL.md)**.

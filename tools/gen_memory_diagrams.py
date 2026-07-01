@@ -303,86 +303,6 @@ def _brain_svg() -> str:
     return "\n".join(p)
 
 
-def _gui_panel_svg() -> str:  # noqa: PLR0915 - a mockup drawing; many draw calls is inherent
-    """A stylized mockup of the GUI Memory panel — toolbar (stats + Rebuild +
-    List/Graph), search row (Brain recall), the community-colored force graph,
-    and a node-detail card. Not a screenshot; a clean, data-shaped illustration
-    that renders instantly on GitHub."""
-    rng = random.Random(20260702)
-    w, h = 960, 560
-    p = [_svg_open(w, h, "GUI memory panel")]
-    # window frame + titlebar
-    p.append("<rect x='16' y='16' width='928' height='528' rx='14' fill='#191c22' stroke='#2b303a' stroke-width='1.4'/>")
-    p.append("<rect x='16' y='16' width='928' height='44' rx='14' fill='#1f232b'/>")
-    p.append("<rect x='16' y='44' width='928' height='16' fill='#1f232b'/>")
-    for i, c in enumerate(("#f97362", "#f7b955", "#5fd07d")):
-        p.append(f"<circle cx='{40 + i * 20}' cy='38' r='6' fill='{c}'/>")
-    p.append(_label(120, 43, "\U0001f9e0  Memory", color=_FG, fs=14, anchor="start"))
-    # toolbar: stats + rebuild + list/graph toggle
-    p.append(_label(40, 92, "nodes", color=_MUTED, fs=12, anchor="start"))
-    p.append(_label(90, 92, "1,284", color=_FG, fs=13, anchor="start"))
-    p.append(_label(160, 92, "edges", color=_MUTED, fs=12, anchor="start"))
-    p.append(_label(210, 92, "3,902", color=_FG, fs=13, anchor="start"))
-    p.append(_label(290, 92, "communities", color=_MUTED, fs=12, anchor="start"))
-    p.append(_label(380, 92, "17", color=_FG, fs=13, anchor="start"))
-    p.append(_box(560, 76, 130, 28, ["↻  Rebuild links"], fs=12, rx=7))
-    p.append(_box(724, 76, 90, 28, ["List | Graph"], fs=12, rx=7, accent="#4f9cf9"))
-    # search row
-    p.append("<rect x='40' y='116' width='470' height='30' rx='8' fill='#12151b' stroke='#2b303a'/>")
-    p.append(_label(52, 136, "search memory…", color=_MUTED, fs=12.5, anchor="start"))
-    p.append("<rect x='524' y='118' width='16' height='16' rx='4' fill='#4f9cf9'/>")
-    p.append(_label(548, 136, "Brain recall", color=_FG, fs=12.5, anchor="start"))
-    p.append(_box(724, 116, 90, 30, ["Search"], fs=12, rx=7, accent="#5fd07d"))
-    # graph area (left) — community-colored clouds
-    gx, gy, gw, gh = 40, 168, 560, 352
-    p.append(f"<rect x='{gx}' y='{gy}' width='{gw}' height='{gh}' rx='10' fill='#12151b' stroke='#2b303a'/>")
-    clusters = [(150, 250, 9, 0), (330, 230, 11, 1), (470, 330, 8, 2), (250, 420, 8, 3)]
-    nodes: list[tuple[float, float, float, int]] = []
-    groups: list[list[int]] = []
-    for cx, cy, n, ci in clusters:
-        idx = []
-        for _ in range(n):
-            ang = rng.uniform(0, 2 * math.pi)
-            rad = rng.uniform(6, 58)
-            idx.append(len(nodes))
-            nodes.append((cx + rad * math.cos(ang), cy + rad * math.sin(ang),
-                          rng.choice([4, 4, 5, 6, 8]), ci))
-        groups.append(idx)
-    for idx in groups:
-        for i in range(len(idx)):
-            for j in range(i + 1, len(idx)):
-                if rng.random() < 0.24:
-                    x1, y1, _r1, _c1 = nodes[idx[i]]
-                    x2, y2, _r2, _c2 = nodes[idx[j]]
-                    p.append(f"<line x1='{x1:.1f}' y1='{y1:.1f}' x2='{x2:.1f}' y2='{y2:.1f}' stroke='#3a3f47' stroke-width='1' stroke-opacity='0.5'/>")
-    for _ in range(4):
-        ca, cb = rng.sample(range(len(clusters)), 2)
-        x1, y1, _r1, _c1 = nodes[rng.choice(groups[ca])]
-        x2, y2, _r2, _c2 = nodes[rng.choice(groups[cb])]
-        p.append(f"<line x1='{x1:.1f}' y1='{y1:.1f}' x2='{x2:.1f}' y2='{y2:.1f}' stroke='#5b6470' stroke-width='1.4' stroke-opacity='0.5' stroke-dasharray='4 3'/>")
-    for x, y, r, c in nodes:
-        p.append(f"<circle cx='{x:.1f}' cy='{y:.1f}' r='{r}' fill='{_PALETTE[c % len(_PALETTE)]}' stroke='#0d0f12' stroke-width='1'/>")
-    p.append(_label(gx + 12, gy + gh - 12, "colors = communities · size = importance · click a node → detail",
-                    color=_MUTED, fs=11, anchor="start"))
-    # node-detail card (right)
-    dx, dy, dw = 620, 168, 300
-    p.append(f"<rect x='{dx}' y='{dy}' width='{dw}' height='352' rx='10' fill='#12151b' stroke='#2b303a'/>")
-    p.append(_label(dx + 16, dy + 26, "#842  ·  note  ·  accessed 7×", color=_MUTED, fs=11.5, anchor="start"))
-    p.append(_label(dx + 16, dy + 52, "the deploy server is 192.168.1.10", color=_FG, fs=13, anchor="start"))
-    p.append(_label(dx + 16, dy + 70, "— memory persists in Postgres.", color=_FG, fs=13, anchor="start"))
-    p.append(_label(dx + 16, dy + 104, "connections (4)", color=_MUTED, fs=11.5, anchor="start"))
-    conns = [("#311", "similar_to", "0.86"), ("#77", "similar_to", "0.72"),
-             ("#903", "co_access", "0.64"), ("#12", "similar_to", "0.58")]
-    for i, (nid, rel, wgt) in enumerate(conns):
-        yy = dy + 130 + i * 30
-        p.append(f"<rect x='{dx + 12}' y='{yy - 16}' width='{dw - 24}' height='26' rx='6' fill='#181b21'/>")
-        p.append(_label(dx + 24, yy + 2, f"→ {nid}", color=_FG, fs=12, anchor="start"))
-        p.append(_label(dx + 96, yy + 2, rel, color=_MUTED, fs=11.5, anchor="start"))
-        p.append(_label(dx + dw - 24, yy + 2, wgt, color="#5fd07d", fs=12, anchor="end"))
-    p.append("</svg>")
-    return "\n".join(p)
-
-
 def main() -> None:
     _OUT.mkdir(parents=True, exist_ok=True)
     figures = {
@@ -390,7 +310,6 @@ def main() -> None:
         "memory-decay-curve.svg": _decay_svg,
         "memory-architecture.svg": _architecture_svg,
         "memory-brain-mechanics.svg": _brain_svg,
-        "memory-gui-panel.svg": _gui_panel_svg,
     }
     for name, fn in figures.items():
         (_OUT / name).write_text(fn(), encoding="utf-8")
