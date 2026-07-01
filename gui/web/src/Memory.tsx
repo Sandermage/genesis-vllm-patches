@@ -44,6 +44,10 @@ export function MemoryPanel() {
   useEffect(() => { if (view === "graph") loadGraph(); }, [view, loadGraph]);
 
   const runSearch = useCallback(async () => {
+    // Guard against Enter-key re-entry: the buttons are disabled while busy,
+    // but the input onKeyDown paths aren't — a held/double Enter used to fire
+    // duplicate requests (and the older response could land last).
+    if (busy) return;
     if (!q.trim()) { setHits([]); return; }
     setBusy(true); setErr(null); setNotice(null);
     try {
@@ -53,7 +57,7 @@ export function MemoryPanel() {
       setHits(r);
     } catch (e) { setErr(String(e)); }
     finally { setBusy(false); }
-  }, [q, brain, limit, depth]);
+  }, [busy, q, brain, limit, depth]);
 
   const openNode = useCallback(async (id: number) => {
     setErr(null); setNotice(null); setDetailBusy(true);
@@ -65,6 +69,7 @@ export function MemoryPanel() {
   }, []);
 
   const doRemember = useCallback(async () => {
+    if (busy) return; // Enter-key path bypasses the disabled button — no duplicate nodes
     if (!remember.trim()) return;
     setBusy(true); setErr(null); setNotice(null);
     try {
@@ -74,7 +79,7 @@ export function MemoryPanel() {
       if (view === "graph") loadGraph();
     } catch (e) { setErr(String(e)); }
     finally { setBusy(false); }
-  }, [remember, loadStats, loadGraph, view]);
+  }, [busy, remember, loadStats, loadGraph, view]);
 
   const doForget = useCallback(async (id: number) => {
     if (!window.confirm(tr("Forget this memory? This permanently deletes the node and its connections."))) return;
@@ -107,6 +112,7 @@ export function MemoryPanel() {
   }, []);
 
   const doImport = useCallback(async () => {
+    if (busy) return; // Enter-key path bypasses the disabled button — no duplicate imports
     setBusy(true); setErr(null); setNotice(null);
     try {
       const r = await api.memoryImportObsidian(importPath.trim() || ".", OWNER);  // empty → whole vault
@@ -116,7 +122,7 @@ export function MemoryPanel() {
       if (view === "graph") loadGraph();
     } catch (e) { setErr(String(e)); }
     finally { setBusy(false); }
-  }, [importPath, loadStats, loadGraph, view]);
+  }, [busy, importPath, loadStats, loadGraph, view]);
 
   const rebuildLinks = useCallback(async () => {
     setBusy(true); setErr(null); setNotice(null);

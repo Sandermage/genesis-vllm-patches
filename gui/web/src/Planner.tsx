@@ -34,6 +34,7 @@ export function KvCalcPanel() {
   const [loadingReal, setLoadingReal] = useState(false);
   const [calc, setCalc] = useState<KvCalcResult | null>(null);
   const timer = useRef<number | null>(null);
+  const calcSeq = useRef(0); // only the latest calcKv response may render
 
   useEffect(() => {
     api.calcModels().then((m) => {
@@ -83,8 +84,17 @@ export function KvCalcPanel() {
     } : null;
     timer.current = window.setTimeout(() => {
       const base = { context: ctx, concurrency: conc, tp, gpu_count: tp, gpu_vram_mib: vram, util, kv_dtype: kvDtype, gpu_name: gpuName || undefined, measured_total_mib: measured ? Number(measured) : undefined };
-      api.calcKv(realDims ? { ...base, ...realDims } : { ...base, model_id: modelId }).then(setCalc).catch(() => {});
+      // Sequence the responses: dragging the context slider fires a burst of
+      // calcKv calls, and an OLDER slower response landing last would show a
+      // fit verdict for different inputs than the controls display.
+      const seq = ++calcSeq.current;
+      api.calcKv(realDims ? { ...base, ...realDims } : { ...base, model_id: modelId })
+        .then((result) => { if (seq === calcSeq.current) setCalc(result); })
+        .catch(() => {});
     }, 120);
+    // Clear the pending debounce on dep-change AND on unmount (a timer firing
+    // after unmount is a wasted POST + a setState on an unmounted tree).
+    return () => { if (timer.current) window.clearTimeout(timer.current); };
   }, [modelId, ctx, conc, tp, vram, util, kvDtype, gpuName, measured, real]);
 
   const r = calc?.result;

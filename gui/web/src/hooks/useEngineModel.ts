@@ -10,7 +10,11 @@ import { api, type EngineModelDetail } from "../api";
 
 export function useEngineModel(host?: string, port?: number, apiKey?: string, hostId?: string) {
   return useQuery<EngineModelDetail>({
-    queryKey: ["engine-model", host ?? "", port ?? 0, hostId ?? ""],
+    // The key must include an apiKey fingerprint: typing a valid key used to
+    // leave the keyless 401/unreachable result cached (key change ≠ key in the
+    // queryKey) until the 30 s interval fired. Length+tail avoids putting the
+    // secret itself into the query cache key.
+    queryKey: ["engine-model", host ?? "", port ?? 0, hostId ?? "", apiKey ? `${apiKey.length}:${apiKey.slice(-4)}` : ""],
     queryFn: () => api.engineModel(host || undefined, port, apiKey || undefined, hostId || undefined),
     staleTime: 15_000,
     refetchInterval: 30_000,

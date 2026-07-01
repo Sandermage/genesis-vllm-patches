@@ -345,6 +345,12 @@ export function EnginePlayground({ host, models }: { host?: string; models?: str
     if (!model && models && models.length) setModel(models[0]!);
   }, [models, model]);
 
+  // Abort the in-flight stream when the playground unmounts — otherwise the
+  // fetch keeps reading and the engine keeps generating to max_tokens after
+  // the operator has navigated away (ChatConsole already does this).
+  const sendAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => sendAbortRef.current?.abort(), []);
+
   const send = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -352,6 +358,9 @@ export function EnginePlayground({ host, models }: { host?: string; models?: str
     setResult(null);
     setStreamText("");
     setStreamMeta(null);
+    sendAbortRef.current?.abort();
+    const controller = new AbortController();
+    sendAbortRef.current = controller;
     const payload = { messages: [{ role: "user", content: prompt }], model: model || undefined, max_tokens: maxTokens, temperature, host };
     try {
       if (stream) {
@@ -359,12 +368,12 @@ export function EnginePlayground({ host, models }: { host?: string; models?: str
           onDelta: (text) => setStreamText((prev) => prev + text),
           onDone: (meta) => setStreamMeta(meta),
           onError: (msg) => setError(msg)
-        });
+        }, controller.signal);
       } else {
         setResult(await api.engineChat(payload));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : tr("Request failed."));
+      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : tr("Request failed."));
     } finally {
       setBusy(false);
     }
@@ -728,11 +737,20 @@ function ChatRoutingHint({ value, onChange }: { value: string; onChange: (w: str
 }
 
 export function ChatConsole({ defaultHost, target, proxyEnabled = false }: { defaultHost?: string; target?: ChatTarget | null; proxyEnabled?: boolean }) {
-  const initial = useRef(loadChatState());
-  const [conversations, setConversations] = useState<Conversation[]>(initial.current.conversations);
-  const [activeId, setActiveId] = useState<string>(initial.current.activeId);
-  const [settings, setSettings] = useState<ChatSettings>({ ...initial.current.settings, host: initial.current.settings.host === "127.0.0.1" && defaultHost ? defaultHost : initial.current.settings.host });
+  // Lazy initializer: `useRef(loadChatState())` would re-parse the ENTIRE
+  // conversation store from localStorage on every render (the ref argument is
+  // evaluated each time and discarded) — during streaming that's a full JSON
+  // parse per token. useState's initializer runs exactly once.
+  const [initialState] = useState(loadChatState);
+  const [conversations, setConversations] = useState<Conversation[]>(initialState.conversations);
+  const [activeId, setActiveId] = useState<string>(initialState.activeId);
+  const [settings, setSettings] = useState<ChatSettings>({ ...initialState.settings, host: initialState.settings.host === "127.0.0.1" && defaultHost ? defaultHost : initialState.settings.host });
   const [status, setStatus] = useState<EngineStatus | null>(null);
+  // Probe bookkeeping: `probeSeq` serializes racing engineStatus probes (only
+  // the latest may write state); `probeResolved` distinguishes "probe pending"
+  // from "probe failed" so auto-adopt can't fire while the answer is in flight.
+  const probeSeq = useRef(0);
+  const [probeResolved, setProbeResolved] = useState(false);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [retrieving, setRetrieving] = useState(false);
@@ -762,24 +780,49 @@ export function ChatConsole({ defaultHost, target, proxyEnabled = false }: { def
   const messages = useMemo(() => active?.messages ?? [], [active]);
   const set = (patch: Partial<ChatSettings>) => setSettings((prev) => ({ ...prev, ...patch }));
 
+  // Persist debounced: during streaming every token re-renders, and a full
+  // JSON.stringify of the whole store per token is real main-thread jank on
+  // long histories. Trailing debounce + a flush-on-unmount so nothing is lost.
+  // Never persist the engine API key to localStorage (XSS-extractable secret);
+  // it lives only in memory for the session.
+  const persistRef = useRef({ conversations, activeId, settings });
+  persistRef.current = { conversations, activeId, settings };
+  const persistChat = () => {
+    const s = persistRef.current;
+    try { window.localStorage.setItem(CHAT_KEY, JSON.stringify({ conversations: s.conversations, activeId: s.activeId, settings: { ...s.settings, apiKey: "" } })); } catch { /* quota */ }
+  };
   useEffect(() => {
-    // Never persist the engine API key to localStorage (XSS-extractable secret);
-    // it lives only in memory for the session.
-    try { window.localStorage.setItem(CHAT_KEY, JSON.stringify({ conversations, activeId, settings: { ...settings, apiKey: "" } })); } catch { /* quota */ }
+    const t = window.setTimeout(persistChat, 400);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations, activeId, settings]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => () => persistChat(), []);
 
   async function refreshStatus(over?: { host?: string; port?: number; apiKey?: string; hostId?: string }) {
     const host = over?.host ?? settings.host;
     const port = over?.port ?? settings.port;
     const key = over?.apiKey ?? settings.apiKey;
     const hostId = over?.hostId ?? settings.hostId;
+    // Monotonic sequence: probes race (SSH-resolved hosts take seconds, and the
+    // effect fires per keystroke) — only the LATEST probe may write status, or a
+    // slow stale probe repaints reachability/models for an endpoint the user
+    // already left and silently swaps settings.model to the wrong engine's list.
+    const seq = ++probeSeq.current;
+    setProbeResolved(false);
     try {
       // host_id lets the daemon resolve a key-protected engine's bearer
       // server-side; a manually typed key (no hostId) still wins via header.
       const result = await api.engineStatus(host, port, key || undefined, hostId || undefined);
+      if (seq !== probeSeq.current) return;
       setStatus(result);
       setSettings((prev) => result.models.length && !result.models.includes(prev.model) ? { ...prev, model: result.models[0] ?? prev.model } : prev);
-    } catch { setStatus(null); }
+    } catch {
+      if (seq !== probeSeq.current) return;
+      setStatus(null);
+    } finally {
+      if (seq === probeSeq.current) setProbeResolved(true);
+    }
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- re-probe on settings change; refreshStatus reads the latest settings via closure
   useEffect(() => { void refreshStatus(); }, [settings.host, settings.port, settings.apiKey, settings.hostId]);
@@ -788,6 +831,10 @@ export function ChatConsole({ defaultHost, target, proxyEnabled = false }: { def
   // host/port/key/model and let the status effect above re-probe.
   useEffect(() => {
     if (!target) return;
+    // An explicit target is operator intent — permanently suppress auto-adopt
+    // for this session so it can't override the chosen endpoint in the same
+    // commit (its effect runs after this one with pre-update settings).
+    autoAdopted.current = true;
     // A registry host hands us its hostId (the daemon resolves the engine key
     // server-side) — clear any stale manually-typed key so it can't override.
     // An ad-hoc target without a hostId may carry an explicit apiKey instead.
@@ -971,13 +1018,19 @@ export function ChatConsole({ defaultHost, target, proxyEnabled = false }: { def
   const autoAdopted = useRef(false);
   useEffect(() => {
     if (autoAdopted.current) return;
+    // `status === null` means the probe is PENDING or failed — adopting on a
+    // pending probe clobbers a configured endpoint that is actually up (the
+    // discovery query returns warm-cached data synchronously on remount, so
+    // this effect used to win the race on every section re-entry). Only adopt
+    // once the configured target's probe has RESOLVED down.
+    if (!probeResolved) return;
     if (!reachable && discoveredElsewhere && discovered?.host) {
       autoAdopted.current = true;
       set({ host: discovered.host, port: discovered.port ?? 8000, hostId: discovered.host_id ?? "" });
       chatToast(`${tr("Auto-connected to")} ${discoveredModel?.id ?? tr("the engine")} ${tr("on")} ${discovered.host_id || discovered.host}`, "ok");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reachable, discoveredElsewhere, discovered]);
+  }, [probeResolved, reachable, discoveredElsewhere, discovered]);
   function applyRecommended() {
     if (!recSampling) return;
     set({

@@ -183,13 +183,24 @@ export default function App() {
   const runtimeMode = settings.runtimeMode;
   const setRuntimeMode = (mode: RuntimeMode) => setSettings((current) => ({ ...current, runtimeMode: mode }));
 
-  async function loadAll() {
+  // Request sequencing: `loadEpoch` invalidates in-flight loadAll/loadAux
+  // completions when a newer load (or a server switch) starts — otherwise a
+  // slow response from the OLD daemon can land after the new one and repopulate
+  // the UI with mixed-origin data. `selectionEpoch` is bumped by a user preset
+  // click so a concurrently-running loadAll can't stomp the explain/launch-plan
+  // the click just requested.
+  const loadEpoch = useRef(0);
+  const selectionEpoch = useRef(0);
+
+  async function loadAll(opts?: { preserveSelection?: boolean }) {
+    const epoch = ++loadEpoch.current;
+    const selEpoch = selectionEpoch.current;
     setState("loading");
     setError(null);
     // Kick off the auxiliary surfaces (hosts/env/bundles/…) in PARALLEL with the
     // critical path — they're independent, so overlapping them shaves the startup
     // wall-clock instead of running them after the dashboard is ready.
-    void loadAux();
+    void loadAux(epoch);
     try {
       const [overviewData, presetData, recommendationData, patchData, doctorData, configCatalogData] = await Promise.all([
         api.overview(),
@@ -199,6 +210,7 @@ export default function App() {
         api.patchDoctor(),
         api.v2ConfigCatalog()
       ]);
+      if (epoch !== loadEpoch.current) return; // superseded by a newer load/server switch
       setOverview(overviewData);
       setPresets(presetData);
       setRecommend(recommendationData);
@@ -207,15 +219,23 @@ export default function App() {
       setConfigCatalog(configCatalogData);
 
       // A deep-link (#presets?id=…) wins over the recommendation default so a
-      // shared/bookmarked link lands on the exact preset it points at.
+      // shared/bookmarked link lands on the exact preset it points at. The
+      // auto-refresh interval passes preserveSelection so a background reload
+      // keeps the operator's current pick instead of reverting to the default.
       const hashId = recordIdFromHash();
+      const keepCurrent =
+        opts?.preserveSelection && selectedPreset && presetData.presets.some((preset) => preset.id === selectedPreset)
+          ? selectedPreset
+          : null;
       const nextPreset =
         (hashId && presetData.presets.some((preset) => preset.id === hashId) ? hashId : null) ??
+        keepCurrent ??
         recommendationData.results[0]?.id ??
         overviewData.catalog.default_presets[0] ??
         presetData.presets.find((preset) => preset.has_card)?.id ??
         presetData.presets[0]?.id ??
         selectedPreset;
+      if (selEpoch !== selectionEpoch.current) { setState("ready"); return; } // user clicked a preset meanwhile
       setSelectedPreset(nextPreset);
       const nextRecord =
         presetData.presets.find((preset) => preset.id === nextPreset) ?? null;
@@ -229,48 +249,49 @@ export default function App() {
           mode: runtimeMode
         })
       ]);
+      if (epoch !== loadEpoch.current || selEpoch !== selectionEpoch.current) { setState("ready"); return; }
       setExplain(nextExplain);
       setLaunchPlan(nextLaunchPlan);
-      setConfigPreview(
-        await api.v2ConfigPreview({
-          model_id:
-            nextLaunchPlan.summary.model ?? nextRecord?.model ?? "qwen3.6-35b-a3b-fp8",
-          hardware_id:
-            nextLaunchPlan.summary.hardware ?? nextRecord?.hardware ?? recommendForm.hardware,
-          profile_id: nextLaunchPlan.summary.profile ?? undefined,
-          runtime: "docker"
-        })
-      );
+      const preview = await api.v2ConfigPreview({
+        model_id:
+          nextLaunchPlan.summary.model ?? nextRecord?.model ?? "qwen3.6-35b-a3b-fp8",
+        hardware_id:
+          nextLaunchPlan.summary.hardware ?? nextRecord?.hardware ?? recommendForm.hardware,
+        profile_id: nextLaunchPlan.summary.profile ?? undefined,
+        runtime: "docker"
+      });
+      if (epoch !== loadEpoch.current || selEpoch !== selectionEpoch.current) { setState("ready"); return; }
+      setConfigPreview(preview);
       setState("ready");
     } catch (err) {
+      if (epoch !== loadEpoch.current) return; // a stale failure must not flip the fresh UI to error
       setState("error");
       setError(err instanceof Error ? err.message : String(err));
     }
   }
 
-  async function loadAux() {
+  async function loadAux(epoch?: number) {
     // Secondary, best-effort surfaces. A failure here must not blank the
-    // primary dashboard, so it never flips the global error state.
-    try {
-      const [bundleData, diffData, proofData, userPresetData, doctorData, envData, hostData] = await Promise.all([
-        api.bundles(),
-        api.diffUpstream(),
-        api.proofStatus(),
-        api.userPresets(),
-        api.doctor(),
-        api.environment(),
-        api.hosts()
-      ]);
-      setBundles(bundleData.bundles);
-      setDiffUpstream(diffData);
-      setProofStatus(proofData);
-      setUserPresets(userPresetData);
-      setDoctorReport(doctorData);
-      setEnvironment(envData);
-      setHostProfiles(hostData.hosts);
-    } catch {
-      // Auxiliary capability data is optional.
-    }
+    // primary dashboard — and one failing endpoint must not blank the other
+    // six (allSettled, not all: a 500 from e.g. diffUpstream used to leave
+    // hosts/environment/bundles empty so the Hosts switcher looked unconfigured).
+    const [bundleData, diffData, proofData, userPresetData, doctorData, envData, hostData] = await Promise.allSettled([
+      api.bundles(),
+      api.diffUpstream(),
+      api.proofStatus(),
+      api.userPresets(),
+      api.doctor(),
+      api.environment(),
+      api.hosts()
+    ]);
+    if (epoch !== undefined && epoch !== loadEpoch.current) return; // stale (server switched)
+    if (bundleData.status === "fulfilled") setBundles(bundleData.value.bundles);
+    if (diffData.status === "fulfilled") setDiffUpstream(diffData.value);
+    if (proofData.status === "fulfilled") setProofStatus(proofData.value);
+    if (userPresetData.status === "fulfilled") setUserPresets(userPresetData.value);
+    if (doctorData.status === "fulfilled") setDoctorReport(doctorData.value);
+    if (envData.status === "fulfilled") setEnvironment(envData.value);
+    if (hostData.status === "fulfilled") setHostProfiles(hostData.value.hosts);
   }
 
   async function refreshUserPresets() {
@@ -290,6 +311,9 @@ export default function App() {
   }
 
   async function loadExplain(id: string) {
+    // A user click owns the selection: bump the epoch so any in-flight loadAll
+    // (or an older click's slower responses) can't stomp what we set here.
+    const selEpoch = ++selectionEpoch.current;
     setSelectedPreset(id);
     setError(null);
     try {
@@ -303,17 +327,19 @@ export default function App() {
           mode: runtimeMode
         })
       ]);
+      if (selEpoch !== selectionEpoch.current) return; // a newer click superseded this one
       setExplain(nextExplain);
       setLaunchPlan(nextLaunchPlan);
-      setConfigPreview(
-        await api.v2ConfigPreview({
-          model_id: nextLaunchPlan.summary.model,
-          hardware_id: nextLaunchPlan.summary.hardware,
-          profile_id: nextLaunchPlan.summary.profile ?? undefined,
-          runtime: "docker"
-        })
-      );
+      const preview = await api.v2ConfigPreview({
+        model_id: nextLaunchPlan.summary.model,
+        hardware_id: nextLaunchPlan.summary.hardware,
+        profile_id: nextLaunchPlan.summary.profile ?? undefined,
+        runtime: "docker"
+      });
+      if (selEpoch !== selectionEpoch.current) return;
+      setConfigPreview(preview);
     } catch (err) {
+      if (selEpoch !== selectionEpoch.current) return;
       setError(err instanceof Error ? err.message : String(err));
     }
   }
@@ -591,8 +617,12 @@ export default function App() {
   useEffect(() => {
     const currentSection = sectionFromHash();
     if (currentSection !== activeSection) {
-      // Section changed → write the canonical hash for the new section (push).
-      window.location.hash = buildHash(activeSection, activeSection === "presets" ? { id: selectedPreset } : undefined);
+      const canonical = buildHash(activeSection, activeSection === "presets" ? { id: selectedPreset } : undefined);
+      // Initial load (empty/invalid hash): REPLACE — a push would leave a dead
+      // history entry, making the first Back press appear inert. Real section
+      // changes push so Back/Forward navigate sections as expected.
+      if (currentSection === null) replaceHash(canonical);
+      else window.location.hash = canonical;
       return;
     }
     if (activeSection === "presets") {
@@ -644,15 +674,18 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runtimeMode, runtimeTarget, patchPolicy]);
 
+  // The interval is armed once per toggle, so it must call the LATEST loadAll
+  // through a ref — the closure captured at arm time reads stale recommendForm/
+  // runtimeTarget/patchPolicy/selectedPreset and used to silently revert the
+  // operator's choices every 20 s. preserveSelection keeps the current preset.
+  const loadAllRef = useRef(loadAll);
+  loadAllRef.current = loadAll;
   useEffect(() => {
     if (!settings.autoRefresh) return;
     const id = window.setInterval(() => {
-      if (!document.hidden) void loadAll();
+      if (!document.hidden) void loadAllRef.current({ preserveSelection: true });
     }, AUTO_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(id);
-    // Re-arm the interval only when the toggle changes; loadAll reads the
-    // latest state through its closure.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.autoRefresh]);
 
   function updateSettings(patch: Partial<GuiSettings>) {

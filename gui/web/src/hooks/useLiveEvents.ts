@@ -34,6 +34,13 @@ export function useLiveEvents(apiBase: string, enabled: boolean): BackendEvent[]
     let cursor = 0;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
+      // Keep the timer alive but skip the fetch while the tab is hidden — a
+      // backgrounded tab in token mode otherwise hits the daemon every 4 s
+      // forever (usePoll and the App auto-refresh already behave this way).
+      if (document.hidden) {
+        if (!cancelled) timer = setTimeout(poll, 4000);
+        return;
+      }
       try {
         const result = await api.eventsRecent(cursor);
         if (cancelled) return;
