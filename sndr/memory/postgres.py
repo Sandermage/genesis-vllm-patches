@@ -74,26 +74,67 @@ class PostgresStore(MemoryStore):
         self._schema = schema
         self._clock = clock
         self._lock = threading.Lock()
+        self._dsn = dsn  # kept for reconnect-on-drop (see _cursor)
         self._conn = psycopg.connect(dsn, autocommit=True)
         self._node = sql.Identifier(schema, "mem_node")
         self._edge = sql.Identifier(schema, "mem_edge")
-        # Filtered-ANN tuning: relaxed_order iterative scan keeps owner-scoped
-        # HNSW from starving the candidate set (else recall collapses); a higher
-        # ef_search trades a little latency for recall. GUCs exist in pgvector
-        # >= 0.8; guard for older builds.
-        with self._lock, self._conn.cursor() as cur:
+        with self._lock:
+            self._apply_session_gucs()
+        if ensure:
+            self.ensure_schema()
+
+    def _apply_session_gucs(self) -> None:
+        """Filtered-ANN tuning: relaxed_order iterative scan keeps owner-scoped
+        HNSW from starving the candidate set (else recall collapses); a higher
+        ef_search trades a little latency for recall. GUCs exist in pgvector
+        >= 0.8; guard for older builds. Session-scoped, so they must be
+        re-applied after every reconnect. Caller holds the lock."""
+        with self._conn.cursor() as cur:
             for stmt in (
                 "SET hnsw.iterative_scan = 'relaxed_order'",
                 "SET hnsw.ef_search = 100",
             ):
                 with contextlib.suppress(psycopg.Error):
                     cur.execute(stmt)
-        if ensure:
-            self.ensure_schema()
+
+    def _reconnect(self) -> None:
+        """Replace a dead connection (caller holds the lock)."""
+        with contextlib.suppress(Exception):
+            self._conn.close()
+        self._conn = psycopg.connect(self._dsn, autocommit=True)
+        self._apply_session_gucs()
+
+    @contextlib.contextmanager
+    def _cursor(self):
+        """Lock + cursor with self-healing on a dropped connection.
+
+        A single long-lived connection used to brick the whole memory API after
+        any Postgres restart / idle TCP drop (every later call raised
+        OperationalError until the daemon restarted). Now: a dead connection is
+        replaced when detected — the current operation may still fail once
+        (mid-query drop re-raises after reconnecting), but the NEXT call runs
+        on a fresh connection instead of failing forever.
+        """
+        with self._lock:
+            try:
+                cur = self._conn.cursor()
+            except psycopg.OperationalError:
+                self._reconnect()
+                cur = self._conn.cursor()
+            try:
+                yield cur
+            except psycopg.OperationalError:
+                with contextlib.suppress(Exception):
+                    cur.close()
+                self._reconnect()
+                raise
+            finally:
+                with contextlib.suppress(Exception):
+                    cur.close()
 
     # ── schema ───────────────────────────────────────────────────────────
     def ensure_schema(self) -> None:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
             cur.execute(
                 sql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(
@@ -174,6 +215,14 @@ class PostgresStore(MemoryStore):
                     " USING gin (to_tsvector('simple', content))"
                 ).format(ix=sql.Identifier(f"{self._schema}_node_tsv"), node=self._node)
             )
+            # Dedup-probe index: find_by_content runs on EVERY remember (twice
+            # per gateway turn). Without this it was a seq scan comparing full
+            # TEXT across the owner's rows. md5 expression keeps it tiny.
+            cur.execute(
+                sql.SQL(
+                    "CREATE INDEX IF NOT EXISTS {ix} ON {node} (owner_id, md5(content))"
+                ).format(ix=sql.Identifier(f"{self._schema}_node_md5"), node=self._node)
+            )
 
     def close(self) -> None:
         self._conn.close()
@@ -201,7 +250,7 @@ class PostgresStore(MemoryStore):
         properties: dict[str, Any] | None = None,
     ) -> int:
         now = self._clock()
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "INSERT INTO {node} (owner_id, kind, content, embedding,"
@@ -214,7 +263,7 @@ class PostgresStore(MemoryStore):
             return cur.fetchone()[0]
 
     def get_node(self, node_id: int) -> MemoryNode | None:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL("SELECT " + self._COLS + " FROM {node} WHERE id=%s").format(
                     node=self._node
@@ -225,7 +274,7 @@ class PostgresStore(MemoryStore):
         return self._row_to_node(row) if row else None
 
     def iter_nodes(self, owner_id: int) -> Iterator[MemoryNode]:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "SELECT " + self._COLS + " FROM {node} WHERE owner_id=%s ORDER BY id"
@@ -246,7 +295,7 @@ class PostgresStore(MemoryStore):
         properties: dict[str, Any] | None = None,
     ) -> None:
         now = self._clock()
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "INSERT INTO {edge} (src_id,dst_id,rel,weight,properties,valid_at)"
@@ -259,7 +308,7 @@ class PostgresStore(MemoryStore):
             )
 
     def edge_weight(self, src_id: int, dst_id: int, rel: str) -> float:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "SELECT weight FROM {edge} WHERE src_id=%s AND dst_id=%s AND rel=%s"
@@ -270,7 +319,7 @@ class PostgresStore(MemoryStore):
         return float(row[0]) if row else 0.0
 
     def invalidate_edge(self, src_id: int, dst_id: int, rel: str) -> bool:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "UPDATE {edge} SET invalid_at=%s"
@@ -285,7 +334,7 @@ class PostgresStore(MemoryStore):
         self, *, owner_id: int, query: Sequence[float], limit: int = 15
     ) -> list[SearchHit]:
         qv = _vec_literal(query, self._dim)
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "SELECT " + self._COLS + ", 1 - (embedding <=> %s::vector) AS score"
@@ -300,7 +349,7 @@ class PostgresStore(MemoryStore):
     def keyword_search(
         self, *, owner_id: int, query: str, limit: int = 15
     ) -> list[SearchHit]:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "SELECT " + self._COLS + ", ts_rank_cd(to_tsvector('simple', content),"
@@ -315,12 +364,15 @@ class PostgresStore(MemoryStore):
         return [SearchHit(node=self._row_to_node(r), score=float(r[12])) for r in rows]
 
     def find_by_content(self, *, owner_id: int, content: str) -> int | None:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
+            # md5(content) first hits the (owner_id, md5(content)) expression
+            # index; the full content equality then guards against collisions.
             cur.execute(
                 sql.SQL(
-                    "SELECT id FROM {node} WHERE owner_id=%s AND content=%s LIMIT 1"
+                    "SELECT id FROM {node}"
+                    " WHERE owner_id=%s AND md5(content)=md5(%s) AND content=%s LIMIT 1"
                 ).format(node=self._node),
-                (owner_id, content),
+                (owner_id, content, content),
             )
             row = cur.fetchone()
         return row[0] if row else None
@@ -328,7 +380,7 @@ class PostgresStore(MemoryStore):
     def neighbors(
         self, node_id: int, *, min_weight: float = 0.0
     ) -> list[tuple[int, str, float]]:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "SELECT dst_id, rel, weight FROM {edge}"
@@ -345,7 +397,7 @@ class PostgresStore(MemoryStore):
     def _touch(self, node_ids: Sequence[int], now: float) -> None:
         if not node_ids:
             return
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "UPDATE {node} SET access_count=access_count+1, accessed_at=%s,"
@@ -368,26 +420,34 @@ class PostgresStore(MemoryStore):
         if not srcs:
             return
         now = self._clock()
-        with self._lock, self._conn.cursor() as cur:
-            cur.execute(
-                sql.SQL(
-                    "INSERT INTO {edge} AS e (src_id,dst_id,rel,weight,valid_at)"
-                    " SELECT u.a, u.b, %(rel)s, %(eta)s, %(now)s"
-                    " FROM unnest(%(srcs)s::bigint[], %(dsts)s::bigint[]) AS u(a,b)"
-                    " ON CONFLICT (src_id,dst_id,rel) DO UPDATE"
-                    " SET weight = LEAST(1.0, e.weight * %(lam)s + %(eta)s),"
-                    " invalid_at = NULL"
-                ).format(edge=self._edge),
-                {"rel": CO_ACCESS_REL, "eta": HEBBIAN_ETA, "lam": HEBBIAN_LAMBDA,
-                 "now": now, "srcs": srcs, "dsts": dsts},
-            )
+        # The maintenance thread can prune a node between recall scoring and
+        # this reinforcement: filter to still-existing endpoints (and catch the
+        # residual TOCTOU FK violation) so a recall never 500s on that race.
+        try:
+            with self._cursor() as cur:
+                cur.execute(
+                    sql.SQL(
+                        "INSERT INTO {edge} AS e (src_id,dst_id,rel,weight,valid_at)"
+                        " SELECT u.a, u.b, %(rel)s, %(eta)s, %(now)s"
+                        " FROM unnest(%(srcs)s::bigint[], %(dsts)s::bigint[]) AS u(a,b)"
+                        " WHERE EXISTS (SELECT 1 FROM {node} n WHERE n.id = u.a)"
+                        "   AND EXISTS (SELECT 1 FROM {node} n WHERE n.id = u.b)"
+                        " ON CONFLICT (src_id,dst_id,rel) DO UPDATE"
+                        " SET weight = LEAST(1.0, e.weight * %(lam)s + %(eta)s),"
+                        " invalid_at = NULL"
+                    ).format(edge=self._edge, node=self._node),
+                    {"rel": CO_ACCESS_REL, "eta": HEBBIAN_ETA, "lam": HEBBIAN_LAMBDA,
+                     "now": now, "srcs": srcs, "dsts": dsts},
+                )
+        except psycopg.errors.ForeignKeyViolation:
+            pass  # a node vanished mid-statement — skip this reinforcement pass
 
     # ── maintenance (leak-bounding) ──────────────────────────────────────
     def prune(self, *, owner_id: int, max_nodes: int) -> int:
         from sndr.memory.model import EBBINGHAUS_S
 
         now = self._clock()
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL("SELECT count(*) FROM {node} WHERE owner_id=%s").format(
                     node=self._node
@@ -400,13 +460,18 @@ class PostgresStore(MemoryStore):
                 return 0
             # Salience identical to the reference: importance + retention +
             # 0.1*access_count; tie-break by id DESC (oldest id evicted first).
+            # Retention MUST include the reinforcement factor `strength`
+            # (R = exp(-age / (S * strength * (1+importance))), see
+            # MemoryStore._retention) — dropping it evicted exactly the
+            # frequently-recalled memories the spacing effect says to keep.
             cur.execute(
                 sql.SQL(
                     "DELETE FROM {node} WHERE id IN ("
                     " SELECT id FROM {node} WHERE owner_id=%(owner)s"
                     " ORDER BY (importance"
                     " + exp(- GREATEST(0, %(now)s - accessed_at)"
-                    "        / (%(s)s * (1 + GREATEST(0, importance))))"
+                    "        / (%(s)s * (CASE WHEN strength > 0 THEN strength ELSE 1 END)"
+                    "           * (1 + GREATEST(0, importance))))"
                     " + 0.1 * access_count) ASC, id DESC"
                     " LIMIT %(k)s)"
                 ).format(node=self._node),
@@ -415,7 +480,7 @@ class PostgresStore(MemoryStore):
             return cur.rowcount
 
     def delete_node(self, node_id: int, *, owner_id: int) -> bool:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             # Owner-scoped guard first: only proceed if the node is this owner's.
             cur.execute(
                 sql.SQL("SELECT 1 FROM {node} WHERE id = %s AND owner_id = %s").format(
@@ -442,7 +507,7 @@ class PostgresStore(MemoryStore):
             return
         ids = list(mapping.keys())
         vals = [mapping[i] for i in ids]
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "UPDATE {node} AS n SET community_id = v.c"
@@ -457,7 +522,7 @@ class PostgresStore(MemoryStore):
             return
         ids = list(mapping.keys())
         vals = [float(mapping[i]) for i in ids]
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "UPDATE {node} AS n SET importance = v.imp"
@@ -468,7 +533,7 @@ class PostgresStore(MemoryStore):
             )
 
     def count_nodes(self, owner_id: int | None = None) -> int:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             if owner_id is None:
                 cur.execute(
                     sql.SQL("SELECT count(*) FROM {node}").format(node=self._node)
@@ -482,13 +547,24 @@ class PostgresStore(MemoryStore):
                 )
             return cur.fetchone()[0]
 
-    def count_edges(self) -> int:
-        with self._lock, self._conn.cursor() as cur:
-            cur.execute(sql.SQL("SELECT count(*) FROM {edge}").format(edge=self._edge))
+    def count_edges(self, owner_id: int | None = None) -> int:
+        with self._cursor() as cur:
+            if owner_id is None:
+                cur.execute(sql.SQL("SELECT count(*) FROM {edge}").format(edge=self._edge))
+            else:
+                # Owner-scoped, live edges only (user-facing stats): edges whose
+                # source node belongs to the owner, invalidated ones excluded.
+                cur.execute(
+                    sql.SQL(
+                        "SELECT count(*) FROM {edge} e JOIN {node} n ON n.id = e.src_id "
+                        "WHERE n.owner_id = %s AND e.invalid_at IS NULL"
+                    ).format(edge=self._edge, node=self._node),
+                    (owner_id,),
+                )
             return cur.fetchone()[0]
 
     def count_communities(self, owner_id: int) -> int:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL(
                     "SELECT count(DISTINCT community_id) FROM {node} "
@@ -499,7 +575,7 @@ class PostgresStore(MemoryStore):
             return cur.fetchone()[0]
 
     def owner_ids(self) -> list[int]:
-        with self._lock, self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 sql.SQL("SELECT DISTINCT owner_id FROM {node}").format(node=self._node)
             )

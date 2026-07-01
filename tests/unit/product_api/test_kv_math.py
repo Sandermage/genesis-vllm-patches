@@ -216,3 +216,36 @@ def test_single_card_alternatives_for_gemma_are_real():
     assert alts, "Gemma-4 must have single-card guidance"
     assert all(a["tps_single"] > 0 and a["context_k"] > 0 for a in alts)  # no fabricated 0s
     assert any(a["vram_gb"] >= 32 for a in alts)
+
+
+def test_arch_from_dict_carries_attn_layers_for_custom_hybrid():
+    # A GUI/host-config payload describing a hybrid (attn_layers of num_layers)
+    # must keep attn_layers — dropping it over-estimated hybrid KV ~4x (the
+    # exact failure mode the hybrid-aware math exists to fix).
+    custom = kv_math.arch_from_dict({
+        "name": "host-hybrid", "num_layers": 64, "attn_layers": 16,
+        "num_kv_heads": 4, "head_dim": 256, "params_b": 27.0, "weight_bits": 4,
+    })
+    assert custom.attn_layers == 16
+    dense = kv_math.arch_from_dict({
+        "name": "host-dense", "num_layers": 64,
+        "num_kv_heads": 4, "head_dim": 256, "params_b": 27.0, "weight_bits": 4,
+    })
+    assert kv_math.kv_bytes_per_token(custom, kv_bytes=1.0) == \
+        kv_math.kv_bytes_per_token(dense, kv_bytes=1.0) // 4
+
+
+def test_calibrate_overhead_respects_hybrid_layers():
+    # Calibration back-solves overhead = measured - weights - KV(context). For a
+    # hybrid, KV(context) must use the attention-layer count — using all layers
+    # subtracted ~4x too much KV and understated overhead (optimistic verdicts).
+    hybrid = kv_math.ModelArch(name="h", num_layers=64, attn_layers=16,
+                               num_kv_heads=4, head_dim=256, params_b=27.0, weight_bits=4)
+    ctx, conc = 32768, 1
+    true_overhead = 1500.0
+    per_layer_token = 2 * 4 * 256 * 1.0
+    kv_hybrid_mib = per_layer_token * 16 * ctx * conc / (1024 * 1024)
+    measured = kv_math.weights_bytes(hybrid) / (1024 * 1024) + kv_hybrid_mib + true_overhead
+    est = kv_math.calibrate_overhead(hybrid, measured_total_mib=measured,
+                                     context=ctx, concurrency=conc, tp=1, kv_bytes=1.0)
+    assert abs(est - true_overhead) < 2.0, f"calibrated {est} vs true {true_overhead}"

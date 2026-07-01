@@ -9,6 +9,12 @@ scoping regardless).
 
 The MemoryEngine lives on `app.state.memory_engine` (set by `create_app` /
 `init_memory_engine`), so tests can inject an in-memory engine.
+
+Handlers are deliberately plain `def` (NOT `async def`): the engine/stores are
+fully synchronous (CPU embedding, psycopg behind a lock, pure-Python scans), so
+async handlers would run them ON the event loop and freeze the entire unified
+daemon (GUI + gateway) for the duration — FastAPI runs `def` handlers in its
+threadpool instead.
 """
 from __future__ import annotations
 
@@ -18,7 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from sndr.product_api.schemas.common import Envelope, ResponseMeta
 from sndr.product_api.schemas.memory import (
@@ -73,7 +79,7 @@ def _node_out(n) -> NodeOut:
 
 
 @router.post("/remember", summary="Store a memory")
-async def remember(
+def remember(
     body: RememberIn, request: Request
 ) -> Envelope[RememberOut]:
     eng = _engine(request)
@@ -86,9 +92,11 @@ async def remember(
 
 
 @router.get("/search", summary="Search (vector, or hybrid vector+keyword); no side effects")
-async def search(
-    request: Request, q: str, limit: int = 10, mode: str = "vector"
+def search(
+    request: Request, q: str, limit: int = Query(10, ge=1, le=500), mode: str = "vector"
 ) -> Envelope[list[HitOut]]:
+    # limit is bounded: an unbounded value made this a full-table fetch +
+    # serialization of every node (hybrid mode doubles it) — a trivial DoS.
     eng = _engine(request)
     owner = owner_from_request(request)
     if mode == "hybrid":
@@ -99,7 +107,7 @@ async def search(
 
 
 @router.post("/recall", summary="Brain recall (graph expand + reinforce)")
-async def recall(body: RecallIn, request: Request) -> Envelope[list[HitOut]]:
+def recall(body: RecallIn, request: Request) -> Envelope[list[HitOut]]:
     eng = _engine(request)
     hits = eng.recall(
         owner_id=owner_from_request(request), query=body.query, limit=body.limit,
@@ -109,7 +117,7 @@ async def recall(body: RecallIn, request: Request) -> Envelope[list[HitOut]]:
 
 
 @router.get("/node/{node_id}", summary="Fetch one node")
-async def get_node(node_id: int, request: Request) -> Envelope[NodeOut]:
+def get_node(node_id: int, request: Request) -> Envelope[NodeOut]:
     eng = _engine(request)
     owner = owner_from_request(request)
     node = eng.store.get_node(node_id)
@@ -119,7 +127,7 @@ async def get_node(node_id: int, request: Request) -> Envelope[NodeOut]:
 
 
 @router.delete("/node/{node_id}", summary="Forget one memory (delete node + its edges)")
-async def delete_node(node_id: int, request: Request) -> Envelope[dict]:
+def delete_node(node_id: int, request: Request) -> Envelope[dict]:
     eng = _engine(request)
     owner = owner_from_request(request)
     deleted = eng.store.delete_node(node_id, owner_id=owner)
@@ -129,7 +137,7 @@ async def delete_node(node_id: int, request: Request) -> Envelope[dict]:
 
 
 @router.post("/edge/invalidate", summary="Invalidate (bi-temporally retire) an edge")
-async def invalidate_edge(body: InvalidateEdgeIn, request: Request) -> Envelope[InvalidateEdgeOut]:
+def invalidate_edge(body: InvalidateEdgeIn, request: Request) -> Envelope[InvalidateEdgeOut]:
     eng = _engine(request)
     owner = owner_from_request(request)
     src = eng.store.get_node(body.src)
@@ -140,7 +148,7 @@ async def invalidate_edge(body: InvalidateEdgeIn, request: Request) -> Envelope[
 
 
 @router.get("/neighbors/{node_id}", summary="Adjacent nodes")
-async def neighbors(node_id: int, request: Request) -> Envelope[list[NeighborOut]]:
+def neighbors(node_id: int, request: Request) -> Envelope[list[NeighborOut]]:
     eng = _engine(request)
     owner = owner_from_request(request)
     node = eng.store.get_node(node_id)
@@ -154,13 +162,13 @@ async def neighbors(node_id: int, request: Request) -> Envelope[list[NeighborOut
 
 
 @router.get("/stats", summary="Owner memory counts")
-async def stats(request: Request) -> Envelope[StatsOut]:
+def stats(request: Request) -> Envelope[StatsOut]:
     eng = _engine(request)
     owner = owner_from_request(request)
     return Envelope(
         data=StatsOut(
             nodes=eng.store.count_nodes(owner_id=owner),
-            edges=eng.store.count_edges(),
+            edges=eng.store.count_edges(owner_id=owner),
             communities=eng.store.count_communities(owner_id=owner),
         ),
         meta=_meta(),
@@ -168,7 +176,11 @@ async def stats(request: Request) -> Envelope[StatsOut]:
 
 
 @router.get("/graph", summary="Owner memory graph (nodes + edges) for visualization")
-async def graph(request: Request, limit: int = 200) -> Envelope[GraphOut]:
+def graph(
+    request: Request, limit: int = Query(200, ge=1, le=100_000)
+) -> Envelope[GraphOut]:
+    # Upper bound matches the GUI Export (full-graph backup legitimately asks
+    # for 100k) while rejecting absurd values; runs in the threadpool anyway.
     eng = _engine(request)
     nodes, edges = eng.graph(owner_id=owner_from_request(request), limit=limit)
     return Envelope(
@@ -191,14 +203,14 @@ async def graph(request: Request, limit: int = 200) -> Envelope[GraphOut]:
 
 
 @router.post("/link", summary="Run the semantic auto-linker (batch)")
-async def link(body: LinkIn, request: Request) -> Envelope[LinkOut]:
+def link(body: LinkIn, request: Request) -> Envelope[LinkOut]:
     eng = _engine(request)
     created = eng.link_semantic(owner_id=owner_from_request(request), tau=body.tau, k=body.k)
     return Envelope(data=LinkOut(created=created), meta=_meta())
 
 
 @router.post("/consolidate", summary="Batch: auto-link + detect communities + importance")
-async def consolidate(body: LinkIn, request: Request) -> Envelope[ConsolidateOut]:
+def consolidate(body: LinkIn, request: Request) -> Envelope[ConsolidateOut]:
     eng = _engine(request)
     rep = eng.consolidate(owner_id=owner_from_request(request), tau=body.tau, k=body.k)
     return Envelope(data=ConsolidateOut(**rep), meta=_meta())
@@ -222,7 +234,7 @@ def _confined_vault(path: str) -> Path:
 
 
 @router.post("/import/obsidian", summary="Import an Obsidian vault into memory")
-async def import_obsidian(
+def import_obsidian(
     body: ObsidianImportIn, request: Request
 ) -> Envelope[ObsidianImportOut]:
     from sndr.memory.obsidian import import_vault

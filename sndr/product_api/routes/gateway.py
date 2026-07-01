@@ -17,6 +17,8 @@ without a live upstream. Owner scoping via the X-Owner-Id header.
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -68,6 +70,15 @@ async def list_upstreams(request: Request) -> Any:
     })
 
 
+def _capture_best_effort(mem: ConversationMemory, *, owner: int, messages: list, assistant: str) -> None:
+    """Persisting the turn is best-effort: a store/embedder failure (e.g. a DB
+    blip) must NEVER destroy a successful upstream reply the operator paid for."""
+    try:
+        mem.capture(owner_id=owner, messages=messages, assistant=assistant)
+    except Exception:  # noqa: BLE001
+        log.warning("gateway memory capture failed (reply still delivered)", exc_info=True)
+
+
 @router.post("/v1/chat/completions", summary="Memory-augmented OpenAI chat completions")
 async def chat_completions(request: Request) -> Any:
     upstream = _resolve_upstream(request)
@@ -78,21 +89,33 @@ async def chat_completions(request: Request) -> Any:
     owner = owner_from_request(request)
     mem = _memory(request)
     original = list(body.get("messages") or [])
-    body = {**body, "messages": mem.augment(owner_id=owner, messages=original)}
+    # augment = embed + recall — synchronous CPU/DB work; to_thread keeps the
+    # event loop (which serves the whole unified daemon) responsive.
+    augmented = await asyncio.to_thread(mem.augment, owner_id=owner, messages=original)
+    body = {**body, "messages": augmented}
 
     if body.get("stream") and stream_fn is not None:
         async def tee() -> AsyncIterator[bytes]:
             buf: list[str] = []
+            errored = False
             try:
                 async for chunk in stream_fn(body):
                     buf.append(chunk.decode("utf-8", "ignore"))
                     yield chunk
             except Exception:  # noqa: BLE001 - upstream failed mid-stream
+                errored = True
                 log.warning("gateway stream upstream error", exc_info=True)
-                # bytes may already be sent; capture only what completed below
+            # A truncated turn must not become a permanent "memory" that gets
+            # re-injected into future prompts — capture only clean completions.
+            # (A client disconnect raises GeneratorExit at the yield, which
+            # skips this entirely — also correct: the turn didn't complete.)
+            if errored:
+                return
             assistant = assistant_text_from_sse("".join(buf))
             if assistant:
-                mem.capture(owner_id=owner, messages=original, assistant=assistant)
+                await asyncio.to_thread(
+                    _capture_best_effort, mem, owner=owner, messages=original, assistant=assistant
+                )
 
         return StreamingResponse(tee(), media_type="text/event-stream")
 
@@ -100,11 +123,23 @@ async def chat_completions(request: Request) -> Any:
         response = await forward(body)
     except Exception as exc:  # noqa: BLE001 - the gateway wraps an upstream
         # Map any upstream failure to a clean 502/504 instead of a raw 500, and
-        # do NOT capture a failed turn.
+        # do NOT capture a failed turn. Propagate the upstream's own status/body
+        # when present — an opaque "HTTPStatusError" hid legitimate 400s like
+        # "model not found" behind a detail-free 502.
         status = 504 if "timeout" in type(exc).__name__.lower() else 502
-        raise HTTPException(status_code=status, detail=f"upstream error: {type(exc).__name__}") from exc
-    mem.capture(owner_id=owner, messages=original,
-                assistant=extract_assistant_text(response))
+        detail = f"upstream error: {type(exc).__name__}"
+        up_resp = getattr(exc, "response", None)
+        if up_resp is not None:
+            up_status = getattr(up_resp, "status_code", None)
+            up_text = ""
+            with contextlib.suppress(Exception):
+                up_text = (up_resp.text or "")[:300]
+            detail = f"upstream {up_status}: {up_text}" if up_status else detail
+        raise HTTPException(status_code=status, detail=detail) from exc
+    assistant = extract_assistant_text(response)
+    await asyncio.to_thread(
+        _capture_best_effort, mem, owner=owner, messages=original, assistant=assistant
+    )
     return JSONResponse(response)
 
 

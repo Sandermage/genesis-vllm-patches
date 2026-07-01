@@ -75,3 +75,49 @@ class TestCapture:
         mw, eng = _mw()
         mw.capture(owner_id=OWNER, messages=[{"role": "system", "content": "x"}])
         assert eng.store.count_nodes(owner_id=OWNER) == 0
+
+
+class TestContentParts:
+    """OpenAI content can be a PARTS ARRAY (multimodal SDKs) or None — str()
+    of those produced Python-repr garbage used as the recall query and stored
+    as a permanent memory."""
+
+    def test_last_user_extracts_text_parts(self):
+        mem, eng = _mw()
+        eng.remember(owner_id=1, text="the deploy server is 192.168.1.10")
+        msgs = [{"role": "user", "content": [
+            {"type": "text", "text": "where is the deploy server?"},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,xx"}},
+        ]}]
+        out = mem.augment(owner_id=1, messages=msgs)
+        # augmentation happened off the TEXT part (not a repr of the list)
+        assert out[0]["role"] == "system"
+        assert "192.168.1.10" in out[0]["content"]
+
+    def test_none_content_is_absent_not_the_string_none(self):
+        mem, eng = _mw()
+        mem.capture(owner_id=1, messages=[{"role": "user", "content": None}])
+        assert eng.store.count_nodes(owner_id=1) == 0  # nothing stored
+
+    def test_capture_stores_extracted_text_not_repr(self):
+        mem, eng = _mw()
+        mem.capture(owner_id=1, messages=[{"role": "user", "content": [
+            {"type": "text", "text": "remember the pin is dev672"},
+        ]}])
+        nodes = list(eng.store.iter_nodes(1))
+        assert len(nodes) == 1
+        assert nodes[0].content == "remember the pin is dev672"
+
+    def test_augment_merges_into_array_system_message_safely(self):
+        mem, eng = _mw()
+        eng.remember(owner_id=1, text="the deploy server is 192.168.1.10")
+        msgs = [
+            {"role": "system", "content": [{"type": "text", "text": "You are helpful."}]},
+            {"role": "user", "content": "where is the deploy server?"},
+        ]
+        out = mem.augment(owner_id=1, messages=msgs)
+        sys_content = out[0]["content"]
+        # stays a valid parts array (no f-string repr of a list)
+        assert isinstance(sys_content, list)
+        joined = "".join(p.get("text", "") for p in sys_content if isinstance(p, dict))
+        assert "192.168.1.10" in joined

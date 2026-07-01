@@ -32,10 +32,31 @@ class _RecallRemember(Protocol):
     ) -> int: ...
 
 
+def _text_of(content: Any) -> str:
+    """Extract the TEXT of an OpenAI message content field.
+
+    Content is a plain string for classic clients, but multimodal SDKs send a
+    PARTS ARRAY ([{"type":"text","text":...}, {"type":"image_url",...}]) and a
+    tool-call turn may carry None. A naive str() turned those into Python-repr
+    garbage that was used as the recall query and stored as a permanent memory.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            p.get("text", "") for p in content
+            if isinstance(p, dict) and p.get("type") == "text"
+        )
+    return ""  # None / unknown shapes: no text
+
+
 def _last_user(messages: list[dict[str, Any]]) -> str | None:
     for m in reversed(messages):
-        if m.get("role") == "user" and str(m.get("content", "")).strip():
-            return str(m["content"])
+        if m.get("role") != "user":
+            continue
+        text = _text_of(m.get("content")).strip()
+        if text:
+            return text
     return None
 
 
@@ -72,7 +93,13 @@ class ConversationMemory:
         block = _INJECT_HEADER + "\n" + "\n".join(f"- {s}" for s in snippets)
         out = [dict(m) for m in messages]  # shallow copy; never mutate caller's list
         if out and out[0].get("role") == "system":
-            out[0]["content"] = f"{out[0]['content']}\n\n{block}"
+            existing = out[0].get("content")
+            if isinstance(existing, list):
+                # Parts-array system message: append a text part — an f-string
+                # would embed the list's Python repr and garble the prompt.
+                out[0]["content"] = [*existing, {"type": "text", "text": f"\n\n{block}"}]
+            else:
+                out[0]["content"] = f"{existing}\n\n{block}"
             return out
         return [{"role": "system", "content": block}, *out]
 

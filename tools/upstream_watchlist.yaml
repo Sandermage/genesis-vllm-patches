@@ -1,4 +1,25 @@
 watch:
+- upstream: vllm#39598
+  status: residual-unmitigated-upstream
+  severity: P1-correctness
+  local_patches:
+  - P64
+  action: probe-on-our-stack
+  since: 2026-07-02
+  notes: |
+    club-3090 #145 close-out (2026-06-13, read from issue comments): v0.22.0
+    fixed tool_choice=auto + streaming natively, BUT a RESIDUAL remains on stock
+    vLLM: tool_choice=REQUIRED + thinking + streaming DROPS 13/20 tool calls
+    with MTP n=3 (clean 0/20 without MTP; parser-independent) - vllm#39598
+    resurfacing un-mitigated. Genesis P64 was the mitigation and is version-
+    capped off on >=dev491 pins (engine-native parser owns streaming). Our 35B
+    runs MTP K=5 + qwen3_xml -> DIRECT exposure for tool agents that use
+    tool_choice=required with streaming. Their 8-packs never caught it because
+    packs run non-streaming; they built scripts/stream-toolcall-probe.py for it.
+    ACTION: replicate the probe against our live 35B (required+streaming+MTP,
+    n>=20); if drops reproduce, either re-scope P64's version cap or pin the
+    known-good parser path; also gate future pin bumps with this probe (the
+    fleet_boot_smoke tool-call check is auto/non-streaming and misses this).
 - upstream: vllm#40886
   status: merged
   fix_status: absorbed-in-v0.24.0

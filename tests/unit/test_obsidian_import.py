@@ -114,3 +114,23 @@ def test_missing_vault_raises(tmp_path):
     import pytest
     with pytest.raises((FileNotFoundError, NotADirectoryError)):
         import_vault(engine=_engine(), owner_id=1, vault_path=str(tmp_path / "nope"))
+
+
+def test_identical_content_files_keep_both_link_lists(tmp_path):
+    """Two files with IDENTICAL content dedup to one node — but each file's
+    wikilinks used to OVERWRITE the previous one's in the per-node dict, so the
+    first file's edges were silently never created."""
+    (tmp_path / "A.md").write_text("Same body. [[Target1]]\n", encoding="utf-8")
+    # identical content -> same node id via dedup; different filename/link
+    (tmp_path / "B.md").write_text("Same body. [[Target1]]\n", encoding="utf-8")
+    (tmp_path / "C.md").write_text("Links to [[A]] and [[B]].\n", encoding="utf-8")
+    (tmp_path / "Target1.md").write_text("t1\n", encoding="utf-8")
+    eng = _engine()
+    report = import_vault(engine=eng, owner_id=1, vault_path=str(tmp_path))
+    t = _by_title(eng)
+    # A+B deduped to ONE node (title = first file); its Target1 link must exist
+    assert eng.store.edge_weight(t["A"], t["Target1"], "wikilink") > 0.0
+    # C's [[A]] and [[B]] BOTH resolve to the deduped node (stem aliases) ...
+    assert eng.store.edge_weight(t["C"], t["A"], "wikilink") > 0.0
+    # ... which is exactly what missing==0 proves for the [[B]] alias.
+    assert report["missing"] == 0

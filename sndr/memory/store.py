@@ -232,8 +232,10 @@ class MemoryStore(ABC):
         """Total node count, or the count for one owner."""
 
     @abstractmethod
-    def count_edges(self) -> int:
-        """Total edge count (for leak/soak assertions)."""
+    def count_edges(self, owner_id: int | None = None) -> int:
+        """Edge count — global (leak/soak assertions) or scoped to one owner
+        (edges whose source node belongs to the owner). User-facing stats must
+        use the scoped form: the global number leaks other owners' volume."""
 
     @abstractmethod
     def count_communities(self, owner_id: int) -> int:

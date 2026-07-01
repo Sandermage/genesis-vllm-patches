@@ -15,8 +15,9 @@ Everything here is env-gated and side-effect-free at import:
 """
 from __future__ import annotations
 
+import contextlib
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -80,26 +81,41 @@ def make_upstream(url: str, key: str | None) -> dict:
             h["Authorization"] = f"Bearer {key}"
         return h
 
-    async def forward(body: dict) -> dict:
+    # One long-lived pooled client per upstream (created lazily on the running
+    # loop): a fresh AsyncClient per request paid a TCP(+TLS) handshake on
+    # every chat AND every stream. Closed via the "close" hook on app shutdown.
+    _client: dict[str, Any] = {"c": None}
+
+    def _get_client():
         import httpx
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{base}/chat/completions", json=body, headers=_headers()
+        if _client["c"] is None or _client["c"].is_closed:
+            _client["c"] = httpx.AsyncClient(
+                timeout=httpx.Timeout(300.0, connect=10.0)
             )
-            resp.raise_for_status()
-            return resp.json()
+        return _client["c"]
+
+    async def forward(body: dict) -> dict:
+        client = _get_client()
+        resp = await client.post(
+            f"{base}/chat/completions", json=body, headers=_headers(), timeout=120.0
+        )
+        resp.raise_for_status()
+        return resp.json()
 
     async def stream(body: dict):
-        import httpx
-
-        async with httpx.AsyncClient(timeout=300.0) as client, client.stream(
+        client = _get_client()
+        async with client.stream(
             "POST", f"{base}/chat/completions", json=body, headers=_headers()
         ) as resp:
             async for chunk in resp.aiter_bytes():
                 yield chunk
 
-    return {"forward": forward, "stream": stream, "url": base}
+    async def close() -> None:
+        if _client["c"] is not None and not _client["c"].is_closed:
+            await _client["c"].aclose()
+
+    return {"forward": forward, "stream": stream, "url": base, "close": close}
 
 
 def attach_gateway(app: FastAPI) -> None:
@@ -139,6 +155,15 @@ def attach_gateway(app: FastAPI) -> None:
     app.state.gateway_default = (
         os.environ.get("GATEWAY_DEFAULT_UPSTREAM") or next(iter(upstreams))
     )
+
+    @app.on_event("shutdown")
+    async def _close_gateway_clients() -> None:  # pragma: no cover - shutdown path
+        for up in upstreams.values():
+            close = up.get("close")
+            if close is not None:
+                with contextlib.suppress(Exception):
+                    await close()
+
     log.info(
         "product_api.gateway.upstreams",
         extra={"names": sorted(upstreams), "default": app.state.gateway_default},

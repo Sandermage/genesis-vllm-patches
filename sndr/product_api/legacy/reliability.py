@@ -16,8 +16,9 @@ probe outcomes and may consult :meth:`allow` to decide whether to back off.
 """
 from __future__ import annotations
 
+import threading
 from collections import OrderedDict
-from typing import Any, Optional
+from typing import Any
 
 _MAX_SAMPLES = 60
 _SPARK = 30
@@ -28,20 +29,25 @@ _MAX_KEYS = 512
 
 class ReliabilityTracker:
     def __init__(self, *, fail_threshold: int = 3, recovery: float = 60.0) -> None:
-        self._hist: "OrderedDict[str, list[tuple[float, bool]]]" = OrderedDict()
+        self._hist: OrderedDict[str, list[tuple[float, bool]]] = OrderedDict()
         self._fail_threshold = fail_threshold
         self._recovery = recovery
+        # The module-level singleton is written from hosts_probe's threadpool
+        # threads while /hosts/reliability snapshots iterate it — unlocked, the
+        # LRU move_to_end/popitem could race an iteration into a RuntimeError.
+        self._mu = threading.Lock()
 
     def record(self, key: str, ok: bool, *, now: float) -> None:
-        hist = self._hist.get(key)
-        if hist is None:
-            hist = self._hist[key] = []
-        hist.append((now, bool(ok)))
-        if len(hist) > _MAX_SAMPLES:
-            del hist[: len(hist) - _MAX_SAMPLES]
-        self._hist.move_to_end(key)  # mark most-recently-used
-        while len(self._hist) > _MAX_KEYS:  # evict the least-recently-used key(s)
-            self._hist.popitem(last=False)
+        with self._mu:
+            hist = self._hist.get(key)
+            if hist is None:
+                hist = self._hist[key] = []
+            hist.append((now, bool(ok)))
+            if len(hist) > _MAX_SAMPLES:
+                del hist[: len(hist) - _MAX_SAMPLES]
+            self._hist.move_to_end(key)  # mark most-recently-used
+            while len(self._hist) > _MAX_KEYS:  # evict the least-recently-used key(s)
+                self._hist.popitem(last=False)
 
     def _consecutive_fails(self, hist: list[tuple[float, bool]]) -> int:
         cf = 0
@@ -65,7 +71,7 @@ class ReliabilityTracker:
             return True
         return self._state(hist, now) != "open"
 
-    def snapshot(self, key: str, *, now: float) -> Optional[dict[str, Any]]:
+    def snapshot(self, key: str, *, now: float) -> dict[str, Any] | None:
         hist = self._hist.get(key)
         if not hist:
             return None
@@ -81,7 +87,9 @@ class ReliabilityTracker:
         }
 
     def snapshot_all(self, *, now: float) -> dict[str, Any]:
-        return {key: self.snapshot(key, now=now) for key in self._hist}
+        with self._mu:
+            keys = list(self._hist)
+        return {key: self.snapshot(key, now=now) for key in keys}
 
 
 # Module-level singleton shared by the probe routes + the reliability endpoint.

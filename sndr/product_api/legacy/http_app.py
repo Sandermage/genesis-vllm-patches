@@ -561,7 +561,7 @@ def create_app(
             ) from exc
 
     @app.get("/api/v1/models/cache")
-    async def models_cache() -> dict[str, Any]:
+    def models_cache() -> dict[str, Any]:
         return _dataclass_payload(collect_model_cache_report())
 
     @app.get("/api/v1/models/hub/search")
@@ -575,7 +575,7 @@ def create_app(
             raise HTTPException(status_code=502, detail=f"Hugging Face search failed: {exc}")
 
     @app.post("/api/v1/models/download")
-    async def models_download(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def models_download(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         """Download model weights — a catalog model (``model_id``) or any Hugging
         Face repo (``repo_id``). With --enable-apply it runs the pull as a live
         background job (status/log/progress); otherwise a dry-run job. Both ids
@@ -941,7 +941,7 @@ def create_app(
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.post("/api/v1/launch/apply")
-    async def launch_apply(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    def launch_apply(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         """Launch a preset (= start its service).
 
         Dry-run by default. When apply is enabled it executes the start action;
@@ -1070,7 +1070,7 @@ def create_app(
         return preflight_status()
 
     @app.get("/api/v1/patches/apply-summary")
-    async def patches_apply_summary() -> dict[str, Any]:
+    def patches_apply_summary() -> dict[str, Any]:
         """The running engine's REAL patch-apply state, from its own self-test
         (a fixed read-only ``self-test --json`` exec — not the operator exec
         endpoint, so it needs no SNDR_ENABLE_EXEC). passed/failed/warned/skipped
@@ -1099,7 +1099,7 @@ def create_app(
         return licensing.status()
 
     @app.get("/api/v1/flags/matrix")
-    async def flags_matrix(container: Optional[str] = None) -> dict[str, Any]:
+    def flags_matrix(container: Optional[str] = None) -> dict[str, Any]:
         """The full GENESIS_ENABLE_* catalogue with defaults; when ``container``
         names a local engine, overlays its live ON/OFF flags + drift verdicts."""
         from . import flag_matrix
@@ -1274,7 +1274,7 @@ def create_app(
         return profile, target
 
     @app.post("/api/v1/install/apply")
-    async def install_apply(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def install_apply(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         """Execute an install plan on a host over SSH — MUTATING, double-gated.
 
         Requires the daemon to run with SNDR_ENABLE_APPLY (apply_on) AND an
@@ -1307,7 +1307,7 @@ def create_app(
             raise HTTPException(status_code=404, detail=f"Unknown preset: {payload.get('preset_id')}")
 
     @app.post("/api/v1/install/node")
-    async def install_node(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def install_node(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         """One-button node setup over SSH — MUTATING, double-gated. Ships the
         daemon code + runs the management daemon on the engine host so the GUI can
         switch to it. Requires apply_on AND confirm:true."""
@@ -1936,7 +1936,7 @@ def create_app(
         )
 
     @app.post("/api/v1/alerts/test")
-    async def alerts_test(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def alerts_test(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         if not apply_on:
             raise HTTPException(status_code=403, detail="apply is disabled — start the daemon with SNDR_ENABLE_APPLY=1")
         from . import notify
@@ -1963,7 +1963,7 @@ def create_app(
         return _dataclass_payload(job)
 
     @app.get("/api/v1/caveats")
-    async def caveats_list() -> dict[str, Any]:
+    def caveats_list() -> dict[str, Any]:
         """Runtime caveats registry — known host-condition issues — each
         evaluated against the live host so the GUI can flag which ones fire.
         Read-only; host probe is best-effort (caveats still listed if it fails)."""
@@ -2073,7 +2073,7 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post("/api/v1/services/apply")
-    async def services_apply(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    def services_apply(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         """Apply a lifecycle action.
 
         Dry-run by default. When apply is enabled, read-only actions
@@ -2698,7 +2698,7 @@ def create_app(
         return proxmox_client.node_detail(node)
 
     @app.get("/api/v1/alerts")
-    async def alerts_route() -> dict[str, Any]:
+    def alerts_route() -> dict[str, Any]:
         """Evaluate hardware-threshold rules over the daemon host's live telemetry
         and merge into the shared alert store. The GUI polls this for its bell."""
         import time as _t
@@ -2789,7 +2789,7 @@ def create_app(
         return StreamingResponse(gen(), media_type="text/event-stream")
 
     @app.post("/api/v1/reports/bundle")
-    async def reports_bundle(payload: dict = Body(...)) -> dict[str, Any]:
+    def reports_bundle(payload: dict = Body(...)) -> dict[str, Any]:
         report_type = str(payload.get("report_type") or "catalog")
         preset_id = str(payload.get("preset_id") or "")
         redact = bool(payload.get("redact", True))
@@ -3583,16 +3583,22 @@ def _install_auth(app, *, bind_host: str, apply_on: bool):
             if request.state.user is None and token.startswith("sndr_pat_"):
                 request.state.user = service.verify_api_token(token)
         path = request.url.path
+        # Guarded surface: the project API (/api/v1/*) AND the OpenAI-compatible
+        # gateway (/v1/*). The unified factory mounts the gateway with guard=False
+        # relying on THIS middleware — an /api/v1-only predicate left
+        # /v1/chat/completions and /v1/upstreams wide open with auth enabled
+        # (cross-owner memory read/write via X-Owner-Id + LLM abuse).
+        guarded = path.startswith("/api/v1/") or path.startswith("/v1/")
         # CSRF: cookie-authenticated mutations must be same-origin. OAuth
         # callbacks (cross-site form_post from Apple) are exempted by path.
         if (
             request.method in _MUTATING
-            and path.startswith("/api/v1/")
+            and guarded
             and not path.startswith("/api/v1/auth/oauth/")
             and not _csrf_ok(request)
         ):
             return JSONResponse({"detail": "Cross-origin request blocked (CSRF)."}, status_code=403)
-        if config.enabled and path.startswith("/api/v1/") and request.method != "OPTIONS":
+        if config.enabled and guarded and request.method != "OPTIONS":
             if path in open_api_paths or path.startswith("/api/v1/auth/oauth/"):
                 return await call_next(request)
             if config.legacy_token and token == config.legacy_token:

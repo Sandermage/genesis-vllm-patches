@@ -282,7 +282,14 @@ def calibrate_overhead(
     track a live point (e.g. discovery's residency) instead of a guess.
     """
     weights_per_gpu = weights_bytes(arch) / tp
-    kv_per_gpu = kv_bytes_per_token(arch, kv_bytes=kv_bytes) * max(1, context) * max(1, concurrency) / max(1, tp)
+    # Use the same piecewise KV model as estimate(): _kv_token_layers is both
+    # hybrid-aware AND sliding-window-aware. The flat per-token rate over-counted
+    # SWA local layers past the window, subtracting too much KV and understating
+    # overhead -> optimistic fit verdicts after calibrating on an SWA model.
+    per_layer_token = 2 * arch.num_kv_heads * arch.head_dim * kv_bytes
+    kv_per_gpu = (
+        per_layer_token * _kv_token_layers(arch, max(1, context)) * max(1, concurrency) / max(1, tp)
+    )
     overhead_b = measured_total_mib * _MIB - weights_per_gpu - kv_per_gpu
     return max(0.0, overhead_b / _MIB)
 
@@ -323,7 +330,10 @@ def arch_from_dict(data: dict[str, Any]) -> ModelArch:
             max_context=(int(data["max_context"]) if data.get("max_context") else None),
             source=str(data.get("source") or "curated"),
         )
-    int_fields = ("num_layers", "num_kv_heads", "head_dim", "weights_bytes_total", "max_context", "sliding_window", "global_layers")
+    # attn_layers MUST be carried: it is what makes a hybrid (qwen3-next) KV
+    # estimate correct — dropping it silently over-estimated hybrid KV ~4x for
+    # custom/host-config payloads (exactly the failure the hybrid math fixes).
+    int_fields = ("num_layers", "attn_layers", "num_kv_heads", "head_dim", "weights_bytes_total", "max_context", "sliding_window", "global_layers")
     float_fields = ("params_b", "weight_bits")
     overrides: dict[str, Any] = {}
     for k in int_fields:
