@@ -6,19 +6,15 @@ those paths against the backend's actual routes so a renamed/removed backend
 route (or a typo'd GUI path) fails CI instead of 404-ing at runtime — the
 structural-compatibility guard for the two halves of the project.
 
-During the v11→v12 migration the GUI is served by one of TWO app factories:
-
-  * ``legacy.http_app.create_app`` — the full Control Center monolith (every
-    platform route; not the persistent-memory subsystem).
-  * ``server.create_app`` — the modular daemon (persistent memory + gateway +
-    the already-migrated routes). This is what the ``genesis-memory`` container
-    runs (``uvicorn sndr.product_api.server:create_app``).
-
-So a GUI path is satisfied when AT LEAST ONE factory serves it (no path is
-orphaned platform-wide). We additionally pin the ``/api/v1/memory/*`` routes to
-the modular ``server`` factory — the daemon that actually serves the Memory
-panel — so memory drift is caught at its real source. Collapse the union to a
-single factory once Phase 11 finishes migrating the legacy routes into ``server``.
+The v11→v12 migration split routes across two factories — the legacy monolith
+(the full Control Center) and the modular ``server`` (persistent memory + the
+migrated routes). ``unified.create_app`` COMPOSES them into one superset daemon
+(legacy + memory), so a single deployment serves every GUI path. This gate pins
+the GUI's paths against that unified daemon — the app the full-Control-Center
+deployment runs — so a renamed backend route or typo'd GUI path fails CI instead
+of 404-ing. A second test pins the ``/api/v1/memory/*`` routes to the modular
+``server`` factory (what the ``genesis-memory`` container runs), so memory drift
+is caught at its real source too.
 
 It extracts every ``/api/...`` literal from api.ts, reduces each to its static
 prefix (dropping ``${…}`` path params and ``${query(…)}`` suffixes), and checks a
@@ -75,22 +71,38 @@ def _api_routes(create_app) -> list[str]:
     ]
 
 
-def test_every_gui_api_path_has_a_backend_route():
+def test_unified_daemon_serves_every_gui_api_path():
     api_ts = _api_ts()
     if api_ts is None:
         pytest.skip("gui/web/src/api.ts not present (backend-only checkout)")
-    from sndr.product_api.legacy.http_app import create_app as legacy_create_app
-    from sndr.product_api.server import create_app as modular_create_app
+    from sndr.product_api.unified import create_app as unified_create_app
 
-    # Union of the two app factories the GUI can be served by (see module docstring).
-    routes = _api_routes(legacy_create_app) + _api_routes(modular_create_app)
-    assert routes, "apps exposed no /api/ routes"
+    # The unified daemon composes legacy (full Control Center) + memory, so it
+    # alone must serve every path the GUI calls.
+    routes = _api_routes(unified_create_app)
+    assert routes, "unified app exposed no /api/ routes"
     gui_paths = _gui_paths(api_ts.read_text(encoding="utf-8"))
     assert len(gui_paths) > 30, f"suspiciously few GUI paths parsed ({len(gui_paths)}) — parser drift?"
     missing = sorted(p for p in gui_paths if not any(_seg_prefix_match(p, r) for r in routes))
     assert not missing, (
         f"GUI api.ts calls {len(missing)} path(s) with no matching backend route "
-        f"in EITHER daemon (drift — add the route or fix the GUI):\n  " + "\n  ".join(missing))
+        f"in the unified daemon (drift — add the route or fix the GUI):\n  " + "\n  ".join(missing))
+
+
+def test_unified_daemon_keeps_the_spa_catch_all_last():
+    """Mounting memory onto the composed app must not shadow the SPA, nor let the
+    SPA "/" catch-all shadow the API routes — the SPA mount stays LAST."""
+    from sndr.product_api.unified import create_app as unified_create_app
+
+    routes = unified_create_app().router.routes
+    api_after_spa = False
+    seen_spa = False
+    for r in routes:
+        if getattr(r, "name", None) in ("ui", "carbon-ui"):
+            seen_spa = True
+        elif seen_spa and getattr(r, "path", "").startswith("/api/"):
+            api_after_spa = True
+    assert not api_after_spa, "an /api/ route is registered AFTER the SPA catch-all (it would be shadowed)"
 
 
 def test_memory_routes_served_by_the_modular_daemon():

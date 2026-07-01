@@ -22,6 +22,7 @@ export function MemoryPanel() {
   const [remember, setRemember] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null); // transient success/info (not an error)
   const [view, setView] = useState<"list" | "graph">("list");
   const [graph, setGraph] = useState<MemGraph | null>(null);
 
@@ -39,7 +40,7 @@ export function MemoryPanel() {
 
   const runSearch = useCallback(async () => {
     if (!q.trim()) { setHits([]); return; }
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setNotice(null);
     try {
       const r = brain
         ? await api.memoryRecall(q, OWNER, { limit: 25, expand_depth: 2, reinforce: false })
@@ -59,7 +60,7 @@ export function MemoryPanel() {
 
   const doRemember = useCallback(async () => {
     if (!remember.trim()) return;
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setNotice(null);
     try {
       await api.memoryRemember(remember, OWNER);
       setRemember("");
@@ -70,11 +71,12 @@ export function MemoryPanel() {
   }, [remember, loadStats, loadGraph, view]);
 
   const rebuildLinks = useCallback(async () => {
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setNotice(null);
     try {
       // Consolidate = auto-link + detect communities (clouds) + rank importance.
       const r = await api.memoryConsolidate(OWNER, { tau: 0.8, k: 10 });
-      setErr(`+${r.linked} ${tr("links")}, ${r.communities} ${tr("clouds")}`);
+      // Success feedback goes to `notice` (not `err`) so it isn't styled as an error.
+      setNotice(`+${r.linked} ${tr("links")}, ${r.communities} ${tr("clouds")}`);
       loadStats();
       if (view === "graph") loadGraph();
     } catch (e) { setErr(String(e)); }
@@ -129,7 +131,8 @@ export function MemoryPanel() {
         </button>
       </div>
 
-      {err && <div className="mem-err" style={{ fontSize: 12, opacity: 0.8 }}>{err}</div>}
+      {err && <div className="mem-err" style={{ fontSize: 12, color: "var(--danger, #f97362)" }}>{err}</div>}
+      {notice && <div className="mem-notice" style={{ fontSize: 12, color: "var(--success, #5fd07d)" }}>{notice}</div>}
 
       {view === "graph" && (
         graph

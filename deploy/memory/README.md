@@ -94,6 +94,21 @@ disable-claude-cloak-mode: true          # don't let cloak clobber our system bl
 Owner scoping: clients send `X-Owner-Id: <id>` (the per-user memory). External
 models need no special support — recalled memory arrives as plain system text.
 
+## Which app factory? (`server` vs `unified`)
+
+Two factories mount the memory subsystem identically (via `memory_wiring`):
+
+| Factory | Serves | Auth | Use for |
+|---|---|---|---|
+| `sndr.product_api.server:create_app` | memory + gateway + the migrated routes (~34 `/api`) | memory API-key only (`GENESIS_MEMORY_API_KEY`) | **this container** — a memory-focused deployment; the proxy/CLI use the simple API key |
+| `sndr.product_api.unified:create_app` | the **full Control Center** (~197 routes) **+ memory** (208 `/api`) | legacy user-auth (session/2FA/token) — auto-enabled on a non-loopback bind | a full-platform deployment where the GUI logs in; every GUI tab works |
+
+This container runs **`server`** on purpose: on its `0.0.0.0` bind the legacy
+user-auth would auto-enable and double-gate the memory API (the proxy/CLI send
+only the memory key). Run `unified` when you want the whole Control Center GUI +
+memory behind one session login:
+`uvicorn sndr.product_api.unified:create_app --factory --host 0.0.0.0 --port 8800`.
+
 ## Notes
 
 - No supervisord: the pgvector base image's entrypoint initialises Postgres on

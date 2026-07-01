@@ -106,3 +106,7 @@ class MemoryHTTPClient:
             "GET", f"/api/v1/memory/search?q={quote(query)}&limit={limit}", owner=owner_id
         )
         return self._hits(rows, owner_id)
+
+    def stats(self, *, owner_id: int) -> dict[str, int]:
+        """Owner memory counts: ``{"nodes": int, "edges": int}``."""
+        return self._call("GET", "/api/v1/memory/stats", owner=owner_id)

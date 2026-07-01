@@ -51,12 +51,10 @@ def create_app() -> FastAPI:
     # Register all routers. Each route file declares its own prefix.
     from sndr.product_api.routes.containers import router as containers_router
     from sndr.product_api.routes.engines import router as engines_router
-    from sndr.product_api.routes.gateway import router as gateway_router
     from sndr.product_api.routes.health import router as health_router
     from sndr.product_api.routes.hosts import fleet_router
     from sndr.product_api.routes.hosts import router as hosts_router
     from sndr.product_api.routes.licensing import router as licensing_router
-    from sndr.product_api.routes.memory import router as memory_router
     from sndr.product_api.routes.observability import (
         bench_router,
         configs_router,
@@ -80,24 +78,13 @@ def create_app() -> FastAPI:
     app.include_router(configs_router)
     app.include_router(evidence_router)
     app.include_router(jobs_router)
-    # Memory + gateway carry per-owner data and drive the upstream LLM, so they
-    # are guarded by the API-key dependency (enforced when GENESIS_MEMORY_API_KEY
-    # is set; open otherwise for localhost/dev).
-    from fastapi import Depends
+    # Memory + gateway: routers (API-key guarded), engine on app.state, gateway
+    # upstream registry, and the env-gated maintenance loop. Shared with the
+    # unified daemon via memory_wiring so the GUI Memory panel behaves identically
+    # wherever the GUI is served.
+    from sndr.product_api.memory_wiring import mount_memory_routes
 
-    from sndr.product_api.security import require_api_key
-
-    app.include_router(memory_router, dependencies=[Depends(require_api_key)])
-    app.include_router(gateway_router, dependencies=[Depends(require_api_key)])
-
-    # Persistent neural-graph memory engine on app.state (Postgres if
-    # GENESIS_MEMORY_DSN is set, else the in-memory reference backend).
-    _init_memory_engine(app)
-    # Memory-augmented OpenAI gateway (active only if GATEWAY_UPSTREAM_URL set).
-    _init_gateway(app)
-    # Background consolidation + prune (the wired leak-bound); off unless an
-    # interval is configured.
-    _init_maintenance(app)
+    mount_memory_routes(app)
 
     # Serve the built Carbon Control Center SPA from the daemon itself.
     # API routes are registered above, so they take precedence over the mount.
@@ -113,179 +100,6 @@ def create_app() -> FastAPI:
     )
 
     return app
-
-
-def _init_memory_engine(app: FastAPI) -> None:
-    """Attach a MemoryEngine to ``app.state.memory_engine``.
-
-    Backend by env: ``GENESIS_MEMORY_DSN`` -> Postgres+pgvector, else the
-    in-memory reference backend (dev default). ``GENESIS_MEMORY_DIM`` sets the
-    embedding dimension (must match the Postgres ``vector(dim)`` column).
-    Embedder is the dependency-free HashEmbedder until a CPU embedder is wired.
-    """
-    import os
-
-    from sndr.memory.engine import MemoryEngine
-
-    # Embedder by env: model2vec (real CPU embedder) or the dep-free hash fallback.
-    # The store's vector dim derives from the embedder, so they always match.
-    if os.environ.get("GENESIS_MEMORY_EMBEDDER", "hash").lower() == "model2vec":
-        from sndr.memory.embedder import Model2VecEmbedder
-
-        embedder = Model2VecEmbedder(
-            os.environ.get("GENESIS_MEMORY_MODEL", "minishlab/potion-base-8M")
-        )
-        log.info("product_api.memory.embedder", extra={"embedder": "model2vec"})
-    else:
-        from sndr.memory.embedder import HashEmbedder
-
-        embedder = HashEmbedder(dim=int(os.environ.get("GENESIS_MEMORY_DIM", "256")))
-        log.info("product_api.memory.embedder", extra={"embedder": "hash"})
-    dim = embedder.dim
-
-    from sndr.memory.inmemory import InMemoryStore
-
-    dsn = os.environ.get("GENESIS_MEMORY_DSN")
-    if dsn:
-        try:
-            from sndr.memory.postgres import PostgresStore
-
-            store = PostgresStore(dsn, dim=dim)
-            log.info("product_api.memory.backend", extra={"backend": "postgres"})
-        except Exception:  # noqa: BLE001 - DB outage must not kill the whole app
-            # Graceful degradation: a Postgres outage downgrades memory to the
-            # ephemeral in-memory backend instead of crashing create_app (S3).
-            log.exception("product_api.memory.postgres_unavailable_fallback_inmemory")
-            store = InMemoryStore()
-    else:
-        store = InMemoryStore()
-        log.info("product_api.memory.backend", extra={"backend": "inmemory"})
-    app.state.memory_engine = MemoryEngine(store=store, embedder=embedder)
-
-
-def _make_upstream(url: str, key: str | None) -> dict:
-    """Build httpx forward/stream closures for one OpenAI-compatible upstream."""
-    base = url.rstrip("/")
-
-    def _headers() -> dict[str, str]:
-        h = {"Content-Type": "application/json"}
-        if key:
-            h["Authorization"] = f"Bearer {key}"
-        return h
-
-    async def forward(body: dict) -> dict:
-        import httpx
-
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{base}/chat/completions", json=body, headers=_headers()
-            )
-            resp.raise_for_status()
-            return resp.json()
-
-    async def stream(body: dict):
-        import httpx
-
-        async with httpx.AsyncClient(timeout=300.0) as client, client.stream(
-            "POST", f"{base}/chat/completions", json=body, headers=_headers()
-        ) as resp:
-            async for chunk in resp.aiter_bytes():
-                yield chunk
-
-    return {"forward": forward, "stream": stream, "url": base}
-
-
-def _init_gateway(app: FastAPI) -> None:
-    """Configure the memory-gateway upstream registry from env. Each request
-    picks an upstream by the `X-Memory-Upstream` header, else the default; the
-    route stays dormant (503) until at least one upstream is configured.
-
-    Two ways to configure (combinable), so you can run with your CLIProxyAPI,
-    another proxy, and/or the internal vLLM and choose per request:
-
-      GATEWAY_UPSTREAMS   JSON map, e.g.
-        {"cliproxy":{"url":"http://cliproxyapi:8317/v1","key":"..."},
-         "local":{"url":"http://vllm:8102/v1","key":"genesis-local"}}
-      GATEWAY_DEFAULT_UPSTREAM   name used when no header is sent
-      GATEWAY_UPSTREAM_URL / GATEWAY_UPSTREAM_KEY   single-upstream shortcut
-        (registered as "default")
-    """
-    import json
-    import os
-
-    upstreams: dict[str, dict] = {}
-    raw = os.environ.get("GATEWAY_UPSTREAMS")
-    if raw:
-        try:
-            cfg = json.loads(raw)
-        except (ValueError, TypeError):
-            log.warning("product_api.gateway.bad_upstreams_json")
-            cfg = {}
-        for name, spec in (cfg or {}).items():
-            if isinstance(spec, dict) and spec.get("url"):
-                upstreams[name] = _make_upstream(spec["url"], spec.get("key"))
-
-    url = os.environ.get("GATEWAY_UPSTREAM_URL")
-    if url and "default" not in upstreams:
-        upstreams["default"] = _make_upstream(url, os.environ.get("GATEWAY_UPSTREAM_KEY"))
-
-    if not upstreams:
-        return
-    app.state.gateway_upstreams = upstreams
-    app.state.gateway_default = (
-        os.environ.get("GATEWAY_DEFAULT_UPSTREAM") or next(iter(upstreams))
-    )
-    log.info(
-        "product_api.gateway.upstreams",
-        extra={"names": sorted(upstreams), "default": app.state.gateway_default},
-    )
-
-
-def _init_maintenance(app: FastAPI) -> None:
-    """Start the background maintenance loop (consolidate + prune every owner on
-    a timer) — the wired leak-bound + auto-organize. Off unless
-    GENESIS_MEMORY_MAINTENANCE_INTERVAL (seconds) > 0. Runs in a daemon thread so
-    the blocking store calls never stall the event loop.
-
-      GENESIS_MEMORY_MAINTENANCE_INTERVAL   seconds between passes (0 = off)
-      GENESIS_MEMORY_MAX_NODES              per-owner cap (default 10000)
-    """
-    import logging
-    import os
-    import threading
-    import time
-
-    interval = int(os.environ.get("GENESIS_MEMORY_MAINTENANCE_INTERVAL", "0"))
-    if interval <= 0:
-        return
-    max_nodes = int(os.environ.get("GENESIS_MEMORY_MAX_NODES", "10000"))
-
-    from sndr.memory.engine import run_maintenance
-
-    # Log via uvicorn's logger so maintenance is visible in `docker logs` (the
-    # bare "sndr.*" logger has no handler under uvicorn).
-    oplog = logging.getLogger("uvicorn.error")
-
-    def _loop() -> None:
-        while True:
-            time.sleep(interval)
-            engine = getattr(app.state, "memory_engine", None)
-            if engine is None:
-                continue
-            try:
-                report = run_maintenance(engine, max_nodes=max_nodes)
-                oplog.info(
-                    "memory maintenance: owners=%s pruned=%s",
-                    report.get("owners"), report.get("pruned"),
-                )
-            except Exception:  # noqa: BLE001 - a maintenance failure must not kill the loop
-                oplog.exception("memory maintenance failed")
-
-    threading.Thread(target=_loop, name="memory-maintenance", daemon=True).start()
-    oplog.info(
-        "memory maintenance scheduler started (interval=%ss, max_nodes=%s)",
-        interval, max_nodes,
-    )
 
 
 def _mount_carbon_ui(app: FastAPI) -> None:

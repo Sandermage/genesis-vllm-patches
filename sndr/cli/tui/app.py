@@ -30,7 +30,8 @@ command gates on it before importing this module.
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+import contextlib
+from typing import Any
 
 from textual import work
 from textual.app import App, ComposeResult, SuspendNotSupported
@@ -46,10 +47,13 @@ from sndr.cli.tui import data as _data
 # imported them from this module.
 from sndr.cli.tui.render import (
     GLYPH_FIT,
-    HELP_TEXT as _HELP_TEXT,
     catalog_rows,
     render_engine,
     render_gpu,
+    render_memory,
+)
+from sndr.cli.tui.render import (
+    HELP_TEXT as _HELP_TEXT,
 )
 
 
@@ -97,7 +101,7 @@ class ConfirmScreen(ModalScreen[bool]):
         self.dismiss(False)
 
 
-class SettingsScreen(ModalScreen[Optional[dict]]):
+class SettingsScreen(ModalScreen[dict | None]):
     """First-run-friendly settings: Model Dir + HF token.
 
     Pre-filled from ``data.load_settings`` (the live env / saved state), it
@@ -179,8 +183,8 @@ class SndrCockpit(App):
     def __init__(
         self,
         *,
-        rig: Optional[str] = None,
-        fake_gpus: Optional[str] = None,
+        rig: str | None = None,
+        fake_gpus: str | None = None,
         loader: Any = _data,
         lean: bool = False,
     ) -> None:
@@ -201,6 +205,7 @@ class SndrCockpit(App):
             with Vertical(id="left"):
                 yield Static("loading…", id="engine")
                 yield Static("", id="gpu")
+                yield Static("", id="memory")
             with Vertical(id="right"):
                 yield Input(placeholder="filter presets — type to narrow, Esc to clear", id="filter")
                 yield DataTable(id="catalog")
@@ -216,14 +221,17 @@ class SndrCockpit(App):
         if self._lean:
             # Hide operator detail; let the catalog + engine fill the screen.
             self.query_one("#gpu", Static).display = False
+            self.query_one("#memory", Static).display = False
             self.query_one("#log", RichLog).display = False
             # Reclaim the space the hidden panes leave so nothing looks empty.
             self.query_one("#catalog", DataTable).styles.height = "1fr"
         self._log("sndr cockpit.  Enter serve · k stop · d doctor · c chat · ? help · q quit")
         self._load_catalog()
         self._refresh_engine()
+        self._refresh_memory()
         # Live KPIs refresh on a gentle cadence; catalog is static-ish (manual r).
         self.set_interval(3.0, self._refresh_engine)
+        self.set_interval(3.0, self._refresh_memory)
 
     # ── workers (blocking probes off the UI thread) ──────────────────────────
 
@@ -250,6 +258,18 @@ class SndrCockpit(App):
             self._post(self._log, f"engine probe error: {exc}")
             return
         self._post(self._apply_engine, snap)
+
+    # Own group so the memory probe (a short HTTP call to the daemon, 3s timeout)
+    # never cross-cancels the engine probe, and vice-versa.
+    @work(thread=True, exclusive=True, group="memory")
+    def _refresh_memory(self) -> None:
+        # memory_snapshot is defensive (never raises); the guard is belt-and-braces.
+        try:
+            snap = self._data.memory_snapshot()
+        except Exception as exc:  # pragma: no cover — defensive
+            self._post(self._log, f"memory probe error: {exc}")
+            return
+        self._post(self._apply_memory, snap)
 
     # ── apply (UI thread) ────────────────────────────────────────────────────
 
@@ -281,6 +301,9 @@ class SndrCockpit(App):
 
     def _apply_engine(self, snap: dict[str, Any]) -> None:
         self.query_one("#engine", Static).update(render_engine(snap))
+
+    def _apply_memory(self, snap: dict[str, Any]) -> None:
+        self.query_one("#memory", Static).update(render_memory(snap))
 
     # ── serve / stop workers (blocking pipeline off the UI thread) ────────────
 
@@ -325,7 +348,7 @@ class SndrCockpit(App):
             self._log(f"{preset_id} doesn't fit this rig — pick a ✓ row to serve")
             return
 
-        def _go(confirmed: Optional[bool]) -> None:
+        def _go(confirmed: bool | None) -> None:
             if confirmed:
                 self._log(f"serving {preset_id} … (watch the engine pane; k to stop)")
                 self._serve_worker(preset_id)
@@ -343,7 +366,7 @@ class SndrCockpit(App):
             self._log("nothing selected to stop")
             return
 
-        def _go(confirmed: Optional[bool]) -> None:
+        def _go(confirmed: bool | None) -> None:
             if confirmed:
                 self._log(f"stopping {preset_id} …")
                 self._stop_worker(preset_id)
@@ -386,7 +409,7 @@ class SndrCockpit(App):
         )
 
     def action_settings(self) -> None:
-        def _go(result: Optional[dict]) -> None:
+        def _go(result: dict | None) -> None:
             if not result:
                 self._log("settings unchanged")
                 return
@@ -445,12 +468,11 @@ class SndrCockpit(App):
         raise ``RuntimeError('App is not running')`` in the thread. Swallow that
         one teardown race — there is no UI left to update anyway.
         """
-        try:
+        # Swallow the teardown race — app loop gone (quit mid-worker); no UI left.
+        with contextlib.suppress(Exception):  # pragma: no cover
             self.call_from_thread(fn, *args)
-        except Exception:  # pragma: no cover — app loop gone (quit mid-worker)
-            pass
 
-    def _focused_preset(self) -> Optional[str]:
+    def _focused_preset(self) -> str | None:
         """The preset id of the currently-highlighted catalog row, if any."""
         table = self.query_one("#catalog", DataTable)
         if table.row_count == 0:
@@ -464,25 +486,21 @@ class SndrCockpit(App):
         self.query_one("#log", RichLog).write(msg)
         if self._lean:
             # The log pane is hidden in lean mode — surface feedback as a toast.
-            try:
+            with contextlib.suppress(Exception):  # pragma: no cover — notify needs a running app
                 self.notify(msg)
-            except Exception:  # pragma: no cover — notify needs a running app
-                pass
 
 
 def run_tui(
-    rig: Optional[str] = None,
-    fake_gpus: Optional[str] = None,
+    rig: str | None = None,
+    fake_gpus: str | None = None,
     lean: bool = False,
 ) -> int:
     """Launch the cockpit. Returns a process exit code."""
     # Apply any persisted Model Dir / HF token to the env first, so this
     # session's serve/pull (and the child `sndr launch`) use the saved config
     # without re-typing — the "two-keystroke first run" the Settings modal sets.
-    try:
+    with contextlib.suppress(Exception):  # pragma: no cover — never block launch on a settings read
         _data.apply_saved_settings()
-    except Exception:  # pragma: no cover — never block launch on a settings read
-        pass
     SndrCockpit(rig=rig, fake_gpus=fake_gpus, lean=lean).run()
     return 0
 

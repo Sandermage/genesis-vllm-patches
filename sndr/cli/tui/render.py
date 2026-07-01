@@ -13,7 +13,7 @@ crash. The helpers stay pure (render-only); all side effects live in the app.
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 # Glyphs — identical to the rest of the CLI (sndr/cli/_messages.py) so the whole
 # surface renders one symbol set.
@@ -72,7 +72,7 @@ def render_engine(snap: dict[str, Any]) -> str:
     )
 
 
-def render_gpu(rig: Optional[Any]) -> str:
+def render_gpu(rig: Any | None) -> str:
     """Render the resolved rig into the GPU/RIG pane text."""
     if rig is None:
         return "[b]rig[/b]\n  detecting…"
@@ -91,6 +91,25 @@ def render_gpu(rig: Optional[Any]) -> str:
         f"[b]rig[/b]  {getattr(rig, 'source', 'rig')}\n"
         f"  {gpus}× GPU   {vram_s}/card   {cap_s}"
     )
+
+
+def render_memory(snap: dict[str, Any] | None) -> str:
+    """Render a memory_snapshot into the MEMORY pane text.
+
+    A down/absent daemon renders a calm hint (never a raw error dump); a
+    reachable daemon shows the owner's node/edge counts. Defensive: a ``None``
+    or partial payload yields placeholder text, never a crash.
+    """
+    if not snap or not snap.get("reachable"):
+        return (
+            "[b]memory[/b]  ✗ offline\n"
+            "  no memory daemon reachable.\n"
+            "  start it:  [b]sndr up[/b]"
+        )
+    stats = snap.get("stats") or {}
+    nodes = stats.get("nodes", 0)
+    edges = stats.get("edges", 0)
+    return f"[b]memory[/b]  ● {nodes} nodes  {edges} edges"
 
 
 def catalog_rows(catalog: Any) -> list[tuple[str, str, str, str]]:
@@ -127,6 +146,7 @@ def catalog_rows(catalog: Any) -> list[tuple[str, str, str, str]]:
 __all__ = [
     "render_engine",
     "render_gpu",
+    "render_memory",
     "catalog_rows",
     "HELP_TEXT",
     "GLYPH_FIT",

@@ -2,14 +2,22 @@
 """Command registry. Each command is a class implementing :class:`Command`."""
 from __future__ import annotations
 
-import argparse
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    import argparse
 
 from sndr.cli.commands.chat import ChatCommand
-from sndr.cli.commands.engines import EnginesListCommand, EnginesInfoCommand
+from sndr.cli.commands.engines import EnginesInfoCommand, EnginesListCommand
 from sndr.cli.commands.health import HealthCommand
 from sndr.cli.commands.kv_calc import KvCalcCommand
 from sndr.cli.commands.launch import LaunchCommand
+from sndr.cli.commands.mem import (
+    MemRecallCommand,
+    MemRememberCommand,
+    MemSearchCommand,
+    MemStatsCommand,
+)
 from sndr.cli.commands.pins import PinsListCommand
 from sndr.cli.commands.preflight import PreflightCommand
 from sndr.cli.commands.promoted import PROMOTED_COMMANDS
@@ -60,6 +68,12 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     register(PinsListCommand())
     register(HealthCommand())
     register(PreflightCommand())
+    # Persistent neural-graph memory over the running daemon (distinct from the
+    # legacy `sndr memory` VRAM estimator). Dotted names + spaced aliases in main.
+    register(MemRememberCommand())
+    register(MemRecallCommand())
+    register(MemSearchCommand())
+    register(MemStatsCommand())
     # TUI cockpit (read-only Phase 1) — the command gates on the optional [tui]
     # extra (textual) with a friendly install hint when it's absent.
     register(TuiCommand())

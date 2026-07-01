@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import Graph from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import type { MemGraph } from "./api";
+import { tr } from "./i18n";
 
 // Stable palette for community "clouds"; null community -> neutral.
 const PALETTE = [
@@ -57,29 +58,36 @@ export function MemoryGraph({ graph, onSelect }: { graph: MemGraph; onSelect: (i
   }, [graph]);
 
   if (!graph.nodes.length) {
-    return <div style={{ opacity: 0.5, fontSize: 13, padding: 24 }}>No nodes yet — remember something, then Rebuild links.</div>;
+    return <div style={{ opacity: 0.5, fontSize: 13, padding: 24 }}>{tr("No nodes yet — remember something, then Rebuild links.")}</div>;
   }
 
   const PAD = 40;
-  const w = Math.max(1, layout.maxX - layout.minX);
-  const h = Math.max(1, layout.maxY - layout.minY);
   const VW = 800, VH = 520;
-  const sx = (VW - 2 * PAD) / w;
-  const sy = (VH - 2 * PAD) / h;
-  const sc = Math.min(sx, sy);
-  const px = (x: number) => PAD + (x - layout.minX) * sc;
-  const py = (y: number) => PAD + (y - layout.minY) * sc;
+  const availW = VW - 2 * PAD, availH = VH - 2 * PAD;
+  const spanX = Math.max(0, layout.maxX - layout.minX);
+  const spanY = Math.max(0, layout.maxY - layout.minY);
+  // Fit the graph to the viewport, then CENTER it. A ~zero span (a single node,
+  // or all nodes collinear) must not drive the scale — otherwise a lone node
+  // gets pinned to a corner; fall back to 1:1 and let the offsets center it.
+  const scX = spanX > 1e-9 ? availW / spanX : Infinity;
+  const scY = spanY > 1e-9 ? availH / spanY : Infinity;
+  const fit = Math.min(scX, scY);
+  const sc = Number.isFinite(fit) ? fit : 1;
+  const offX = (availW - spanX * sc) / 2;
+  const offY = (availH - spanY * sc) / 2;
+  const px = (x: number) => PAD + offX + (x - layout.minX) * sc;
+  const py = (y: number) => PAD + offY + (y - layout.minY) * sc;
   const radius = (imp: number, acc: number) => 5 + Math.min(10, imp * 4 + Math.log1p(acc) * 1.5);
 
   return (
     <svg viewBox={`0 0 ${VW} ${VH}`} style={{ width: "100%", height: 520, border: "1px solid var(--border, #2a2a2a)", borderRadius: 8, background: "var(--panel, #16181d)" }}>
-      {graph.edges.map((e, i) => {
+      {graph.edges.map((e) => {
         const a = layout.pos.get(e.src), b = layout.pos.get(e.dst);
         if (!a || !b) return null;
         const active = hover === e.src || hover === e.dst;
         return (
           <line
-            key={i}
+            key={`${e.src}-${e.dst}-${e.rel}`}
             x1={px(a.x)} y1={py(a.y)} x2={px(b.x)} y2={py(b.y)}
             stroke={active ? "#aab" : "#3a3f47"}
             strokeWidth={Math.max(0.5, e.weight * 2)}

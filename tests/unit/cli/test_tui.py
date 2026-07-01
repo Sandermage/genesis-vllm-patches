@@ -23,7 +23,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 
@@ -35,7 +35,6 @@ from sndr.cli.tui.render import (
     render_gpu,
 )
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Tiny fakes — stand in for Rig / Candidate / Catalog and the data facade so the
 # textual-free tests need neither the preset corpus nor a live engine.
@@ -45,8 +44,8 @@ from sndr.cli.tui.render import (
 @dataclass
 class FakeRig:
     gpu_count: int = 0
-    min_vram_gb: Optional[int] = None
-    min_compute_cap: Optional[tuple[int, int]] = None
+    min_vram_gb: int | None = None
+    min_compute_cap: tuple[int, int] | None = None
     source: str = "fake"
 
 
@@ -55,7 +54,7 @@ class FakeCandidate:
     preset_id: str
     status: str
     can_run: bool
-    metric_label: Optional[str] = None
+    metric_label: str | None = None
 
 
 @dataclass
@@ -87,6 +86,10 @@ class FakeLoader:
     def engine_snapshot(self) -> dict[str, Any]:
         self.engine_calls += 1
         return self._snapshot
+
+    def memory_snapshot(self) -> dict[str, Any]:
+        self.memory_calls = getattr(self, "memory_calls", 0) + 1
+        return {"reachable": False, "stats": {}, "error": "no daemon (test)"}
 
     def rig_summary(self, rig) -> str:
         return f"{getattr(rig, 'source', 'rig')} ({getattr(rig, 'gpu_count', 0)} GPU)"
@@ -144,8 +147,10 @@ def test_tui_gate_prints_hint_and_exits_1_without_textual(capsys, monkeypatch):
     assert rc == 1
     err = capsys.readouterr().err
     # Friendly, actionable, no Python traceback noise.
-    assert "tui" in err and "textual" in err
-    assert "pip install" in err and "[tui]" in err
+    assert "tui" in err
+    assert "textual" in err
+    assert "pip install" in err
+    assert "[tui]" in err
     assert "Traceback" not in err
 
 
@@ -279,7 +284,8 @@ def test_app_mounts_four_panes_and_populates_catalog():
             # precedence threaded through to the loader.
             table = app.query_one("#catalog", DataTable)
             assert table.row_count == 2
-            assert loader.load_calls and loader.load_calls[0]["rig"] == "dual-a5000"
+            assert loader.load_calls
+            assert loader.load_calls[0]["rig"] == "dual-a5000"
             # the engine pane rendered the serving KPIs (render() → plain text)
             assert "serving" in str(app.query_one("#engine", Static).render())
 
@@ -316,7 +322,8 @@ def test_app_question_mark_opens_help_overlay():
             from textual.widgets import Static
 
             body_text = str(app.screen.query_one("#help-body", Static).render())
-            assert "refresh" in body_text and "quit" in body_text
+            assert "refresh" in body_text
+            assert "quit" in body_text
 
     _run(body())
 

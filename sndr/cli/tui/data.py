@@ -17,10 +17,10 @@ GPU-less box yields a structured payload, never a crash (Phase 1 is read-only).
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 
-def resolve_rig(rig: Optional[str] = None, fake_gpus: Optional[str] = None):
+def resolve_rig(rig: str | None = None, fake_gpus: str | None = None):
     """Resolve the rig to plan the catalog against, mirroring ``sndr launch``.
 
     Precedence: ``--fake-gpus`` (synthetic) > ``--rig`` (named builtin) > live
@@ -43,7 +43,7 @@ def resolve_rig(rig: Optional[str] = None, fake_gpus: Optional[str] = None):
     return RigProbe().detect()
 
 
-def load_catalog(rig: Optional[str] = None, fake_gpus: Optional[str] = None):
+def load_catalog(rig: str | None = None, fake_gpus: str | None = None):
     """The evaluated, fit-ranked preset catalog for the resolved rig.
 
     Returns the wizard's :class:`Catalog` (``.rig`` + sorted ``.candidates`` with
@@ -66,7 +66,7 @@ def load_catalog(rig: Optional[str] = None, fake_gpus: Optional[str] = None):
     )
 
 
-def engine_snapshot(host: Optional[str] = None, port: Optional[int] = None) -> dict[str, Any]:
+def engine_snapshot(host: str | None = None, port: int | None = None) -> dict[str, Any]:
     """Live engine status + KPIs, both defensive.
 
     ``{"status": <engine_status>, "metrics": <engine_metrics>}``. An unreachable
@@ -86,7 +86,36 @@ def engine_snapshot(host: Optional[str] = None, port: Optional[int] = None) -> d
     return {"status": status, "metrics": metrics}
 
 
-def serve(preset_id: str, *, port: Optional[int] = None) -> dict[str, Any]:
+def memory_snapshot(
+    base_url: str | None = None,
+    *,
+    owner_id: int = 1,
+    token: str | None = None,
+) -> dict[str, Any]:
+    """Owner memory counts from the running daemon, defensive.
+
+    ``{"reachable": bool, "stats": {"nodes", "edges"}, "error": str | None}``.
+    A down / refused / unauthorized daemon yields ``reachable: False`` (never
+    raises) so the cockpit paints a calm "no memory daemon" state. Base URL and
+    token default to the daemon convention (``$SNDR_MEMORY_URL``/``$SNDR_GUI_URL``
+    then ``http://127.0.0.1:8765``; token from ``$GENESIS_MEMORY_API_KEY``).
+    """
+    import os
+
+    from sndr.memory.client import MemoryHTTPClient
+
+    url = base_url or os.environ.get("SNDR_MEMORY_URL") \
+        or os.environ.get("SNDR_GUI_URL") or "http://127.0.0.1:8765"
+    tok = token or os.environ.get("GENESIS_MEMORY_API_KEY") or None
+    try:
+        client = MemoryHTTPClient(url, owner_id=owner_id, token=tok, timeout=3.0)
+        stats = client.stats(owner_id=owner_id)
+        return {"reachable": True, "stats": dict(stats), "error": None}
+    except Exception as exc:  # pragma: no cover — defensive; daemon may be down
+        return {"reachable": False, "stats": {}, "error": str(exc)}
+
+
+def serve(preset_id: str, *, port: int | None = None) -> dict[str, Any]:
     """Launch a preset's engine, the SAME pipeline ``sndr run`` uses — minus the
     blocking wait/chat (the cockpit's 3s engine refresh shows it come up).
 
@@ -141,8 +170,8 @@ def run_doctor() -> int:
     return _compat_cli.main(["doctor"])
 
 
-def run_chat(preset_id: Optional[str] = None, *, host: str = "127.0.0.1",
-             port: Optional[int] = None) -> int:
+def run_chat(preset_id: str | None = None, *, host: str = "127.0.0.1",
+             port: int | None = None) -> int:
     """Open the SAME thin REPL ``sndr chat`` uses — the native ``ChatCommand``
     (which probes the engine then drops into :func:`chat_repl.chat_loop`, the
     chat path the GUI shares). The app calls this under ``App.suspend()`` so the
@@ -269,4 +298,4 @@ def rig_summary(rig) -> str:
     return f"{src} ({', '.join(parts)})"
 
 
-__all__ = ["resolve_rig", "load_catalog", "engine_snapshot", "rig_summary"]
+__all__ = ["resolve_rig", "load_catalog", "engine_snapshot", "memory_snapshot", "rig_summary"]

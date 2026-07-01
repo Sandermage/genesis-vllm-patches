@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import argparse
 import difflib
-import json
 import os
 import sys
 
@@ -104,6 +103,10 @@ _SPACED_ALIASES: dict[tuple[str, str], str] = {
     ("engines", "info"): "engines.info",
     ("pins", "list"): "pins.list",
     ("model", "pull"): "pull",
+    ("mem", "remember"): "mem.remember",
+    ("mem", "recall"): "mem.recall",
+    ("mem", "search"): "mem.search",
+    ("mem", "stats"): "mem.stats",
 }
 
 # Bare resource-group verbs default to their ``list`` ("show me") — a beginner
@@ -114,6 +117,7 @@ _SPACED_ALIASES: dict[tuple[str, str], str] = {
 _BARE_GROUP_DEFAULTS: dict[str, str] = {
     "engines": "engines.list",
     "pins": "pins.list",
+    "mem": "mem.stats",
 }
 
 
@@ -270,7 +274,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:  # noqa: PLR0911 - dispatch entry: distinct early-returns per arg shape (bare/flag/passthrough/alias/unknown)
     """CLI entry point. Returns exit code."""
     if argv is None:
         argv = sys.argv[1:]
