@@ -66,21 +66,27 @@ for entry in $FLEET; do
   skip_tool=""; [ "$flags" = "notool" ] && skip_tool="--skip-toolcall"
   log "===== $preset (served=$served) ====="
 
-  # Render the pin-aware launch script, then wrap it: pip-install the repo tree
-  # into the throwaway candidate container, then exec the rendered serve.
-  script=$(cd "$REPO" && python3 -m sndr.cli launch "$preset" --dry-run --port "$PORT" 2>/dev/null | sed -n '/^#!/,$p')
-  if [ -z "$script" ]; then log "  RENDER FAILED for $preset"; RC=1; continue; fi
-  ldir="/tmp/${NAME}_${preset}"; mkdir -p "$ldir"
-  { echo '#!/usr/bin/env bash'; echo 'set -e';
-    echo "pip install -e $REPO --no-deps --quiet 2>&1 | tail -0";
-    echo "$script"; } > "$ldir/run.sh"
-  chmod +x "$ldir/run.sh"
+  # The dry-run render is a HOST `docker run` launcher (it boots its own
+  # container). We must run its IN-CONTAINER `-c` payload directly under OUR
+  # candidate image + mounts — wrapping the whole host script inside a container
+  # tries docker-in-docker and dies with `docker: command not found` (the bug
+  # this gate hit on the dev714 fleet run). Extract payload + inner serve port.
+  render=$(cd "$REPO" && python3 -m sndr.cli launch "$preset" --dry-run --port "$PORT" 2>/dev/null)
+  if [ -z "$render" ]; then log "  RENDER FAILED for $preset"; RC=1; continue; fi
+  extracted=$(printf '%s\n' "$render" | python3 "$REPO/scripts/anchor_sot/_extract_launch_payload.py" 2>/dev/null)
+  inner_port="${extracted%%$'\t'*}"; payload="${extracted#*$'\t'}"
+  if [ -z "$payload" ] || [ "$payload" = "$extracted" ]; then log "  PAYLOAD EXTRACT FAILED for $preset"; RC=1; continue; fi
+  inner_port="${inner_port:-8000}"
+  # pip install -e registers the vllm.general_plugins entry-point; the bound sndr
+  # mount makes `import sndr` resolve. Then run the rendered in-container payload.
+  full="pip install -e $REPO --no-deps --quiet 2>&1 | tail -0; $payload"
 
   docker rm -f "$NAME" >/dev/null 2>&1
-  docker run -d --name "$NAME" --gpus all --ipc host --shm-size 67108864 -p "$PORT:$PORT" \
+  docker run -d --name "$NAME" --entrypoint /bin/bash --gpus all --ipc host --shm-size 67108864 \
+    -p "$PORT:$inner_port" \
     -v "$REPO:$REPO" -v "$REPO/sndr:$SP/sndr:ro" -v "$REPO/sndr:$SP/vllm/sndr_core:ro" \
-    -v "$ldir:$ldir:ro" -v "$MODELS_HOST:/models:ro" \
-    --entrypoint "$ldir/run.sh" "$IMAGE" >/dev/null 2>&1
+    -v "$MODELS_HOST:/models:ro" \
+    "$IMAGE" -c "$full" >/dev/null 2>&1
 
   ok=no
   for _ in $(seq 1 $((BOOT_TIMEOUT/6))); do
