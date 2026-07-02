@@ -8,7 +8,7 @@
 > Ampere / Ada / Blackwell.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev424+g3f5a1e173-orange.svg)](https://github.com/vllm-project/vllm)
+[![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev672+g93d8f834d-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/registry-321%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
 [![Memory](https://img.shields.io/badge/memory-neural--graph-ff69b4.svg)](docs/memory/MANUAL.md)
@@ -76,8 +76,8 @@ two ("≤2-pin policy"). A bump happens only on an explicit instruction
 naming the target pin; there are **no proactive pulls**. The candidate is
 validated before promotion (anchor-drift resolved, the `bump-preflight`
 gate clean, boot-smoke + tokenizer-fingerprint + canonical bench), then the
-old 2-back pin is dropped. Current: `dev424` (`3f5a1e173`); rollback:
-`dev301` (`04c2a8dea`). See [`docs/PIN_BUMP_PLAYBOOK.md`](docs/PIN_BUMP_PLAYBOOK.md)
+old 2-back pin is dropped. Current: `dev672` (`93d8f834`); rollback:
+`dev424` (`3f5a1e173`). See [`docs/PIN_BUMP_PLAYBOOK.md`](docs/PIN_BUMP_PLAYBOOK.md)
 (canonical) + [`docs/ANCHOR_SOT.md`](docs/ANCHOR_SOT.md).
 
 **Model catalog (current registry).**
@@ -122,12 +122,12 @@ comparisons, and per-rig reproduction recipes:
 
 ![Sustained TPS — Genesis vs stock](assets/charts/tps_genesis_vs_stock.png)
 
-> **Current pin (2026-06-25):** the vLLM pin is `0.23.1rc1.dev424+g3f5a1e173`
-> (image `vllm/vllm-openai:nightly-3f5a1e173…`, commit `3f5a1e173`, +123 commits
-> over dev301). `dev301` (`0.23.1rc1.dev301+g04c2a8dea`, commit `04c2a8dea`)
-> is retained as the previous / rollback pin per the ≤2-pin policy; `dev148` is
-> **dropped**. The dev301→dev424 bump was the first to dogfood the anchor-SOT
-> bump tooling (`make bump-preflight` + `retire_impact`) — see
+> **Current pin (2026-07-01):** the vLLM pin is `0.23.1rc1.dev672+g93d8f834d`
+> (image `vllm/vllm-openai:nightly-93d8f834…`, commit `93d8f834`, +248 commits
+> over dev424). `dev424` (`0.23.1rc1.dev424+g3f5a1e173`, commit `3f5a1e173`)
+> is retained as the previous / rollback pin per the ≤2-pin policy; `dev301` is
+> **dropped**. Validated in a live 35B window (boot apply failed=0, 240.55 TPS
+> = 98.4% of dev424 within CV, tool-call 7/7) — see
 > [`docs/PIN_BUMP_PLAYBOOK.md`](docs/PIN_BUMP_PLAYBOOK.md) (canonical) and
 > [`docs/ANCHOR_SOT.md`](docs/ANCHOR_SOT.md). The per-model bench table below is
 > the validated dev148 K=5 re-tune cycle (still the canonical sustained-bench
@@ -231,7 +231,7 @@ docker run -d --name genesis-memory -p 8811:8800 \
   -v genesis_memory_pgdata:/var/lib/postgresql/data genesis-memory:dev
 
 curl -s localhost:8811/api/v1/memory/remember -H 'X-Owner-Id:1' -H 'Authorization:Bearer …' \
-  -H content-type:application/json -d '{"text":"the deploy server is 192.168.1.10:8811"}'
+  -H content-type:application/json -d '{"text":"the deploy server is 192.0.2.10:8811"}'
 ```
 
 **GUI — Memory panel** (Control Center → Engine → 🧠 Memory; served same-origin).

@@ -153,7 +153,7 @@ KEY='-H Authorization:Bearer YOURKEY'   # omit if GENESIS_MEMORY_API_KEY unset
 
 # Remember (deduped by exact content)
 curl -s $KEY $H -XPOST localhost:8811/api/v1/memory/remember \
-  -d '{"text":"The deploy server is 192.168.1.10, memory on port 8811."}'
+  -d '{"text":"The deploy server is 192.0.2.10, memory on port 8811."}'
 # -> {"data":{"id":1}, ...}
 
 # Pure ANN search
