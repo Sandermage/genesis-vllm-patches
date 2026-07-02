@@ -67,10 +67,15 @@ def _build_load_weights():
     from the live vllm install (post-#47058 qwen3_5.py no longer imports them)."""
     import torch  # noqa: F401  (referenced by the checkpoint iterable typing)
     from vllm.model_executor.model_loader.weight_utils import default_weight_loader
-    from vllm.model_executor.models.utils import (
-        is_pp_missing_parameter,
-        maybe_remap_kv_scale_name,
-    )
+    from vllm.model_executor.models.utils import is_pp_missing_parameter
+    # maybe_remap_kv_scale_name moved between models/utils.py and
+    # model_loader/weight_utils.py across pins — resolve from either.
+    try:
+        from vllm.model_executor.models.utils import maybe_remap_kv_scale_name
+    except ImportError:
+        from vllm.model_executor.model_loader.weight_utils import (
+            maybe_remap_kv_scale_name,
+        )
 
     def load_weights(self, weights):
         # (param_name, shard_name, shard_id) — the pre-#47058 explicit mapping.
@@ -211,6 +216,7 @@ def _upstream_bindings():
     return [
         ("vllm.model_executor.models.qwen3_5", "Qwen3_5Model"),
         ("vllm.model_executor.models.utils", "is_pp_missing_parameter"),
-        ("vllm.model_executor.models.utils", "maybe_remap_kv_scale_name"),
         ("vllm.model_executor.model_loader.weight_utils", "default_weight_loader"),
+        # maybe_remap_kv_scale_name resolves from weight_utils OR models.utils
+        # (moved across pins) — the patch tries both, so no hard binding here.
     ]
