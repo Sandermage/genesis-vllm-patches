@@ -16,10 +16,13 @@ watch:
     runs MTP K=5 + qwen3_xml -> DIRECT exposure for tool agents that use
     tool_choice=required with streaming. Their 8-packs never caught it because
     packs run non-streaming; they built scripts/stream-toolcall-probe.py for it.
-    ACTION: replicate the probe against our live 35B (required+streaming+MTP,
-    n>=20); if drops reproduce, either re-scope P64's version cap or pin the
-    known-good parser path; also gate future pin bumps with this probe (the
-    fleet_boot_smoke tool-call check is auto/non-streaming and misses this).
+    PROBED 2026-07-02 on the live 35B (dev672, MTP K=5, qwen3_xml, 190W caps):
+    scripts/stream_toolcall_probe.py --n 20 -> 0/20 dropped, 0 errors — the
+    residual does NOT reproduce on our pin. Two turns showed a cosmetic
+    content-channel XML fragment ALONGSIDE a correctly delivered tool_call
+    delta (no loss; watch if agent frontends render stray XML). KEEP the probe
+    as a pin-bump gate: the drop reproduced on club's stack/pins, and the
+    fleet_boot_smoke tool-call check is auto/non-streaming so it cannot see it.
 - upstream: vllm#40886
   status: merged
   fix_status: absorbed-in-v0.24.0
