@@ -78,13 +78,11 @@ from __future__ import annotations
 
 import ast
 import importlib
-import inspect
 import json
 import re
 import subprocess
 import sys
 import time
-import traceback
 from pathlib import Path
 from typing import Any
 
@@ -391,10 +389,6 @@ def check_patcher_anchors(patcher, tree_root: Path) -> dict[str, Any]:
 # extraction, 2026-06-21) so the drift-checker and the per-pin manifest
 # generator share ONE enumerator (design requirement R1 — single source of
 # "what to anchor"). Imported here to preserve this tool's existing call sites.
-from sndr.engines.vllm.anchor_discovery import (  # noqa: E402
-    _build_patcher_for_module,
-)
-
 
 # ─── Import-wiring check (PN287 class) ───────────────────────────────────
 

@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path  # noqa: TC003 (runtime-used: Path ops)
 
 
 @dataclass(frozen=True)
@@ -136,9 +136,12 @@ def _names_defined_in_body(body) -> tuple[set[str], bool]:
         for node in stmts:
             _add_stmt(node)
             if isinstance(node, ast.If):
-                _walk(node.body); _walk(node.orelse)
+                _walk(node.body)
+                _walk(node.orelse)
             elif isinstance(node, ast.Try):
-                _walk(node.body); _walk(node.orelse); _walk(node.finalbody)
+                _walk(node.body)
+                _walk(node.orelse)
+                _walk(node.finalbody)
                 for h in node.handlers:
                     _walk(h.body)
             elif isinstance(node, ast.With):

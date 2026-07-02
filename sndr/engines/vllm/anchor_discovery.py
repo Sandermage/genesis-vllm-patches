@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import importlib
 import inspect
+from collections.abc import Iterator  # noqa: TC003
 from dataclasses import dataclass
-from typing import Any, Iterator, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -28,18 +29,18 @@ class AnchorTarget:
     sub: str
     target_rel: str          # vllm-relative path, e.g. "model_executor/layers/fla/ops/chunk.py"
     anchor: str              # the byte-anchor text (old_text) searched in the target
-    replacement: Optional[str]
+    replacement: str | None
     required: bool
     # classification inputs (so an absent anchor can be split version_gated /
     # upstream_merged / genuine drift instead of all lumped as "drift"):
-    vllm_version_range: Optional[tuple] = None   # spec.applies_to.vllm_version_range
+    vllm_version_range: tuple | None = None   # spec.applies_to.vllm_version_range
     upstream_merged_markers: tuple = ()          # sub-patch upstream_merged_markers
     # Patch lifecycle (spec.lifecycle: "retired" / "stable" / "research" / ...).
     # A retired patch's anchor legitimately no longer matches the dev source
     # (its code was superseded / absorbed upstream), so it must NOT be counted
     # as genuine anchor_drift. Carried so the manifest generator can route a
     # retired patch to STATUS_RETIRED instead of the re-anchor backlog.
-    lifecycle: Optional[str] = None
+    lifecycle: str | None = None
 
 
 def iter_specs_with_apply_module() -> Iterator[Any]:
@@ -186,7 +187,7 @@ def discover_patchers(mod) -> list[tuple[Any, str]]:
     return out
 
 
-def _target_rel(target_file: Optional[str]) -> Optional[str]:
+def _target_rel(target_file: str | None) -> str | None:
     """Map an absolute patcher target path to its vllm-relative form.
 
     ``/usr/local/.../site-packages/vllm/model_executor/layers/fla/ops/chunk.py``
