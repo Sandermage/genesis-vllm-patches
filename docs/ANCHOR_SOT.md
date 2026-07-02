@@ -179,6 +179,52 @@ the validated dev148 baseline (no regression).
 
 ---
 
+## 5b. Wiring-patch drift coverage (class-rebind patches)
+
+`check_upstream_drift.py` historically verified only **text-patch anchors**, so
+roughly half the registry — class-rebind / monkeypatch / middleware wiring with
+no text anchor — was reported `needs_fixture` ("covered by runtime self-test").
+That was a real blind spot: a symbol such a patch rebinds could be renamed or
+removed upstream and only surface at boot as a soft `DRIFT skipped` (which the
+`failed=0` boot summary happily hides). Two layers now cover it:
+
+1. **Generalized builder discovery** (`anchor_discovery.discover_patchers`) finds
+   *every* `_make_*patcher*` builder, not just the two canonical names — so a
+   multi-file patch (e.g. P58's `_make_request_patcher` +
+   `_make_scheduler_patcher` + `_make_async_sched_patcher`) gets each of its
+   target files anchor-scanned and aggregated worst-of.
+2. **Static upstream-binding resolver** (`sndr/engines/vllm/upstream_bindings.py`)
+   AST-extracts every `vllm.*` import a wiring patch makes (at any nesting depth
+   — most are deferred inside `apply()`) and resolves module + symbol against the
+   pristine tree. Two tiers keep the signal accurate:
+   - **hard `import_drift`** — a whole `vllm.*` MODULE the patch imports is
+     gone/moved. That always breaks `apply()` → blocking.
+   - **soft `binding_review`** — the module is present but an imported SYMBOL
+     isn't statically found. Could be a genuine rename (act), a Genesis-created
+     symbol a sibling patch adds at runtime (ignore), or a dynamic attribute
+     (modules with `__getattr__`, e.g. `vllm/envs.py`, resolve any attribute and
+     are NOT flagged). Surfaced for human review, never counted as blocking.
+
+**Opt-in precise contract.** A class-rebind patch whose bindings are fully
+reflective (`getattr(mod, runtime_string)`) reveals nothing statically. Such a
+patch may declare an `_upstream_bindings()` accessor — the class-rebind analogue
+of `_parser_targets` — returning `(module, symbol)` tuples the resolver then
+checks exactly:
+
+```python
+def _upstream_bindings():
+    # symbols this patch rebinds at runtime that its imports don't reveal
+    return [
+        ("vllm.model_executor.models.gemma4", "Gemma4ForCausalLM"),
+        ("vllm.v1.attention.backends.gdn_attn", "GDNAttentionBackend"),
+    ]
+```
+
+Declaring it turns a `needs_fixture` (runtime-only) patch into a statically
+checked one — the cheapest way to make a future bump safer for that patch.
+
+---
+
 ## 6. Routine drift audit (between bumps)
 
 You do not need a bump to use this system. To confirm the live engine still
